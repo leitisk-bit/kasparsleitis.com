@@ -17,5 +17,27 @@ jobs:
             mirror --parallel=8 --exclude-glob '*.php' --exclude-glob '*.js' --exclude-glob '*.css' --exclude-glob '*.woff*' --exclude-glob '*.ttf' --exclude-glob '*.eot' ncsitebuilder builder; bye"
           find builder -type f | sed 's/^/F /' | head -300
           du -sh builder
-      - uses: actions/upload-artifact@v4
-        with: { name: builder, path: builder, retention-days: 1 }
+      - name: Print the page texts
+        run: |
+          echo "== sitemap"; cat builder/sitemap.txt; echo
+          python3 - <<'PY'
+          import sqlite3, json, re, html
+          c = sqlite3.connect('builder/dat/project.db')
+          tabs = [r[0] for r in c.execute("select name from sqlite_master where type='table'")]
+          print("== tables", tabs)
+          seen = set()
+          for t in tabs:
+              cols = [r[1] for r in c.execute(f"pragma table_info('{t}')")]
+              for row in c.execute(f"select * from '{t}'"):
+                  for v in row:
+                      if isinstance(v, bytes):
+                          try: v = v.decode('utf-8')
+                          except: continue
+                      if not isinstance(v, str): continue
+                      for m in re.findall(r'"(?:content|text|title|html|name|value|href|src|alt)"\s*:\s*"((?:[^"\\]|\\.){3,})"', v):
+                          try: m = json.loads('"' + m + '"')
+                          except Exception: pass
+                          m = re.sub(r'<[^>]+>', ' ', html.unescape(m)); m = re.sub(r'\s+', ' ', m).strip()
+                          if len(m) > 2 and m not in seen:
+                              seen.add(m); print("T", t, "|", m[:400])
+          PY
