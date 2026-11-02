@@ -8,7 +8,7 @@ jobs:
       - run: |
           B=https://telpuo.kasparsleitis.com
           curl -s --max-time 30 $B/api/maps > maps.json
-          echo "page version: $(curl -s --max-time 30 $B/ | grep -c CHECKED_NO_RES) (1 = has the latest form fix)"
+          echo "replay version: $(curl -s --max-time 30 $B/replay | grep -c SPEEDS) (1 = has the speed buttons)"
           python3 - <<'PY'
           import json, urllib.request
           B = 'https://telpuo.kasparsleitis.com'
