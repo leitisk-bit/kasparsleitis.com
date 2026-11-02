@@ -39,4 +39,7 @@ jobs:
             code=$(curl -sk -o page.html -w '%{http_code}' --max-time 30 "https://kasparsleitis.com$path")
             echo "$code  https://kasparsleitis.com$path  $(grep -o '<title>[^<]*' page.html | head -1 | sed 's/<title>//')"
           done
+          for url in https://telpuo.kasparsleitis.com/ https://telpuo.kasparsleitis.com/api/admin https://telpuo.kasparsleitis.com/api/maps; do
+            code=$(curl -s -o page.txt -w '%{http_code}' --max-time 30 "$url"); echo "$code  $url  $(head -c 160 page.txt | tr '\n' ' ')"
+          done
           echo "SSL: $(echo | openssl s_client -connect kasparsleitis.com:443 -servername kasparsleitis.com 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null)"
