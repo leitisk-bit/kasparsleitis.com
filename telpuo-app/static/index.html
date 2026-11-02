@@ -27,7 +27,7 @@ header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .brand small{display:block;font:500 11px/1.2 var(--f-body);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
 h2{font:700 16px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
 .btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 13px var(--f-body);cursor:pointer;white-space:nowrap;text-decoration:none}
-.btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.small{height:28px;padding:0 8px;font-size:12px}
+.btn:hover{border-color:var(--muted)} .btn:disabled{opacity:.45;cursor:not-allowed} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.small{height:28px;padding:0 8px;font-size:12px}
 .btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
 .field{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:7px 9px;font:13px var(--f-body)}
@@ -125,7 +125,7 @@ body:not(.is-admin) .admin-only{display:none!important}
                   <div class="muted">Open the race on lof.lv, choose <b>Split</b>, and save the page as PDF (Print → Save as PDF) or as a web page. Or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
                   <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,application/pdf,text/html">
                   <textarea class="field" id="resText" rows="2" placeholder="…or paste the results page here"></textarea>
-                  <button class="btn primary small" type="button" id="resBtn">Import results</button>
+                  <button class="btn primary small" type="button" id="resBtn">Import and save results</button>
                 </div>
               </details>
             </div>
@@ -146,7 +146,8 @@ body:not(.is-admin) .admin-only{display:none!important}
                 <div class="muted" id="rSplitInfo"></div>
               </div>
               <button class="btn primary" type="submit" id="rBtn" disabled>Save my run</button>
-              <div class="muted" id="rNote"></div>
+              <div class="muted" id="rNote">Choose your TCX file first.</div>
+              <div class="status" id="rSaved" hidden></div>
             </form>
             <h2 style="margin-top:6px">Runs on this map</h2>
             <div class="list runs" id="runList"></div>
@@ -271,12 +272,13 @@ $('#rSplits').oninput = () => { const t=$('#rSplits').value.replace(/\([^)]*\)/g
   $('#rSplitInfo').textContent = t.length ? `${t.length} times found; this course has ${n} legs (controls + finish).` : `This course has ${n} legs.`; };
 /* ---------- add a run: TCX first, then whose run ---------- */
 let CHECK=null, CHECKED_NO_RES=false;
-function resetRunForm(){ CHECK=null; $('#rCheck').hidden=true; $('#whoBox').hidden=true; $('#whoList').innerHTML=''; $('#rBtn').disabled=!(ADMIN && !RES); $('#rNote').textContent=''; }
+function resetRunForm(){ CHECK=null; $('#rCheck').hidden=true; $('#whoBox').hidden=true; $('#whoList').innerHTML=''; $('#rBtn').disabled=!(ADMIN && !RES);
+  $('#rNote').textContent = $('#rTrack').files[0] ? '' : (RES || !ADMIN ? 'Choose your TCX file first.' : ''); }
 function whoChosen(){ const r=$('#whoList input:checked'); if (r) return JSON.parse(r.value); const v=$('#whoAll').value; return v?JSON.parse(v):null; }
 function updateWho(){ const w=whoChosen(); $('#rBtn').disabled=!w;
-  $('#rNote').innerHTML = w ? (w.has_run ? `<b>${esc(w.name)} already has a saved run here. Saving replaces it.</b>` : `Will be saved as <b>${esc(w.name)}</b> (${esc(w.group)}).`) : ''; }
+  $('#rNote').innerHTML = w ? (w.has_run ? `<b>${esc(w.name)} already has a saved run here. Saving replaces it.</b>` : `Press <b>Save my run</b> to save it as <b>${esc(w.name)}</b> (${esc(w.group)}).`) : 'Choose your name, then press Save my run.'; }
 $('#rTrack').onchange = async () => {
-  resetRunForm(); const f=$('#rTrack').files[0]; if (!f) return;
+  $('#rSaved').hidden=true; resetRunForm(); const f=$('#rTrack').files[0]; if (!f) return;
   if (!RES) await loadResults(true, true);          // results may have been added since the page opened
   CHECKED_NO_RES = !RES;
   if (!RES){ if (!ADMIN){ $('#rCheck').hidden=false; $('#rCheck').textContent='Results for this map have not been added yet, so runs can\'t be saved. Try again later.'; } else $('#rBtn').disabled=false; return; }
@@ -300,7 +302,13 @@ $('#runForm').onsubmit = async e => { e.preventDefault();
   if (RES){ const w=whoChosen(); if (!f || !w){ toast('Choose your TCX file and whose run it is.'); return; } fd.append('group',w.group); fd.append('runner',w.name); }
   else { if (!$('#rName').value.trim() || !$('#rSplits').value.trim()){ toast('Fill in the name and split times.'); return; } fd.append('name',$('#rName').value); fd.append('splits',$('#rSplits').value); }
   if (f) fd.append('track',f);
-  $('#rBtn').disabled=true; try { await api('maps/'+M.id+'/runs',{method:'POST',body:fd}); toast('Saved. Working out the route takes a minute or two.'); $('#rTrack').value=''; $('#rSplits').value=''; resetRunForm(); openMap(M.id); } catch(err){ toast(err.message); $('#rBtn').disabled=false; } };
+  const who = RES ? whoChosen().name : $('#rName').value;
+  $('#rBtn').disabled=true; $('#rBtn').textContent='Saving…';
+  try { await api('maps/'+M.id+'/runs',{method:'POST',body:fd});
+    $('#rSaved').hidden=false; $('#rSaved').innerHTML=`<span class="pill ok">✓ saved on the server</span> ${esc(who)}'s run. The route is being worked out now (1–2 minutes); it appears under <b>Runs on this map</b> with a <b>Replay</b> button when ready.`;
+    $('#rTrack').value=''; $('#rSplits').value=''; resetRunForm(); openMap(M.id); }
+  catch(err){ toast(err.message); $('#rSaved').hidden=false; $('#rSaved').innerHTML=`<span class="bad">Not saved: ${esc(err.message)}</span>`; $('#rBtn').disabled=false; }
+  $('#rBtn').textContent='Save my run'; };
 
 /* ---------- results (admin imports, everyone sees a summary) ---------- */
 let RES=null, RES_MAP=null;
@@ -318,7 +326,7 @@ function renderResults(quiet){
     $('#resPublic').textContent = ADMIN ? '' : 'Results for this map are not added yet.'; resetRunForm(); return; }
   const n=RES.groups.reduce((a,g)=>a+g.runners.length,0);
   const line=`<b>${esc(RES.event||'Results')}</b> · ${n} runners in ${RES.groups.map(g=>esc(g.name)).join(', ')}`;
-  $('#resInfo').innerHTML=line + (RES.codes ? `<br>Controls: ${RES.codes.filter(c=>c!=='F').map(esc).join(' – ')}` : '');
+  $('#resInfo').innerHTML='<span class="pill ok">✓ saved on the server</span> '+line + (RES.codes ? `<br>Controls: ${RES.codes.filter(c=>c!=='F').map(esc).join(' – ')}` : '');
   $('#resPublic').innerHTML = ADMIN ? '' : line;
   // a watch file already chosen before the results arrived: check it again now
   if (!quiet && $('#rTrack').files[0] && CHECKED_NO_RES) $('#rTrack').onchange(); else if (!$('#rTrack').files[0]) resetRunForm();
@@ -327,9 +335,10 @@ $('#resBtn').onclick = async () => {
   const fd=new FormData(); const f=$('#resFile').files[0];
   if (f) fd.append('file',f); else if ($('#resText').value.trim()) fd.append('text',$('#resText').value); else { toast('Choose the results file or paste the page.'); return; }
   $('#resBtn').disabled=true;
-  try { const r=await api('maps/'+M.id+'/results',{method:'POST',body:fd}); toast(`Imported ${r.runners} runners: ${r.groups.join(', ')}`); $('#resFile').value=''; $('#resText').value=''; $('#resImport').open=false; await loadResults(true); openMap(M.id); }
-  catch(err){ toast(err.message); }
-  $('#resBtn').disabled=false; };
+  $('#resBtn').textContent='Saving…';
+  try { const r=await api('maps/'+M.id+'/results',{method:'POST',body:fd}); toast(`Saved: ${r.runners} runners in ${r.groups.join(', ')}`); $('#resFile').value=''; $('#resText').value=''; $('#resImport').open=false; await loadResults(true); openMap(M.id); }
+  catch(err){ toast(err.message); $('#resInfo').innerHTML=`<span class="bad">Not saved: ${esc(err.message)}</span>`; }
+  $('#resBtn').disabled=false; $('#resBtn').textContent='Import and save results'; };
 
 $$('.tabs button').forEach(b=>b.onclick=()=>{ $$('.tabs button').forEach(x=>x.setAttribute('aria-selected', x===b)); $$('[data-pane]').forEach(p=>p.hidden = p.dataset.pane!==b.dataset.tab); setPick(null); draw(); });
 
