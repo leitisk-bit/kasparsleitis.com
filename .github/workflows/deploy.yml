@@ -32,3 +32,11 @@ jobs:
             **/.git*
             **/.git*/**
             **/.DS_Store
+
+      - name: Check the live site
+        run: |
+          for path in / /telpuO/ /telpuO/rk2026-2/; do
+            code=$(curl -sk -o page.html -w '%{http_code}' --max-time 30 "https://kasparsleitis.com$path")
+            echo "$code  https://kasparsleitis.com$path  $(grep -o '<title>[^<]*' page.html | head -1 | sed 's/<title>//')"
+          done
+          echo "SSL: $(echo | openssl s_client -connect kasparsleitis.com:443 -servername kasparsleitis.com 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null)"
