@@ -270,13 +270,15 @@ $('#cmpBtn').onclick = () => { const ids=$$('#runList input:checked').map(i=>i.v
 $('#rSplits').oninput = () => { const t=$('#rSplits').value.replace(/\([^)]*\)/g,' ').match(/\d+(?::\d{1,2}){0,2}/g)||[]; const n=(F?.controls?.length||1)-1;
   $('#rSplitInfo').textContent = t.length ? `${t.length} times found; this course has ${n} legs (controls + finish).` : `This course has ${n} legs.`; };
 /* ---------- add a run: TCX first, then whose run ---------- */
-let CHECK=null;
+let CHECK=null, CHECKED_NO_RES=false;
 function resetRunForm(){ CHECK=null; $('#rCheck').hidden=true; $('#whoBox').hidden=true; $('#whoList').innerHTML=''; $('#rBtn').disabled=!(ADMIN && !RES); $('#rNote').textContent=''; }
 function whoChosen(){ const r=$('#whoList input:checked'); if (r) return JSON.parse(r.value); const v=$('#whoAll').value; return v?JSON.parse(v):null; }
 function updateWho(){ const w=whoChosen(); $('#rBtn').disabled=!w;
   $('#rNote').innerHTML = w ? (w.has_run ? `<b>${esc(w.name)} already has a saved run here. Saving replaces it.</b>` : `Will be saved as <b>${esc(w.name)}</b> (${esc(w.group)}).`) : ''; }
 $('#rTrack').onchange = async () => {
   resetRunForm(); const f=$('#rTrack').files[0]; if (!f) return;
+  if (!RES) await loadResults(true, true);          // results may have been added since the page opened
+  CHECKED_NO_RES = !RES;
   if (!RES){ if (!ADMIN){ $('#rCheck').hidden=false; $('#rCheck').textContent='Results for this map have not been added yet, so runs can\'t be saved. Try again later.'; } else $('#rBtn').disabled=false; return; }
   const fd=new FormData(); fd.append('track',f); $('#rCheck').hidden=false; $('#rCheck').textContent='Reading your watch file…';
   try { CHECK=await api('maps/'+M.id+'/runs/check',{method:'POST',body:fd}); }
@@ -302,14 +304,14 @@ $('#runForm').onsubmit = async e => { e.preventDefault();
 
 /* ---------- results (admin imports, everyone sees a summary) ---------- */
 let RES=null, RES_MAP=null;
-async function loadResults(force){
+async function loadResults(force, quiet){
   if (!M) return;
-  if (!force && RES_MAP===M.id) return renderResults();
-  RES_MAP=M.id; RES=null;
-  try { const r=await api('maps/'+M.id+'/results'); RES = r.groups && r.groups.length ? r : null; } catch(e){ RES=null; }
-  renderResults();
+  if (!force && RES_MAP===M.id) return renderResults(quiet);
+  const had=!!RES; RES_MAP=M.id;
+  try { const r=await api('maps/'+M.id+'/results?'+Date.now()); RES = r.groups && r.groups.length ? r : null; } catch(e){ if (!had) RES=null; }
+  renderResults(quiet || (had && !!RES));
 }
-function renderResults(){
+function renderResults(quiet){
   const has=!!RES; $('#manualBox').hidden=has;
   $('#resSum').textContent = has ? 'Replace results' : 'Import results with splits';
   if (!has){ $('#resInfo').textContent='No results imported yet. Import them once; then runners only add their TCX and choose their name.';
@@ -318,7 +320,8 @@ function renderResults(){
   const line=`<b>${esc(RES.event||'Results')}</b> · ${n} runners in ${RES.groups.map(g=>esc(g.name)).join(', ')}`;
   $('#resInfo').innerHTML=line + (RES.codes ? `<br>Controls: ${RES.codes.filter(c=>c!=='F').map(esc).join(' – ')}` : '');
   $('#resPublic').innerHTML = ADMIN ? '' : line;
-  if (!$('#rTrack').files[0]) resetRunForm();
+  // a watch file already chosen before the results arrived: check it again now
+  if (!quiet && $('#rTrack').files[0] && CHECKED_NO_RES) $('#rTrack').onchange(); else if (!$('#rTrack').files[0]) resetRunForm();
 }
 $('#resBtn').onclick = async () => {
   const fd=new FormData(); const f=$('#resFile').files[0];
