@@ -23,7 +23,7 @@ services:
   # Start with:  docker compose --profile public up -d
   # In Cloudflare, the tunnel's public hostname points to the service URL  http://web:8000
   tunnel:
-    image: cloudflare/cloudflared:2024.12.2
+    image: cloudflare/cloudflared:latest    # Cloudflare stops supporting old versions; this follows their current release
     profiles: ["public"]
     restart: unless-stopped
     command: tunnel --no-autoupdate run
