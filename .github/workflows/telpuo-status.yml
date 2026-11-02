@@ -1,0 +1,23 @@
+# Reads the public Telpu O app and prints what it has stored: maps, results, runs. Read-only.
+name: Telpu O status
+on: { workflow_dispatch: {} }
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          B=https://telpuo.kasparsleitis.com
+          curl -s --max-time 30 $B/api/maps > maps.json
+          python3 - <<'PY'
+          import json, urllib.request
+          B = 'https://telpuo.kasparsleitis.com'
+          get = lambda p: json.load(urllib.request.urlopen(urllib.request.Request(B + p, headers={'User-Agent': 'status-check'}), timeout=30))
+          maps = json.load(open('maps.json'))
+          print(len(maps), 'maps')
+          for m in maps:
+              r = get(f"/api/maps/{m['id']}/results")
+              d = get(f"/api/maps/{m['id']}")
+              print(f"- {m['id']} | {m.get('name')} | status={m.get('status')} | controls={m.get('controls')} | legs={len(d['features']['controls'])-1 if d.get('features') else '?'}"
+                    f" | results: {r.get('event','-')} groups={[g['name'] for g in r.get('groups',[])]} runners={sum(len(g['runners']) for g in r.get('groups',[]))}"
+                    f" | meta.results={m.get('results')} | runs={[(x.get('name'), x.get('status')) for x in d.get('runs',[])]}")
+          PY
