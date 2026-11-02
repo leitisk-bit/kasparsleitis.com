@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Telpu O · Kaspars Leitis</title>
+<meta name="description" content="Indoor orienteering (telpu orientēšanās) route replays by Kaspars Leitis, floor by floor on the map and in 3D.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="mark" href="/"><span class="flag" aria-hidden="true"></span>Kaspars Leitis</a>
+    <nav class="nav" aria-label="Main"><a href="/">Home</a><a href="/telpuO/" aria-current="page">Telpu O</a></nav>
+  </header>
+
+  <main>
+    <div class="hero" style="padding-bottom:36px">
+      <div class="eyebrow">Telpu orientēšanās · indoor orienteering</div>
+      <h1 style="font-size:clamp(46px,9vw,84px)">Indoor route replays</h1>
+      <p class="lede">Each race is replayed on the course map, floor by floor, and in 3D with the floors stacked into the building. Routes are worked out from my split times and my watch's altitude: which staircase, which corridor, and where I turned back.</p>
+    </div>
+
+    <section aria-labelledby="races">
+      <h2 id="races">Races</h2>
+      <ul class="legend">
+        <li><a href="/telpuO/rk2026-2/">
+          <svg class="sym" viewBox="0 0 44 44" aria-hidden="true"><path d="M22 6 L38 34 L6 34Z" fill="none" stroke="var(--course)" stroke-width="3" stroke-linejoin="round"/></svg>
+          <span class="t">Rīgas telpu kauss 2026 · 2. posms</span>
+          <span class="d"><span class="mono">24.10.2026</span> · RTU Datorzinātņu centrs · course A, 10 controls, 6 floors<br><span class="mono">36:38</span> · 23rd in V35</span>
+          <span class="go">Replay →</span></a></li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="how">
+      <h2 id="how">How the routes are found</h2>
+      <p>The course map is read from its PDF: floors, stairwell letters, one-way stairs (red flights go up, blue go down), tape and one-way corridors. Every possible route between controls is listed, then matched against the time of each leg and the altitude the watch recorded every second. Floor changes show up clearly in the altitude, so the replay follows the stairs I really took, including detours.</p>
+    </section>
+  </main>
+
+  <footer><span>© 2026 Kaspars Leitis</span><a href="/">kasparsleitis.com</a></footer>
+</div>
+</body>
+</html>

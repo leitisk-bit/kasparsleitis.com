@@ -1,51 +1,34 @@
-# Powered by Website Builder
+# kasparsleitis.com — plain HTML site deployed from GitHub (leitisk-bit/kasparsleitis.com).
+# The old Website Builder files (index.php, ncsitebuilder/) are left on the server but no longer used.
 
 <IfModule pagespeed_module>
 	ModPagespeed off
 </IfModule>
 
+DirectoryIndex index.html index.php
+ErrorDocument 404 /404.html
+Options -Indexes
+
 <IfModule mod_expires.c>
 	ExpiresActive On
-	ExpiresDefault A0
-	ExpiresByType image/gif A691200
-	ExpiresByType image/png A691200
-	ExpiresByType image/jpeg A691200
-	ExpiresByType text/css A691200
-	ExpiresByType text/javascript A691200
-	ExpiresByType application/javascript A691200
-	ExpiresByType font/otf A691200
-	ExpiresByType font/ttf A691200
-	ExpiresByType font/woff A691200
-	ExpiresByType font/woff2 A691200
+	ExpiresByType text/html A300
+	ExpiresByType image/svg+xml A604800
+	ExpiresByType image/png A604800
+	ExpiresByType image/jpeg A604800
+	ExpiresByType image/webp A604800
+	ExpiresByType text/css A3600
+	ExpiresByType application/javascript A3600
 </IfModule>
 
-<FilesMatch "^(web\.config)$">
-	<IfModule mod_authz_core.c>
-		Require all denied
-	</IfModule>
-	<IfModule !mod_authz_core.c>
-		Order allow,deny
-	</IfModule>
+<FilesMatch "^(web\.config|\.ftp-deploy-sync-state\.json)$">
+	Require all denied
 </FilesMatch>
-ErrorDocument 401 "Unauthorized"
-ErrorDocument 403 "Forbidden"
-<IfModule mod_negotiation.c>
-	#Options -MultiViews
-</IfModule>
+
 RewriteEngine On
 RewriteBase /
-RewriteCond %{HTTP:Authorization} ^(.*)
-RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
-RewriteCond %{HTTP:X-Server-Addr} ^(.*)
-RewriteRule .* - [e=HTTP_X_SERVER_ADDR:%1]
 RewriteRule ^\.well-known/.+ - [L]
 
-
-DirectoryIndex index.php index.cgi index.html
-RewriteCond %{REQUEST_FILENAME} !-f [OR]
-RewriteCond %{REQUEST_URI} ^\/(js\/(main\.js|bootstrap\.min\.js)|css\/([0-9a-f]+\.css|common\.css|site\.css|bootstrap\.min\.css)|sitemap\.xml)$
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ ncsitebuilder/$1 [L,QSA]
-
-
-#### PERSISTENT CONTENT ####
+# /telpuo, /TelpuO … → /telpuO/
+RewriteCond %{REQUEST_URI} !^/telpuO(/|$)
+RewriteRule ^telpuo(/.*)?$ /telpuO$1 [R=301,L,NC]
+RewriteRule ^telpuO$ /telpuO/ [R=301,L]
