@@ -89,6 +89,9 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 #scrub{width:100%;height:44px;display:block;cursor:pointer;border-radius:4px;touch-action:none}
 .tctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .tctl .btn{height:30px;padding:0 8px;font-size:12px}
+.speed{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.speed .btn{border:0;border-radius:0;height:30px;min-width:32px;font-size:16px;font-weight:600}
+.speed .spd{min-width:52px;text-align:center;font:600 13px var(--f-mono);font-variant-numeric:tabular-nums;border-inline:1px solid var(--line);line-height:30px;padding:0 4px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 .drop{position:fixed;inset:0;background:var(--accent-soft);border:3px dashed var(--accent);z-index:30;display:grid;place-items:center;font:700 28px var(--f-display);color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
 @media (max-width:860px){
@@ -196,7 +199,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
     <div class="tctl">
       <button class="btn" data-step="-5">−5s</button><button class="btn" data-step="-1">−1s</button>
       <button class="btn" data-step="1">+1s</button><button class="btn" data-step="5">+5s</button>
-      <select id="speed" aria-label="Playback speed"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>16</option><option>32</option></select>
+      <div class="speed" role="group" aria-label="Replay speed"><button class="btn" id="slower" type="button" aria-label="Slower" title="Slower (−)">−</button><span class="spd" id="spdVal" aria-live="polite">×20</span><button class="btn" id="faster" type="button" aria-label="Faster" title="Faster (+)">+</button></div>
     </div>
   </div>
 </div>
@@ -245,7 +248,7 @@ const $ = s => document.querySelector(s);
 const COLORS = ['#E3262B','#1F6FE0','#F29A07','#0E9F6E','#7B3FE4','#E0457B','#13A3B5','#6B7A0F'];
 const S = {
   map:null, mapKey:null, pdf:null, runners:[], anchors:[], origin:null, T:[1,0,0,0,-1,0],
-  affine:false, mode:'view', tau:0, playing:false, speed:4, tail:30, showFull:true, timing:'mass',
+  affine:false, mode:'view', tau:0, playing:false, speed:20, tail:30, showFull:true, timing:'mass',
   sel:0, view:{k:1,x:0,y:0}, sample:true,
   draft:{ pts:[], abs0:0 }, addType:'bend', scaleDen:500
 };
@@ -731,7 +734,12 @@ $('#showFull').onchange = e => { S.showFull=e.target.checked; requestDraw(); };
 function setFollow(on){ S.follow=on; $('#follow').checked=on; if (on && S.map){ const fk=Math.min(cw/S.map.w, ch/S.map.h); if (S.view.k < fk*2.5) S.view.k=fk*3; } requestDraw(); }
 $('#follow').onchange = e => setFollow(e.target.checked);
 $('#timing').onchange = e => { const r=S.runners[S.sel], t=r?runnerT(r):0; S.timing=e.target.value; if (r) setTau(tauFor(r,t)); else setTau(0); };
-$('#speed').onchange = e => S.speed=+e.target.value;
+const SPEEDS=[1,2,5,10,20,50,100];
+function setSpeed(v){ S.speed=v; $('#spdVal').textContent='×'+v; $('#slower').disabled=v===SPEEDS[0]; $('#faster').disabled=v===SPEEDS[SPEEDS.length-1]; }
+function stepSpeed(d){ const i=SPEEDS.indexOf(S.speed); setSpeed(SPEEDS[Math.max(0,Math.min(SPEEDS.length-1,(i<0?4:i)+d))]); }
+$('#slower').onclick=()=>stepSpeed(-1); $('#faster').onclick=()=>stepSpeed(1);
+document.addEventListener('keydown', e => { if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return; if (e.key==='+'||e.key==='='){ stepSpeed(1); e.preventDefault(); } else if (e.key==='-'||e.key==='_'){ stepSpeed(-1); e.preventDefault(); } });
+setSpeed(20);
 document.querySelectorAll('[data-step]').forEach(b => b.onclick = () => setTau(S.tau + +b.dataset.step));
 $('#trimStart').onclick = () => { const r=S.runners[S.sel]; if (!r) return; const t=runnerT(r); if (t>=r.end) return;
   r.start=Math.max(0,t); computeT(); renderRunners(); setTau(tauFor(r,r.start)); };
