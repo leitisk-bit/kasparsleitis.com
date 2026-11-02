@@ -182,7 +182,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
         <label class="muted" for="tail">Tail: <span id="tailVal">30 s</span></label>
         <input type="range" id="tail" min="0" max="180" step="5" value="30">
         <div class="row">
-          <label><input type="checkbox" id="showFull" checked> Whole route</label>
+          <label>Route on map <select id="routeMode" aria-label="Route on map"><option value="leg" selected>Current leg, as run</option><option value="all">Whole route</option></select></label>
           <label><input type="checkbox" id="follow"> Follow runner</label>
           <select id="timing" aria-label="Start timing"><option value="mass">Common start</option><option value="real">Real clock time</option></select>
         </div>
@@ -248,7 +248,7 @@ const $ = s => document.querySelector(s);
 const COLORS = ['#E3262B','#1F6FE0','#F29A07','#0E9F6E','#7B3FE4','#E0457B','#13A3B5','#6B7A0F'];
 const S = {
   map:null, mapKey:null, pdf:null, runners:[], anchors:[], origin:null, T:[1,0,0,0,-1,0],
-  affine:false, mode:'view', tau:0, playing:false, speed:20, tail:30, showFull:true, timing:'mass',
+  affine:false, mode:'view', tau:0, playing:false, speed:20, tail:30, showFull:false, routeMode:'leg', timing:'mass',
   sel:0, view:{k:1,x:0,y:0}, sample:true,
   draft:{ pts:[], abs0:0 }, addType:'bend', scaleDen:500
 };
@@ -525,7 +525,9 @@ function draw(){
       const i0=idxAt(r,r.start), i1=idxAt(r,r.end);
       for (let i=i0;i<=i1;i++) (i===i0 || p[i].jump) ? ctx.moveTo(p[i].u,p[i].v) : ctx.lineTo(p[i].u,p[i].v); ctx.stroke(); ctx.globalAlpha=1; }
     const tc = Math.min(Math.max(t, r.start), r.end);
-    if (S.tail > 0 && t > r.start){ const t0=Math.max(r.start, tc-S.tail), a0=at(r,t0), a1=at(r,tc);
+    // 'Current leg, as run': only the leg being run, drawn up to where the runner is now (nothing ahead)
+    const legMode = S.routeMode !== 'all', L = legMode && r.legs ? (r.legs.find(x => tc >= x.t0 && tc < x.t1) || r.legs[r.legs.length-1]) : null;
+    if ((legMode ? t > r.start : S.tail > 0 && t > r.start)){ const t0 = legMode ? Math.max(r.start, L ? L.t0 : r.start) : Math.max(r.start, tc-S.tail), a0=at(r,t0), a1=at(r,tc);
       ctx.strokeStyle=r.color; ctx.lineWidth=5*lw; ctx.beginPath(); ctx.moveTo(a0.u,a0.v);
       for (let i=a0.i+1;i<=a1.i;i++) p[i].jump ? ctx.moveTo(p[i].u,p[i].v) : ctx.lineTo(p[i].u,p[i].v);
       if (!(p[a1.i+1] && p[a1.i+1].jump)) ctx.lineTo(a1.u,a1.v); ctx.stroke(); }
@@ -730,7 +732,7 @@ $('#pageSel').onchange = e => renderPdfPage(+e.target.value);
 $('#affine').onchange = e => { S.affine=e.target.checked; saveAnchors(); computeT(); };
 $('#clearAnchors').onclick = () => { S.anchors=[]; saveAnchors(); computeT(); };
 $('#tail').oninput = e => { S.tail=+e.target.value; $('#tailVal').textContent = S.tail ? S.tail+' s' : 'off'; requestDraw(); };
-$('#showFull').onchange = e => { S.showFull=e.target.checked; requestDraw(); };
+$('#routeMode').onchange = e => { S.routeMode=e.target.value; S.showFull = S.routeMode==='all'; requestDraw(); };
 function setFollow(on){ S.follow=on; $('#follow').checked=on; if (on && S.map){ const fk=Math.min(cw/S.map.w, ch/S.map.h); if (S.view.k < fk*2.5) S.view.k=fk*3; } requestDraw(); }
 $('#follow').onchange = e => setFollow(e.target.checked);
 $('#timing').onchange = e => { const r=S.runners[S.sel], t=r?runnerT(r):0; S.timing=e.target.value; if (r) setTau(tauFor(r,t)); else setTau(0); };
@@ -943,7 +945,7 @@ async function start(){
     const dot = new THREE.Mesh(new THREE.SphereGeometry(r.ghost ? 1.0 : 1.3, 20, 14), new THREE.MeshBasicMaterial({ color, depthTest:false })); dot.renderOrder = 9;
     const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 6), new THREE.MeshBasicMaterial({ color, depthTest:false, transparent:true, opacity:.8 })); pin.renderOrder = 8;
     const grp = new THREE.Group(); grp.add(full, done, dot, pin); scene.add(grp);
-    return { ri, ghost:r.ghost, P, g1, g2, full, grp, dot, pin };
+    return { ri, ghost:r.ghost, P, g1, g2, full, grp, dot, pin, A:null, legI0:-1 };
   });
   const ME = R.find(r => !r.ghost) || R[0];
   if (!ME.P.length) throw new Error('this run has no route points');
@@ -953,7 +955,7 @@ async function start(){
     ctrlObjs.forEach(g => g.position.set(g.userData.x, yOf(g.userData.floor) + 0.15, g.userData.z));
     R.forEach(r => { const a = new Float32Array(r.P.length*3);
       r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = (p.fz - 1)*H0*gapK + 0.5; a[i*3+2] = p.z; });
-      r.g1.setPositions(a); r.g2.setPositions(a); });
+      r.A = a; r.legI0 = -1; r.g1.setPositions(a); r.g2.setPositions(a); });
   }
   function idxAt(r, tt){ let lo = 0, hi = r.P.length - 1; if (tt <= r.P[0].t) return 0; if (tt >= r.P[hi].t) return hi;
     while (hi - lo > 1){ const m = (lo + hi) >> 1; if (r.P[m].t <= tt) lo = m; else hi = m; } return lo; }
@@ -972,7 +974,12 @@ async function start(){
       const p = posAt(r, timeOf(r)); r.cur = p; if (!vis) return;
       r.dot.position.set(p.x, p.y + 0.9, p.z);
       const base = (Math.round(p.fz) - 1)*H0*gapK; r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
-      r.g2.instanceCount = Math.max(0, p.i);
+      const legMode = !s || s.routeMode !== 'all';
+      r.full.visible = !legMode;
+      let i0 = 0;
+      if (legMode && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); }
+      if (i0 !== r.legI0 && r.A){ r.g2.setPositions(r.A.subarray(i0*3)); r.legI0 = i0; }
+      r.g2.instanceCount = Math.max(0, p.i - i0);
     });
     const me = ME.cur, curF = Math.round(me.fz), fade = $('#o3Fade').checked;
     plates.forEach(m => { const on = !fade || m.userData.floor === curF; m.material.opacity = on ? 1 : 0.22; m.material.alphaTest = on ? 0.4 : 0.05; m.material.depthWrite = on; });
