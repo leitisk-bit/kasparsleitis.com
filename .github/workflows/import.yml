@@ -1,0 +1,41 @@
+# One-off: copies what is on the Namecheap site now into site/ and commits it,
+# so the repository starts from the real current site. Run it from the Actions tab.
+name: Import current site from Namecheap
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Download the site
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_DIR: ${{ secrets.FTP_DIR }}
+        run: |
+          mkdir -p site
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "ftp://$FTP_SERVER" -e "
+            set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no;
+            mirror --verbose --parallel=4 \
+              --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob error_log --exclude-glob '*.log' \
+              \"$FTP_DIR\" site; bye"
+          echo "Files: $(find site -type f | wc -l), size: $(du -sh site | cut -f1)"
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site
+          git diff --cached --quiet && echo "Nothing new" || git commit -m "Import current site from Namecheap"
+          git push
