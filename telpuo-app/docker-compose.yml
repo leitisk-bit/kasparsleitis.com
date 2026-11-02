@@ -19,5 +19,23 @@ services:
           cpus: "1.5"     # reading a map / working out a route is heavy; leaves room for Jellyfin
           memory: 3g
 
+  # Cloudflare Tunnel: makes the app public at https://telpuo.kasparsleitis.com without opening router ports.
+  # Start with:  docker compose --profile public up -d
+  # In Cloudflare, the tunnel's public hostname points to the service URL  http://web:8000
+  tunnel:
+    image: cloudflare/cloudflared:2024.12.2
+    profiles: ["public"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in the .env file (from the Cloudflare tunnel page)}
+    depends_on:
+      - web
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+
 volumes:
   data:

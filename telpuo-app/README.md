@@ -34,6 +34,11 @@ cd ~/kasparsleitis.com && git pull && cd telpuo-app && docker compose up -d --bu
 
 **Logs:** `docker compose logs -f web`
 
+**Public address (Cloudflare Tunnel):** put the tunnel token in `.env` as `TUNNEL_TOKEN`, then run
+`docker compose --profile public up -d --build`. In Cloudflare, the tunnel's public hostname
+`telpuo.kasparsleitis.com` points to the service `http://web:8000`. No router ports are opened.
+Updates then use `docker compose --profile public up -d --build`.
+
 `install.sh` and `nginx-oreplay.conf` are an alternative for a server without Docker.
 
 ## Timing
