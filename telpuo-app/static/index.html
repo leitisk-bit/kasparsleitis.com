@@ -65,6 +65,8 @@ body:not(.is-admin) .admin-only{display:none!important}
 .who{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
 .who:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 .who .m{font:500 12.5px var(--f-mono)}
+.legcheck{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:12.5px}
+.ok{color:var(--ok,#1a7f45)}
 .status{font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
 .drop{border:2px dashed var(--line);border-radius:8px;padding:18px;text-align:center;color:var(--muted)}
 .drop.over{border-color:var(--accent);color:var(--accent)}
@@ -186,6 +188,8 @@ body:not(.is-admin) .admin-only{display:none!important}
             <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label>
             <div class="muted" id="iFloors"></div>
             <label style="display:flex;gap:6px;align-items:center" class="muted"><input type="checkbox" id="showLegs" checked> Show the fastest route of every leg</label>
+            <button class="btn small" id="reread" type="button">Read the map again</button>
+            <div class="muted">Reads the PDF from scratch (floors, letters, controls). Your manual fixes are replaced; imported results and saved runs are kept, and runs are worked out again.</div>
             <button class="btn small" id="delMap" style="color:var(--bad)">Delete map and its runs</button>
           </div>
         </div>
@@ -251,9 +255,13 @@ async function openMap(id){
 function renderStatus(){
   const s=$('#mStatus');
   if (M.status==='ready'){
-    const p=M.problems||[];
-    s.innerHTML = p.length ? `<span class="pill bad">check</span> No route found for leg ${p.join(', ')}. Look at the controls, stairs and dead ends of those legs.`
-      : ADMIN ? `<span class="pill ok">ready</span> Route network built. Check the blue fastest route of each leg on the map; fix anything wrong in the tabs and save.` : `Add your run below, or open a saved run to replay it.`;
+    const p=M.problems||[], w=M.warnings||[], L=M.legs_preview||[], ok=L.filter(x=>!x.error).length;
+    if (!ADMIN){ s.innerHTML = p.length ? `<span class="pill bad">not ready</span> This map is still being checked. Runs can be added once it's fixed.` : `Add your run below, or open a saved run to replay it.`; return; }
+    const head = p.length ? `<span class="pill bad">check</span> Routes found for ${ok} of ${L.length} legs. Fix the map reading (Map tab: read again; or Controls / Stairs / Dead ends), then save.`
+      : `<span class="pill ok">ready</span> Routes found for all ${L.length} legs. Check the blue fastest route of each leg on the map.`;
+    const warn = w.map(x=>`<div class="bad">⚠ ${esc(x)}</div>`).join('');
+    const list = L.map(x=>`<li>${x.error?'<span class="bad">✗</span>':'<span class="ok">✓</span>'} Leg ${x.leg}${x.error?' · no route':` · ${esc(x.stairs||'same floor')} · ${fmt(x.time||0)}`}</li>`).join('');
+    s.innerHTML = head + warn + (L.length?`<details ${p.length?'open':''}><summary class="muted">Route check per leg</summary><ul class="legcheck">${list}</ul></details>`:'');
   } else if (M.status==='error') s.innerHTML=`<span class="pill bad">error</span> ${esc(M.message)}`;
   else s.innerHTML=`<span class="pill work">working</span> ${esc(M.message||'')}`;
 }
@@ -410,6 +418,7 @@ $('#addCross').onclick=()=>setPick({t:'cross', hint:'Click the centre of the fou
 $('#showLegs').onchange=draw;
 $('#saveBtn').onclick=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({features:{controls:F.controls,stair_labels:F.stair_labels,oneways:F.oneways,crossings:F.crossings,pockets:F.pockets,floors:F.floors}})}); toast('Saved. Rebuilding the route network…'); openMap(M.id); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message); } };
 ['iName','iEvent','iScale'].forEach(id=>$('#'+id).onchange=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#iName').value,event:$('#iEvent').value,scale:+$('#iScale').value})}); toast('Saved'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} });
+$('#reread').onclick=async()=>{ try { await api('maps/'+M.id+'/reread',{method:'POST'}); toast('Reading the map again. About a minute; saved runs are redone after.'); openMap(M.id); } catch(e){ toast(e.message); } };
 $('#delMap').onclick=async()=>{ if ($('#delMap').dataset.armed!=='1'){ $('#delMap').dataset.armed='1'; $('#delMap').textContent='Click again to delete for good'; return; }
   try { await api('maps/'+M.id,{method:'DELETE'}); location.hash=''; } catch(e){ toast(e.message); } };
 let ADMIN=false;

@@ -55,6 +55,7 @@ def _analyse_now(mid):
     feat, img = analyze.analyze(os.path.join(store.map_dir(mid), 'map.pdf'), m.get('page', 0))
     k = store.save_render(mid, img)
     feat['display_scale'] = k
+    _apply_codes(mid, feat)
     store.set_features(mid, feat)
     store.set_meta(mid, status='building', message='Building the route network…', display_scale=k,
                    size_px=feat['size_px'], floors=[f['floor'] for f in feat['floors']],
@@ -63,6 +64,35 @@ def _analyse_now(mid):
 
 def _build(mid):
     with WORK: _build_now(mid)
+
+def _apply_codes(mid, feat):
+    """Control codes from the imported results onto the map's controls (kept when the map is read again)."""
+    res = store.get_results(mid)
+    if not res: return
+    codes = [c for c in res.get('codes', []) if c != 'F']
+    ctrls = [c for c in feat['controls'] if c['kind'] == 'control']
+    if len(ctrls) == len(codes):
+        for c, code in zip(ctrls, codes): c['code'] = code
+
+def _requeue_runs(mid):
+    """Work out every saved run on this map again (after the map was read again or corrected)."""
+    feat = store.get_features(mid)
+    for r in store.list_runs(mid):
+        run = store.get_run(r['id'])
+        if not run or not run.get('legs_in'): continue
+        obs = []
+        if run.get('track_file'):
+            data = store.load_track(run['track_file'])
+            if data:
+                try:
+                    _, obs = parse_track(data, run['track_file'])
+                    obs = [(t - (run.get('offset') or 0), e, h) for t, e, h in obs]
+                except Exception: obs = []
+        if len(run['legs_in']) != len(feat['controls']) - 1: continue
+        run.update(status='working', message='Waiting for its turn (map was updated)…', error=None)
+        store.set_run(r['id'], run)
+        store.background(_reconstruct, r['id'], mid, run['legs_in'], obs,
+                         on_error=lambda e, rid=r['id']: (lambda x: (x.update(status='error', error=e), store.set_run(rid, x)))(store.get_run(rid)))
 
 def _build_now(mid):
     store.set_meta(mid, status='building', message='Building the route network…')
@@ -88,8 +118,11 @@ def _build_now(mid):
     try: three_d = three.build(img, feat, N, store.map_dir(mid))
     except Exception: traceback.print_exc(); three_d = None
     store.set_meta(mid, three=three_d)
-    store.set_meta(mid, status='ready', message='', legs_preview=preview, problems=problems,
+    fl = sorted(f['floor'] for f in feat.get('floors', []))
+    warn = [] if fl == list(range(fl[0], fl[0] + len(fl))) or not fl else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
+    store.set_meta(mid, status='ready', message='', legs_preview=preview, problems=problems, warnings=warn,
                    flights=flights, suggested_pockets=info['suggested_pockets'], built=time.time())
+    _requeue_runs(mid)
 
 @app.get('/api/maps/<mid>')
 def api_map(mid):
@@ -106,6 +139,14 @@ def api_map_image(mid):
 @app.get('/api/maps/<mid>/pdf')
 def api_map_pdf(mid):
     return send_file(os.path.join(store.map_dir(mid), 'map.pdf'), mimetype='application/pdf')
+
+@app.post('/api/maps/<mid>/reread')
+def api_reread(mid):
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not store.get_meta(mid): abort(404)
+    store.set_meta(mid, status='analysing', message='Reading the map again…')
+    store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
+    return jsonify(ok=True)
 
 @app.get('/api/maps/<mid>/three')
 def api_three(mid):
@@ -299,6 +340,9 @@ def api_new_run(mid):
            'group': group if entry else '', 'club': entry.get('club', '') if entry else '', 'place': entry.get('place') if entry else None,
            'created': time.time(), 'legs_in': legs, 'splits_read_as': how, 'total': sum(legs), 'offset': off,
            'start_ms': (t0 + int(off * 1000)) if t0 else None, 'has_track': bool(obs), 'status': 'working', 'message': 'Waiting for its turn…'}
+    if f and f.filename and obs:
+        try: f.stream.seek(0); run['track_file'] = store.save_track(rid, f.read(), f.filename)
+        except Exception: traceback.print_exc()
     store.set_run(rid, run)
     store.background(_reconstruct, rid, mid, legs, obs, on_error=lambda e: (run.update(status='error', error=e), store.set_run(rid, run)))
     return jsonify(id=rid, offset=off)

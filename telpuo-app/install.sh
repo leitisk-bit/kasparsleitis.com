@@ -14,7 +14,7 @@ if [ -z "${ADMIN_KEY:-}" ]; then
 fi
 SRC="$(cd "$(dirname "$0")" && pwd)"
 apt-get update
-apt-get install -y python3-venv python3-pip poppler-utils
+apt-get install -y python3-venv python3-pip poppler-utils fonts-dejavu-core fonts-liberation
 mkdir -p "$DEST"
 cp -r "$SRC"/app.py "$SRC"/oreplay "$SRC"/static "$SRC"/requirements.txt "$DEST"/
 mkdir -p "$DEST"/data

@@ -4,8 +4,8 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.environ.get('OREPLAY_DATA', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data'))
-MAPS = os.path.join(ROOT, 'maps'); RUNS = os.path.join(ROOT, 'runs')
-os.makedirs(MAPS, exist_ok=True); os.makedirs(RUNS, exist_ok=True)
+MAPS = os.path.join(ROOT, 'maps'); RUNS = os.path.join(ROOT, 'runs'); TRACKS = os.path.join(ROOT, 'tracks')
+os.makedirs(MAPS, exist_ok=True); os.makedirs(RUNS, exist_ok=True); os.makedirs(TRACKS, exist_ok=True)
 DISPLAY_MAX = 4500          # longest side of the image shown in the browser
 _lock = threading.Lock()
 
@@ -70,8 +70,19 @@ def list_runs(mid):
 def get_run(rid): return _r(os.path.join(RUNS, os.path.basename(rid) + '.json'))
 def set_run(rid, r): _w(os.path.join(RUNS, os.path.basename(rid) + '.json'), r)
 def delete_run(rid):
-    try: os.remove(os.path.join(RUNS, os.path.basename(rid) + '.json'))
-    except OSError: pass
+    for p in [os.path.join(RUNS, os.path.basename(rid) + '.json')] + [os.path.join(TRACKS, f) for f in os.listdir(TRACKS) if f.startswith(os.path.basename(rid) + '.')]:
+        try: os.remove(p)
+        except OSError: pass
+
+# the uploaded watch file is kept so the route can be worked out again after the map is fixed
+def save_track(rid, data, name):
+    ext = (os.path.splitext(name)[1] or '.tcx').lower()[:5]
+    with open(os.path.join(TRACKS, os.path.basename(rid) + ext), 'wb') as f: f.write(data)
+    return os.path.basename(rid) + ext
+def load_track(fname):
+    p = os.path.join(TRACKS, os.path.basename(fname))
+    if not os.path.exists(p): return None
+    with open(p, 'rb') as f: return f.read()
 
 # background jobs
 def background(fn, *a, on_error=None):

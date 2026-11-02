@@ -58,6 +58,9 @@ def _templates(chars):
             a = np.array(im) > 127; ys, xs = np.nonzero(a)
             a = a[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
             out.append((ch, _norm(a)))
+    if not out:
+        raise RuntimeError('No reference fonts found for reading floor numbers and stairwell letters '
+                           '(install fonts-dejavu-core and fonts-liberation).')
     _TPL[key] = out
     return out
 
