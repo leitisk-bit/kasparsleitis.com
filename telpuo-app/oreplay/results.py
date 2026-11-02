@@ -25,6 +25,9 @@ def _tokens_pdf(data):
     try: import pymupdf
     except ImportError: import fitz as pymupdf
     doc = pymupdf.open(stream=data, filetype='pdf')
+    if not any(p.get_text().strip() for p in doc):
+        raise ValueError('this PDF has no text, only a picture of the page (it was probably made with "Microsoft Print to PDF"). '
+                         'Print the page again and choose "Save as PDF" as the printer, or copy the whole page and paste it instead')
     out = []
     for page in doc:
         spans = []
