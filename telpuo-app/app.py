@@ -168,6 +168,8 @@ def api_results(mid):
         return jsonify(error=f'Could not read the results: {e}'), 400
     n_legs = len(feat['controls']) - 1
     courses = [c for c in results.courses(res) if len(c['codes']) == n_legs]
+    if not res['groups']:
+        return jsonify(error="No groups with split times found in this file. On lof.lv open the race, choose the Split view, and save that page as PDF (or copy the whole page and paste it)."), 400
     if not courses:
         found = ', '.join(f"{'/'.join(c['groups'])}: {len(c['codes'])} legs" for c in results.courses(res)) or 'no groups'
         return jsonify(error=f'No group in these results ran this course ({n_legs} legs). Found {found}.'), 400

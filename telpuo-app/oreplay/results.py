@@ -5,8 +5,8 @@ Returns {'event': str, 'groups': [{'name', 'codes': [..., 'F'], 'runners': [
 """
 import re
 
-RX_GROUP = re.compile(r'^(\S+)\s+(\d+)\s*kp$', re.I)
-RX_CODE = re.compile(r'^(\d+)\s*kp$', re.I)
+RX_GROUP = re.compile(r'^(\S+)\s+(\d+)\s*k\.?p\.?$', re.I)
+RX_CODE = re.compile(r'^(\d+)\s*k\.?p\.?$', re.I)
 RX_TOTAL = re.compile(r'^(\d{1,2}:\d\d:\d\d)\b\s*(.*)$')
 RX_T = re.compile(r'^(?:(\d+):)?(\d{1,2}):(\d\d)$')
 RX_POS = re.compile(r'^\(\d*\)?$')
@@ -49,6 +49,14 @@ def _split_name_club(words, bold_words):
     flat = ' '.join(words).split()
     return ' '.join(flat[:2]), ' '.join(flat[2:])
 
+def _codes_follow(toks, j):
+    """A group heading ("V35 10 kp") is followed by the control-code row ("45kp 39kp …"), within a few tokens."""
+    seen = 0
+    for t, _, _ in toks[j:j + 12]:
+        if RX_CODE.match(t): seen += 1
+        if seen >= 2: return True
+    return False
+
 def parse(data=None, text=None):
     toks = _tokens_pdf(data) if data is not None else _tokens_text(text or '')
     event = ''
@@ -78,7 +86,7 @@ def parse(data=None, text=None):
     while i < len(toks):
         t, bold, size = toks[i]; low = t.lower()
         m = RX_GROUP.match(t)
-        if m and (size >= 10 or size == 0) and not RX_CODE.match(t):
+        if m and not RX_CODE.match(t) and _codes_follow(toks, i + 1):
             finish(); g = {'name': m.group(1), 'n_controls': int(m.group(2)), 'codes': [], 'runners': []}
             groups.append(g); head, bold_head = [], []; i += 1
             # control codes follow the header
