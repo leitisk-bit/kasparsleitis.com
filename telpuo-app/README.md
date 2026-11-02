@@ -13,20 +13,28 @@ How it works:
 - **Runs:** the route of each leg is worked out from the split times and the watch altitude (floor changes show clearly). If the watch was started before the start, the start is found in the recording automatically.
 - **Replay:** one run with its fastest-option ghost, or several runs compared; switch between the map and 3D.
 
-## Install on Ubuntu
+## Install on the home server (Docker, next to the tennis app)
 
 ```bash
-unzip oreplay.zip && cd oreplay
-sudo ADMIN_KEY='choose-an-admin-password' bash install.sh
-sudo cp nginx-oreplay.conf /etc/nginx/sites-available/oreplay   # edit server_name first
-sudo ln -s ../sites-available/oreplay /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+cd ~ && git clone https://github.com/leitisk-bit/kasparsleitis.com.git
+cd ~/kasparsleitis.com/telpuo-app
+cp .env.example .env
+nano .env                       # set ADMIN_KEY to your admin password
+docker compose up -d --build    # first build takes a few minutes
 ```
 
-The service runs on `127.0.0.1:8090` (`systemctl status oreplay`, logs: `journalctl -u oreplay -f`).
-Data lives in `/opt/oreplay/data` (one folder per map, one JSON file per run). Back up that folder.
+Open **http://192.168.2.115:8092** on the home network. The tennis app keeps port 8090; this one uses 8092 (change with `WEB_PORT=` in `.env`).
+Maps and runs live in the Docker volume `telpuo_data`, so they survive updates.
 
-The admin password is entered once per browser with **Admin sign in**. To update the app later, unzip the new version and run `sudo bash install.sh` again; maps, runs and the password are kept.
+**Update after code changes:**
+
+```bash
+cd ~/kasparsleitis.com && git pull && cd telpuo-app && docker compose up -d --build
+```
+
+**Logs:** `docker compose logs -f web`
+
+`install.sh` and `nginx-oreplay.conf` are an alternative for a server without Docker.
 
 ## Timing
 

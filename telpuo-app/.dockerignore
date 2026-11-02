@@ -1,0 +1,7 @@
+.env
+data/
+__pycache__/
+*.pyc
+*.zip
+install.sh
+nginx-oreplay.conf

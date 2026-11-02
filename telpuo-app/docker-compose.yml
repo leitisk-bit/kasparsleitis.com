@@ -1,0 +1,23 @@
+# Telpu O replay. Runs on the home server next to Jellyfin and the tennis app without touching them.
+# Start / update:   docker compose up -d --build      (http://<server-ip>:8092)
+name: telpuo
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      OREPLAY_ADMIN_KEY: ${ADMIN_KEY:?Set ADMIN_KEY in the .env file}
+    volumes:
+      - data:/data
+    ports:
+      # Home network: http://<server-ip>:8092   (the tennis app uses 8090)
+      - "${WEB_PORT:-8092}:8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"     # reading a map / working out a route is heavy; leaves room for Jellyfin
+          memory: 3g
+
+volumes:
+  data:
