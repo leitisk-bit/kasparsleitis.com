@@ -34,10 +34,10 @@ jobs:
                           try: v = v.decode('utf-8')
                           except: continue
                       if not isinstance(v, str): continue
-                      for m in re.findall(r'"(?:content|text|title|html|name|value|href|src|alt)"\s*:\s*"((?:[^"\\]|\\.){3,})"', v):
+                      for m in [v] + re.findall(r'"(?:content|text|title|html|name|value|href|src|alt|url)"\s*:\s*"((?:[^"\\]|\\.){3,})"', v):
                           try: m = json.loads('"' + m + '"')
                           except Exception: pass
                           m = re.sub(r'<[^>]+>', ' ', html.unescape(m)); m = re.sub(r'\s+', ' ', m).strip()
                           if len(m) > 2 and m not in seen:
-                              seen.add(m); print("T", t, "|", m[:400])
+                              seen.add(m); print("T", t, "|", m[:1500])
           PY
