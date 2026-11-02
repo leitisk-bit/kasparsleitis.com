@@ -89,6 +89,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 #scrub{width:100%;height:44px;display:block;cursor:pointer;border-radius:4px;touch-action:none}
 .tctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .tctl .btn{height:30px;padding:0 8px;font-size:12px}
+.routeopts{display:flex;flex-wrap:wrap;gap:6px}.routeopts .seg button{height:28px;padding:0 10px;font-size:12px}
 .speed{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
 .speed .btn{border:0;border-radius:0;height:30px;min-width:32px;font-size:16px;font-weight:600}
 .speed .spd{min-width:52px;text-align:center;font:600 13px var(--f-mono);font-variant-numeric:tabular-nums;border-inline:1px solid var(--line);line-height:30px;padding:0 4px}
@@ -166,6 +167,10 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
       </section>
       <section class="card" id="legsCard" hidden>
         <h2>Legs</h2>
+        <div class="routeopts">
+          <div class="seg" role="group" aria-label="Route shown"><button data-scope="leg" aria-pressed="true">Current leg</button><button data-scope="all" aria-pressed="false">Whole race</button></div>
+          <div class="seg" role="group" aria-label="How the route appears"><button data-reveal="run" aria-pressed="true">Appears as run</button><button data-reveal="full" aria-pressed="false">Show all</button></div>
+        </div>
         <ol class="legs" id="legs"></ol>
       </section>
       <section class="card" hidden>
@@ -179,10 +184,10 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
       </section>
       <section class="card">
         <h2>Display</h2>
-        <label class="muted" for="tail">Tail: <span id="tailVal">30 s</span></label>
-        <input type="range" id="tail" min="0" max="180" step="5" value="30">
+        <label class="muted" for="tail" hidden>Tail: <span id="tailVal">30 s</span></label>
+        <input type="range" hidden id="tail" min="0" max="180" step="5" value="30">
         <div class="row">
-          <label>Route on map <select id="routeMode" aria-label="Route on map"><option value="leg" selected>Current leg, as run</option><option value="all">Whole route</option></select></label>
+          
           <label><input type="checkbox" id="follow"> Follow runner</label>
           <select id="timing" aria-label="Start timing"><option value="mass">Common start</option><option value="real">Real clock time</option></select>
         </div>
@@ -248,7 +253,7 @@ const $ = s => document.querySelector(s);
 const COLORS = ['#E3262B','#1F6FE0','#F29A07','#0E9F6E','#7B3FE4','#E0457B','#13A3B5','#6B7A0F'];
 const S = {
   map:null, mapKey:null, pdf:null, runners:[], anchors:[], origin:null, T:[1,0,0,0,-1,0],
-  affine:false, mode:'view', tau:0, playing:false, speed:20, tail:30, showFull:false, routeMode:'leg', timing:'mass',
+  affine:false, mode:'view', tau:0, playing:false, speed:20, tail:30, showFull:false, routeScope:'leg', routeReveal:'run', timing:'mass',
   sel:0, view:{k:1,x:0,y:0}, sample:true,
   draft:{ pts:[], abs0:0 }, addType:'bend', scaleDen:500
 };
@@ -519,18 +524,17 @@ function draw(){
     ctx.beginPath(); ctx.arc(a.u,a.v,11*lw,0,7); ctx.lineWidth=3*lw; ctx.stroke();
     ctx.fillStyle=accent; ctx.font=`600 ${12*lw}px ${css('--f-body')}`; ctx.textAlign='left'; ctx.textBaseline='bottom';
     ctx.fillText(String(i+1), a.u+12*lw, a.v-8*lw); ctx.globalAlpha=1; });
-  // routes
+  // routes: scope = current leg or whole race; reveal = drawn as the runner goes, or all of it at once
   for (const r of S.runners){ if (!r.visible) continue; const p=r.pts, t=runnerT(r);
-    if (S.showFull){ ctx.globalAlpha = .38; ctx.strokeStyle=r.color; ctx.lineWidth=2.5*lw; ctx.beginPath();
-      const i0=idxAt(r,r.start), i1=idxAt(r,r.end);
-      for (let i=i0;i<=i1;i++) (i===i0 || p[i].jump) ? ctx.moveTo(p[i].u,p[i].v) : ctx.lineTo(p[i].u,p[i].v); ctx.stroke(); ctx.globalAlpha=1; }
     const tc = Math.min(Math.max(t, r.start), r.end);
-    // 'Current leg, as run': only the leg being run, drawn up to where the runner is now (nothing ahead)
-    const legMode = S.routeMode !== 'all', L = legMode && r.legs ? (r.legs.find(x => tc >= x.t0 && tc < x.t1) || r.legs[r.legs.length-1]) : null;
-    if ((legMode ? t > r.start : S.tail > 0 && t > r.start)){ const t0 = legMode ? Math.max(r.start, L ? L.t0 : r.start) : Math.max(r.start, tc-S.tail), a0=at(r,t0), a1=at(r,tc);
-      ctx.strokeStyle=r.color; ctx.lineWidth=5*lw; ctx.beginPath(); ctx.moveTo(a0.u,a0.v);
+    const L = S.routeScope==='leg' && r.legs ? (r.legs.find(x => tc >= x.t0 && tc < x.t1) || r.legs[r.legs.length-1]) : null;
+    const s0 = L ? Math.max(r.start, L.t0) : r.start, s1 = L ? Math.min(r.end, L.t1) : r.end;
+    const seg = (ta, tb) => { const a0=at(r,ta), a1=at(r,tb); ctx.beginPath(); ctx.moveTo(a0.u,a0.v);
       for (let i=a0.i+1;i<=a1.i;i++) p[i].jump ? ctx.moveTo(p[i].u,p[i].v) : ctx.lineTo(p[i].u,p[i].v);
-      if (!(p[a1.i+1] && p[a1.i+1].jump)) ctx.lineTo(a1.u,a1.v); ctx.stroke(); }
+      if (!(p[a1.i+1] && p[a1.i+1].jump)) ctx.lineTo(a1.u,a1.v); ctx.stroke(); };
+    ctx.strokeStyle=r.color;
+    if (S.routeReveal==='full'){ ctx.globalAlpha=.45; ctx.lineWidth=3.5*lw; seg(s0, s1); ctx.globalAlpha=1; }
+    if (tc > s0){ ctx.lineWidth=5*lw; seg(s0, tc); }
   }
   // dots on top
   S.runners.forEach((r,ri) => { if (!r.visible) return; const t=runnerT(r), tc=Math.min(Math.max(t,r.start),r.end), a=at(r,tc);
@@ -732,7 +736,9 @@ $('#pageSel').onchange = e => renderPdfPage(+e.target.value);
 $('#affine').onchange = e => { S.affine=e.target.checked; saveAnchors(); computeT(); };
 $('#clearAnchors').onclick = () => { S.anchors=[]; saveAnchors(); computeT(); };
 $('#tail').oninput = e => { S.tail=+e.target.value; $('#tailVal').textContent = S.tail ? S.tail+' s' : 'off'; requestDraw(); };
-$('#routeMode').onchange = e => { S.routeMode=e.target.value; S.showFull = S.routeMode==='all'; requestDraw(); };
+function setRoute(k,v){ S[k]=v; document.querySelectorAll(`[data-${k==='routeScope'?'scope':'reveal'}]`).forEach(b=>b.setAttribute('aria-pressed', b.dataset[k==='routeScope'?'scope':'reveal']===v)); requestDraw(); }
+document.querySelectorAll('[data-scope]').forEach(b=>b.onclick=()=>setRoute('routeScope', b.dataset.scope));
+document.querySelectorAll('[data-reveal]').forEach(b=>b.onclick=()=>setRoute('routeReveal', b.dataset.reveal));
 function setFollow(on){ S.follow=on; $('#follow').checked=on; if (on && S.map){ const fk=Math.min(cw/S.map.w, ch/S.map.h); if (S.view.k < fk*2.5) S.view.k=fk*3; } requestDraw(); }
 $('#follow').onchange = e => setFollow(e.target.checked);
 $('#timing').onchange = e => { const r=S.runners[S.sel], t=r?runnerT(r):0; S.timing=e.target.value; if (r) setTau(tauFor(r,t)); else setTau(0); };
@@ -974,12 +980,13 @@ async function start(){
       const p = posAt(r, timeOf(r)); r.cur = p; if (!vis) return;
       r.dot.position.set(p.x, p.y + 0.9, p.z);
       const base = (Math.round(p.fz) - 1)*H0*gapK; r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
-      const legMode = !s || s.routeMode !== 'all';
-      r.full.visible = !legMode;
-      let i0 = 0;
-      if (legMode && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); }
-      if (i0 !== r.legI0 && r.A){ r.g2.setPositions(r.A.subarray(i0*3)); r.legI0 = i0; }
-      r.g2.instanceCount = Math.max(0, p.i - i0);
+      const legScope = !s || s.routeScope !== 'all', showAll = s && s.routeReveal === 'full';
+      let i0 = 0, i1 = r.P.length - 1;
+      if (legScope && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); i1 = Math.min(r.P.length - 1, idxAt(r, L.t1) + 1); }
+      const key = i0 + ':' + i1;
+      if (key !== r.legI0 && r.A){ r.g2.setPositions(r.A.subarray(i0*3, (i1+1)*3)); r.g1.setPositions(r.A.subarray(i0*3, (i1+1)*3)); r.legI0 = key; }
+      r.full.visible = showAll; r.full.material.opacity = 0.45;
+      r.g2.instanceCount = Math.max(0, Math.min(p.i, i1) - i0);
     });
     const me = ME.cur, curF = Math.round(me.fz), fade = $('#o3Fade').checked;
     plates.forEach(m => { const on = !fade || m.userData.floor === curF; m.material.opacity = on ? 1 : 0.22; m.material.alphaTest = on ? 0.4 : 0.05; m.material.depthWrite = on; });
