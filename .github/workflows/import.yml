@@ -22,14 +22,13 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_DIR: ${{ secrets.FTP_DIR }}
         run: |
           mkdir -p site
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "ftp://$FTP_SERVER" -e "
             set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes;
             mirror --verbose --parallel=4 \
               --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob error_log --exclude-glob '*.log' \
-              \"$FTP_DIR\" site; bye"
+              . site; bye"
           echo "Files: $(find site -type f | wc -l), size: $(du -sh site | cut -f1)"
 
       - name: Commit

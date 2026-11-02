@@ -27,7 +27,7 @@ jobs:
           protocol: ftps
           port: 21
           local-dir: ./site/
-          server-dir: ${{ secrets.FTP_DIR }}
+          server-dir: ./   # the FTP account opens straight into public_html
           exclude: |
             **/.git*
             **/.git*/**

@@ -4,7 +4,7 @@
 
 ## One-time setup
 
-1. In Namecheap cPanel → **FTP Accounts**, create an FTP account whose directory is `public_html` (or use the main cPanel login).
+1. In Namecheap cPanel → **FTP Accounts**, create an FTP account whose directory is `public_html`. The workflows upload to the folder the account opens in.
 2. In this repository → **Settings → Secrets and variables → Actions → New repository secret**, add:
 
    | Secret | Example |
@@ -12,7 +12,6 @@
    | `FTP_SERVER` | the server name from cPanel → *General Information*, e.g. `server123.web-hosting.com` (its security certificate matches, so use it rather than `ftp.yourdomain.lv`) |
    | `FTP_USERNAME` | `deploy@yourdomain.lv` |
    | `FTP_PASSWORD` | the FTP account password |
-   | `FTP_DIR` | `/` if the FTP account's home is already `public_html`, otherwise `/public_html/` (must end with `/`) |
 
 3. **Actions → Import current site from Namecheap → Run workflow.** This copies the live site into `site/`.
 
