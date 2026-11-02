@@ -26,7 +26,7 @@ jobs:
         run: |
           mkdir -p site
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "ftp://$FTP_SERVER" -e "
-            set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate no;
+            set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes;
             mirror --verbose --parallel=4 \
               --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob error_log --exclude-glob '*.log' \
               \"$FTP_DIR\" site; bye"

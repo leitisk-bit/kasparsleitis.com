@@ -9,7 +9,7 @@
 
    | Secret | Example |
    |---|---|
-   | `FTP_SERVER` | `server123.web-hosting.com` (cPanel → *General Information* → Server Name), or `ftp.yourdomain.lv` |
+   | `FTP_SERVER` | the server name from cPanel → *General Information*, e.g. `server123.web-hosting.com` (its security certificate matches, so use it rather than `ftp.yourdomain.lv`) |
    | `FTP_USERNAME` | `deploy@yourdomain.lv` |
    | `FTP_PASSWORD` | the FTP account password |
    | `FTP_DIR` | `/` if the FTP account's home is already `public_html`, otherwise `/public_html/` (must end with `/`) |
