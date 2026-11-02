@@ -1,5 +1,7 @@
 # Website on Namecheap
 
+`telpuo-app/` is the indoor orienteering replay app. It runs on the Ubuntu server (not on Namecheap); see `telpuo-app/README.md`.
+
 `site/` is the website. Anything pushed to `main` under `site/` is uploaded to the Namecheap hosting automatically by **Deploy to Namecheap** (`.github/workflows/deploy.yml`).
 
 ## One-time setup

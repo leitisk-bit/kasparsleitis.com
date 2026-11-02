@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Indoor O Replay</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Library list → map page (check map + runs) ; same tokens as the replay */
+:root{
+  --bg:#ECEEE9; --panel:#F9FAF7; --fg:#1B1F1A; --muted:#5F685D; --line:#D3D8CF;
+  --accent:#A3309B; --accent-soft:#A3309B22; --flag:#E0601A; --stage:#DADFD5; --ok:#1E7F4E; --warn:#B4540A; --bad:#B42318;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111411; --panel:#191D19; --fg:#E6EAE3; --muted:#98A193; --line:#2D332C;
+  --accent:#D865CF; --accent-soft:#D865CF26; --flag:#F07C3C; --stage:#0B0D0B; --ok:#4CC38A; --warn:#F0A04B; --bad:#F2716A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111411; --panel:#191D19; --fg:#E6EAE3; --muted:#98A193; --line:#2D332C;
+  --accent:#D865CF; --accent-soft:#D865CF26; --flag:#F07C3C; --stage:#0B0D0B; --ok:#4CC38A; --warn:#F0A04B; --bad:#F2716A; color-scheme:dark}
+*{box-sizing:border-box} html,body{margin:0} [hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-body)}
+.wrap{max-width:1400px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;color:inherit;text-decoration:none}
+.flag{width:26px;height:26px;flex:none;background:linear-gradient(135deg,#fff 50%,var(--flag) 50%);border:1.5px solid var(--fg);border-radius:2px}
+.brand h1{font:700 22px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.brand small{display:block;font:500 11px/1.2 var(--f-body);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
+h2{font:700 16px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 13px var(--f-body);cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.small{height:28px;padding:0 8px;font-size:12px}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.field{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:7px 9px;font:13px var(--f-body)}
+textarea.field{font:13px var(--f-mono);resize:vertical}
+label.lbl{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.muted{color:var(--muted);font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.mapcard{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;align-items:center;cursor:pointer;text-decoration:none;color:inherit}
+.mapcard img{width:96px;height:96px;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:#fff}
+.mapcard b{display:block;font-weight:600}
+.pill{display:inline-block;font:600 11px var(--f-body);padding:2px 7px;border-radius:999px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.04em}
+.pill.ok{color:var(--ok)} .pill.work{color:var(--warn)} .pill.bad{color:var(--bad)}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}
+.stage{position:relative;height:72vh;background:var(--stage);border-radius:8px;overflow:hidden;touch-action:none}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.stage.pick{cursor:crosshair}
+.hint{position:absolute;left:10px;top:10px;right:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:7px 10px;font-size:12.5px;pointer-events:none}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.resbox{border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.resbox summary{list-style:none;display:inline-flex;width:max-content}.resbox summary::-webkit-details-marker{display:none}
+.tabs button{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;height:30px;padding:0 10px;font:600 12.5px var(--f-body);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.list{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 6px;border-radius:6px;border:1px solid transparent}
+.row:hover{background:var(--accent-soft)} .row.sel{border-color:var(--accent);background:var(--accent-soft)}
+.row .tag{font:600 12px var(--f-mono);min-width:34px;text-align:center;border-radius:5px;padding:2px 4px;background:var(--bg);border:1px solid var(--line)}
+.row input.field,.row select.field{padding:3px 6px;height:28px}
+.row .acts{display:flex;gap:4px}
+.ic{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 5px;border-radius:4px}
+.ic:hover{color:var(--fg);background:var(--bg)}
+.warn{color:var(--warn)} .bad{color:var(--bad)}
+.runs .row{grid-template-columns:auto minmax(0,1fr) auto auto}
+body:not(.is-admin) .admin-only{display:none!important}
+.who{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.who:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.who .m{font:500 12.5px var(--f-mono)}
+.status{font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
+.drop{border:2px dashed var(--line);border-radius:8px;padding:18px;text-align:center;color:var(--muted)}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+@media (max-width:980px){.layout{grid-template-columns:1fr}.stage{height:60vh}}
+</style></head><body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="#"><div class="flag" aria-hidden="true"></div><div><h1>Indoor O Replay</h1><small>Telpu orientēšanās · map library</small></div></a>
+    <div style="display:flex;gap:8px;align-items:center"><span class="muted admin-only" id="adminTag">Admin</span><button class="btn small" id="keyBtn" type="button">Admin sign in</button></div>
+  </header>
+
+  <!-- library -->
+  <section id="lib" hidden>
+    <div class="card admin-only">
+      <h2>Add a map</h2>
+      <form id="upForm" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:end">
+        <label class="lbl">Map PDF<input class="field" type="file" id="upPdf" accept=".pdf,application/pdf" required></label>
+        <label class="lbl">Name<input class="field" id="upName" placeholder="e.g. RK 2026 · 2. posms · A"></label>
+        <label class="lbl">Event / place<input class="field" id="upEvent" placeholder="e.g. RTU Datorzinātņu centrs, 24.10.2026"></label>
+        <button class="btn primary" type="submit" id="upBtn">Upload and read map</button>
+      </form>
+      <div class="muted">The map is read automatically: floors, stairwells, controls in course order, one-way arrows and the four-way crossing. You check the result on the next screen. Everyone using this server can then add their runs to it.</div>
+    </div>
+    <div class="card">
+      <h2>Maps</h2>
+      <div class="grid" id="mapList"></div>
+      <div class="muted" id="noMaps" hidden>No maps yet.</div>
+    </div>
+  </section>
+
+  <!-- one map -->
+  <section id="mapPage" hidden>
+    <div class="row" style="padding:0;grid-template-columns:minmax(0,1fr) auto;border:0">
+      <div style="min-width:0"><h2 id="mName" style="font-size:22px;color:var(--fg)"></h2><div class="muted" id="mEvent"></div></div>
+      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#">All maps</a><a class="btn" id="pdfLink" target="_blank" rel="noopener">Original PDF</a></div>
+    </div>
+    <div class="status" id="mStatus"></div>
+    <div class="layout">
+      <div class="stage" id="stage"><canvas id="cv"></canvas><div class="hint" id="hint" hidden></div></div>
+      <div class="side">
+        <div class="card">
+          <div class="tabs" role="tablist">
+            <button data-tab="runs" aria-selected="true">Runs</button>
+            <button class="admin-only" data-tab="controls">Controls</button>
+            <button class="admin-only" data-tab="stairs">Stairs</button>
+            <button class="admin-only" data-tab="rules">One-way & crossings</button>
+            <button class="admin-only" data-tab="pockets">Dead ends</button>
+            <button class="admin-only" data-tab="info">Map</button>
+          </div>
+
+          <div data-pane="runs">
+            <div class="muted" id="resPublic"></div>
+            <div class="resbox admin-only" id="resBox">
+              <div id="resInfo" class="muted"></div>
+              <details id="resImport"><summary class="btn small" id="resSum">Import results with splits</summary>
+                <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+                  <div class="muted">Open the race on lof.lv, choose <b>Split</b>, and save the page as PDF (Print → Save as PDF) or as a web page. Or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
+                  <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,application/pdf,text/html">
+                  <textarea class="field" id="resText" rows="2" placeholder="…or paste the results page here"></textarea>
+                  <button class="btn primary small" type="button" id="resBtn">Import results</button>
+                </div>
+              </details>
+            </div>
+            <form id="runForm" style="display:flex;flex-direction:column;gap:8px">
+              <h2 style="margin:0">Add your run</h2>
+              <label class="lbl">1. Your watch file (TCX from Garmin Connect: activity → ⋯ → Export to TCX)<input class="field" type="file" id="rTrack" accept=".tcx"></label>
+              <div id="rCheck" class="status" hidden></div>
+              <div id="whoBox" hidden style="display:flex;flex-direction:column;gap:6px">
+                <div class="lbl">2. Whose run is this?</div>
+                <div id="whoList" class="list" role="radiogroup" aria-label="Runner"></div>
+                <details id="whoMore"><summary class="muted">Someone else</summary>
+                  <select class="field" id="whoAll" style="margin-top:6px"></select></details>
+              </div>
+              <div id="manualBox" class="admin-only" hidden style="display:flex;flex-direction:column;gap:8px">
+                <div class="muted">No results imported for this map yet. As admin you can add a run with typed split times.</div>
+                <label class="lbl">Runner<input class="field" id="rName" placeholder="Name"></label>
+                <label class="lbl">Split times (the results line, leg times or elapsed times)<textarea class="field" id="rSplits" rows="3" placeholder="00:36:38 00:40 (17) 03:40 (13) … or 0:40 3:40 9:43 …"></textarea></label>
+                <div class="muted" id="rSplitInfo"></div>
+              </div>
+              <button class="btn primary" type="submit" id="rBtn" disabled>Save my run</button>
+              <div class="muted" id="rNote"></div>
+            </form>
+            <h2 style="margin-top:6px">Runs on this map</h2>
+            <div class="list runs" id="runList"></div>
+            <div class="row" style="padding:0;grid-template-columns:1fr auto;border:0"><span class="muted">Tick runs to compare them in one replay.</span><a class="btn small" id="cmpBtn">Compare</a></div>
+          </div>
+
+          <div data-pane="controls" hidden>
+            <div class="muted">Course order as read from the course lines. Click a row to find it; Move, then click the map to place it.</div>
+            <div class="list" id="ctrlList"></div>
+            <div class="row" style="padding:0;border:0;grid-template-columns:1fr"><button class="btn small" id="addCtrl">Add control (click map)</button></div>
+          </div>
+
+          <div data-pane="stairs" hidden>
+            <div class="muted">Stairwell letters per floor. Red flights go up from that floor, blue flights go down; the same letter on different floors is one stairwell.</div>
+            <div class="list" id="stairList"></div>
+            <button class="btn small" id="addStair">Add letter (click map)</button>
+          </div>
+
+          <div data-pane="rules" hidden>
+            <div class="muted">One-way stretches (green arrows) and four-way crossings (straight on only).</div>
+            <div class="list" id="ruleList"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn small" id="addOneway">Add one-way (click start, then end)</button><button class="btn small" id="addCross">Add crossing (click centre)</button></div>
+          </div>
+
+          <div data-pane="pockets" hidden>
+            <div class="muted">Controls that can only be reached through one stair flight (inside a stairwell or fenced off by tape). The route finder normally sees these from the walls; add one here when it doesn't.</div>
+            <div class="list" id="pocketList"></div>
+            <div class="row" style="grid-template-columns:1fr 1fr auto;padding:0;border:0">
+              <select class="field" id="pkCtrl"></select><select class="field" id="pkFlight"></select><button class="btn small" id="addPocket">Add</button>
+            </div>
+          </div>
+
+          <div data-pane="info" hidden>
+            <label class="lbl">Name<input class="field" id="iName"></label>
+            <label class="lbl">Event / place<input class="field" id="iEvent"></label>
+            <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label>
+            <div class="muted" id="iFloors"></div>
+            <label style="display:flex;gap:6px;align-items:center" class="muted"><input type="checkbox" id="showLegs" checked> Show the fastest route of every leg</label>
+            <button class="btn small" id="delMap" style="color:var(--bad)">Delete map and its runs</button>
+          </div>
+        </div>
+        <div class="card" id="saveCard" hidden>
+          <div class="muted">You changed the map reading. Save to rebuild the route network (about a minute).</div>
+          <button class="btn primary" id="saveBtn">Save and rebuild</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
+const H = () => KEY ? {'X-Admin-Key': KEY} : {};
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,4500); }
+const fmt = s => { s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0'); };
+async function api(path, opt={}){ const r = await fetch('api/'+path, {...opt, headers:{...(opt.headers||{}), ...H()}}); const j = await r.json().catch(()=>({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- routing ---------- */
+function route(){ const m = location.hash.match(/^#map-([a-z0-9]+)/); if (m) openMap(m[1]); else openLib(); }
+window.addEventListener('hashchange', route);
+
+/* ---------- library ---------- */
+async function openLib(){
+  $('#lib').hidden=false; $('#mapPage').hidden=true; stopPoll();
+  const maps = await api('maps'); const box=$('#mapList'); box.innerHTML='';
+  $('#noMaps').hidden = maps.length>0;
+  for (const m of maps){
+    const a=document.createElement('a'); a.className='card mapcard'; a.href='#map-'+m.id;
+    const st = m.status==='ready' ? '<span class="pill ok">ready</span>' : m.status==='error' ? '<span class="pill bad">error</span>' : '<span class="pill work">working</span>';
+    a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b><div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
+    box.appendChild(a);
+  }
+}
+$('#upForm').onsubmit = async e => { e.preventDefault(); const f=$('#upPdf').files[0]; if (!f) return;
+  const fd=new FormData(); fd.append('pdf',f); fd.append('name',$('#upName').value||f.name.replace(/\.pdf$/i,'')); fd.append('event',$('#upEvent').value);
+  $('#upBtn').disabled=true; $('#upBtn').textContent='Uploading…';
+  try { const r = await api('maps',{method:'POST',body:fd}); location.hash='#map-'+r.id; } catch(err){ toast(err.message); }
+  $('#upBtn').disabled=false; $('#upBtn').textContent='Upload and read map'; };
+
+/* ---------- map page ---------- */
+let M=null, F=null, img=null, dirty=false, pollT=null, sel=null, pick=null;
+const view={k:1,x:0,y:0};
+function stopPoll(){ clearTimeout(pollT); pollT=null; }
+async function openMap(id){
+  $('#lib').hidden=true; $('#mapPage').hidden=false; stopPoll();
+  const j = await api('maps/'+id); M=j.meta; F=j.features; dirty=false; $('#saveCard').hidden=true;
+  $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
+  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iScale').value=M.scale||1000;
+  if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2500);
+  renderStatus();
+  const v = String(M.display_scale ? (M.built||'r') : 'none');
+  if (M.display_scale && (!img || img.dataset.id!==id || img.dataset.v!==v)){ img=new Image(); img.dataset.id=id; img.dataset.v=v; img.src='api/maps/'+id+'/image?'+v; img.onload=()=>{ view.init=false; fit(); draw(); }; }
+  if (!F) return;
+  renderRuns(j.runs); renderLists(); draw(); loadResults(false);
+}
+function renderStatus(){
+  const s=$('#mStatus');
+  if (M.status==='ready'){
+    const p=M.problems||[];
+    s.innerHTML = p.length ? `<span class="pill bad">check</span> No route found for leg ${p.join(', ')}. Look at the controls, stairs and dead ends of those legs.`
+      : ADMIN ? `<span class="pill ok">ready</span> Route network built. Check the blue fastest route of each leg on the map; fix anything wrong in the tabs and save.` : `Add your run below, or open a saved run to replay it.`;
+  } else if (M.status==='error') s.innerHTML=`<span class="pill bad">error</span> ${esc(M.message)}`;
+  else s.innerHTML=`<span class="pill work">working</span> ${esc(M.message||'')}`;
+}
+function renderRuns(runs){
+  const box=$('#runList'); box.innerHTML='';
+  if (!runs.length) box.innerHTML='<div class="muted">No runs yet.</div>';
+  for (const r of runs){ const d=document.createElement('div'); d.className='row';
+    const st = r.status==='done' ? `<a class="btn small" href="replay?run=${r.id}">Replay</a>` : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : '<span class="warn">working…</span>';
+    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'?'':'disabled'} aria-label="Compare"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div></div>${st}${ADMIN?`<button class="ic" title="Delete" data-del="${r.id}">×</button>`:'<span></span>'}`;
+    box.appendChild(d); }
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ try{ await api('runs/'+b.dataset.del,{method:'DELETE'}); openMap(M.id);}catch(e){toast(e.message);} });
+  if (runs.some(r=>r.status==='working')) { stopPoll(); pollT=setTimeout(()=>openMap(M.id), 3000); }
+}
+$('#cmpBtn').onclick = () => { const ids=$$('#runList input:checked').map(i=>i.value); if (ids.length<1){ toast('Tick one or more runs first.'); return; } location.href='replay?run='+ids.join(',')+(ids.length>1?'':'' ); };
+$('#rSplits').oninput = () => { const t=$('#rSplits').value.replace(/\([^)]*\)/g,' ').match(/\d+(?::\d{1,2}){0,2}/g)||[]; const n=(F?.controls?.length||1)-1;
+  $('#rSplitInfo').textContent = t.length ? `${t.length} times found; this course has ${n} legs (controls + finish).` : `This course has ${n} legs.`; };
+/* ---------- add a run: TCX first, then whose run ---------- */
+let CHECK=null;
+function resetRunForm(){ CHECK=null; $('#rCheck').hidden=true; $('#whoBox').hidden=true; $('#whoList').innerHTML=''; $('#rBtn').disabled=!(ADMIN && !RES); $('#rNote').textContent=''; }
+function whoChosen(){ const r=$('#whoList input:checked'); if (r) return JSON.parse(r.value); const v=$('#whoAll').value; return v?JSON.parse(v):null; }
+function updateWho(){ const w=whoChosen(); $('#rBtn').disabled=!w;
+  $('#rNote').innerHTML = w ? (w.has_run ? `<b>${esc(w.name)} already has a saved run here. Saving replaces it.</b>` : `Will be saved as <b>${esc(w.name)}</b> (${esc(w.group)}).`) : ''; }
+$('#rTrack').onchange = async () => {
+  resetRunForm(); const f=$('#rTrack').files[0]; if (!f) return;
+  if (!RES){ if (!ADMIN){ $('#rCheck').hidden=false; $('#rCheck').textContent='Results for this map have not been added yet, so runs can\'t be saved. Try again later.'; } else $('#rBtn').disabled=false; return; }
+  const fd=new FormData(); fd.append('track',f); $('#rCheck').hidden=false; $('#rCheck').textContent='Reading your watch file…';
+  try { CHECK=await api('maps/'+M.id+'/runs/check',{method:'POST',body:fd}); }
+  catch(e){ $('#rCheck').innerHTML=`<span class="bad">${esc(e.message)}</span>`; return; }
+  const c=CHECK, fit=c.candidates.filter(x=>x.fits);
+  if (!c.date_ok){ $('#rCheck').innerHTML=`<span class="bad">This watch file is from ${esc(c.date)}, but the race was on ${esc(c.event_date)}. Choose the activity from the race day.</span>`; return; }
+  $('#rCheck').innerHTML=`Watch recording: <b class="mono">${fmt(c.duration)}</b>${c.date?' · '+esc(c.date):''}. ` + (fit.length ? `Choose your name below; the results closest to this time are first.` : `<span class="bad">No result on this course fits this time. The watch must have run for the whole race: at most 30 s shorter or 10 min longer than the result.</span>`);
+  if (!fit.length) return;
+  const top=fit.slice(0,6), L=$('#whoList');
+  L.innerHTML=top.map((x,k)=>`<label class="who"><input type="radio" name="who" value='${esc(JSON.stringify(x))}' ${k===0?'checked':''}><span><b>${esc(x.name)}</b> <span class="muted">${esc(x.group)}${x.club?' · '+esc(x.club):''}</span>${x.has_run?' <span class="warn">· has a run</span>':''}</span><span class="m">${fmt(x.total)}</span></label>`).join('');
+  const rest=fit.slice(6); $('#whoMore').hidden=!rest.length;
+  $('#whoAll').innerHTML='<option value="">Choose…</option>'+rest.map(x=>`<option value='${esc(JSON.stringify(x))}'>${esc(x.name)} · ${esc(x.group)} · ${fmt(x.total)}</option>`).join('');
+  L.querySelectorAll('input').forEach(r=>r.onchange=()=>{ $('#whoAll').value=''; updateWho(); });
+  $('#whoAll').onchange=()=>{ if ($('#whoAll').value) L.querySelectorAll('input').forEach(r=>r.checked=false); updateWho(); };
+  $('#whoBox').hidden=false; updateWho();
+};
+$('#runForm').onsubmit = async e => { e.preventDefault();
+  const fd=new FormData(); const f=$('#rTrack').files[0];
+  if (RES){ const w=whoChosen(); if (!f || !w){ toast('Choose your TCX file and whose run it is.'); return; } fd.append('group',w.group); fd.append('runner',w.name); }
+  else { if (!$('#rName').value.trim() || !$('#rSplits').value.trim()){ toast('Fill in the name and split times.'); return; } fd.append('name',$('#rName').value); fd.append('splits',$('#rSplits').value); }
+  if (f) fd.append('track',f);
+  $('#rBtn').disabled=true; try { await api('maps/'+M.id+'/runs',{method:'POST',body:fd}); toast('Saved. Working out the route takes a minute or two.'); $('#rTrack').value=''; $('#rSplits').value=''; resetRunForm(); openMap(M.id); } catch(err){ toast(err.message); $('#rBtn').disabled=false; } };
+
+/* ---------- results (admin imports, everyone sees a summary) ---------- */
+let RES=null, RES_MAP=null;
+async function loadResults(force){
+  if (!M) return;
+  if (!force && RES_MAP===M.id) return renderResults();
+  RES_MAP=M.id; RES=null;
+  try { const r=await api('maps/'+M.id+'/results'); RES = r.groups && r.groups.length ? r : null; } catch(e){ RES=null; }
+  renderResults();
+}
+function renderResults(){
+  const has=!!RES; $('#manualBox').hidden=has;
+  $('#resSum').textContent = has ? 'Replace results' : 'Import results with splits';
+  if (!has){ $('#resInfo').textContent='No results imported yet. Import them once; then runners only add their TCX and choose their name.';
+    $('#resPublic').textContent = ADMIN ? '' : 'Results for this map are not added yet.'; resetRunForm(); return; }
+  const n=RES.groups.reduce((a,g)=>a+g.runners.length,0);
+  const line=`<b>${esc(RES.event||'Results')}</b> · ${n} runners in ${RES.groups.map(g=>esc(g.name)).join(', ')}`;
+  $('#resInfo').innerHTML=line + (RES.codes ? `<br>Controls: ${RES.codes.filter(c=>c!=='F').map(esc).join(' – ')}` : '');
+  $('#resPublic').innerHTML = ADMIN ? '' : line;
+  if (!$('#rTrack').files[0]) resetRunForm();
+}
+$('#resBtn').onclick = async () => {
+  const fd=new FormData(); const f=$('#resFile').files[0];
+  if (f) fd.append('file',f); else if ($('#resText').value.trim()) fd.append('text',$('#resText').value); else { toast('Choose the results file or paste the page.'); return; }
+  $('#resBtn').disabled=true;
+  try { const r=await api('maps/'+M.id+'/results',{method:'POST',body:fd}); toast(`Imported ${r.runners} runners: ${r.groups.join(', ')}`); $('#resFile').value=''; $('#resText').value=''; $('#resImport').open=false; await loadResults(true); openMap(M.id); }
+  catch(err){ toast(err.message); }
+  $('#resBtn').disabled=false; };
+
+$$('.tabs button').forEach(b=>b.onclick=()=>{ $$('.tabs button').forEach(x=>x.setAttribute('aria-selected', x===b)); $$('[data-pane]').forEach(p=>p.hidden = p.dataset.pane!==b.dataset.tab); setPick(null); draw(); });
+
+/* ---------- lists / editing ---------- */
+const K = () => M.display_scale || 1;           // features are in 300 dpi pixels, image is scaled by K
+const ctrlName = (c,i) => c.kind==='start'?'S':c.kind==='finish'?'F':'C'+c.n;
+const ctrlLabel = c => c.kind==='start'?'Start':c.kind==='finish'?'Finish':(c.code? c.n+' · '+c.code : String(c.n));
+const floorsList = () => (F.floors||[]).map(f=>f.floor);
+function markDirty(){ dirty=true; $('#saveCard').hidden=false; renderLists(); draw(); }
+function renumber(){ let n=0; F.controls.forEach(c=>{ if (c.kind==='control') c.n=++n; else if (c.kind==='start') c.n=0; else c.n=n+1; }); }
+function floorSel(v, on){ const s=document.createElement('select'); s.className='field'; floorsList().forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent='Floor '+f; if (f===v) o.selected=true; s.appendChild(o); }); s.onchange=()=>on(+s.value); return s; }
+function renderLists(){
+  if (!F) return;
+  // controls
+  const cl=$('#ctrlList'); cl.innerHTML='';
+  F.controls.forEach((c,i)=>{ const d=document.createElement('div'); d.className='row'+(sel&&sel.t==='c'&&sel.i===i?' sel':'');
+    d.innerHTML=`<span class="tag">${c.kind==='start'?'▲':c.kind==='finish'?'◎':c.n}</span><div style="display:grid;grid-template-columns:1fr 1fr;gap:4px"><input class="field" placeholder="code" value="${esc(c.code||'')}"></div><div class="acts"><button class="ic" title="Earlier">↑</button><button class="ic" title="Later">↓</button><button class="ic" title="Move">✥</button><button class="ic" title="Delete">×</button></div>`;
+    const grid=d.children[1]; grid.appendChild(floorSel(c.floor, v=>{ c.floor=v; markDirty(); }));
+    grid.children[0].onchange=e=>{ c.code=e.target.value.trim(); markDirty(); };
+    const [up,dn,mv,del]=d.querySelectorAll('.acts .ic');
+    up.onclick=()=>{ if (i>0 && c.kind==='control' && F.controls[i-1].kind==='control'){ [F.controls[i-1],F.controls[i]]=[F.controls[i],F.controls[i-1]]; renumber(); markDirty(); } };
+    dn.onclick=()=>{ if (i<F.controls.length-1 && c.kind==='control' && F.controls[i+1].kind==='control'){ [F.controls[i+1],F.controls[i]]=[F.controls[i],F.controls[i+1]]; renumber(); markDirty(); } };
+    mv.onclick=()=>setPick({t:'moveCtrl',i, hint:`Click where ${ctrlLabel(c)} is.`});
+    del.onclick=()=>{ if (c.kind!=='control') return toast('Start and finish can only be moved.'); F.controls.splice(i,1); renumber(); markDirty(); };
+    d.onclick=e=>{ if (e.target.closest('button,input,select')) return; sel={t:'c',i}; centreOn(c.x,c.y); renderLists(); draw(); };
+    cl.appendChild(d); });
+  // stairs
+  const sl=$('#stairList'); sl.innerHTML='';
+  [...F.stair_labels].map((s,i)=>[s,i]).sort((a,b)=>a[0].floor-b[0].floor||a[0].letter.localeCompare(b[0].letter)).forEach(([s,i])=>{
+    const d=document.createElement('div'); d.className='row'+(sel&&sel.t==='s'&&sel.i===i?' sel':'');
+    const fl=(M.flights? Object.keys(M.flights).filter(n=>n.startsWith(s.floor+'_'+s.letter+'_')).map(n=>n.endsWith('up')?'↑':'↓').join(''):'');
+    d.innerHTML=`<input class="field" style="width:46px;text-align:center;font-weight:600" maxlength="2" value="${esc(s.letter)}"><div style="display:flex;gap:6px;align-items:center"><span class="muted" title="flights found: up / down">${fl||'<span class=bad>no flight</span>'}</span></div><div class="acts"><button class="ic" title="Delete">×</button></div>`;
+    d.children[1].prepend(floorSel(s.floor, v=>{ s.floor=v; markDirty(); }));
+    d.querySelector('input').onchange=e=>{ s.letter=e.target.value.trim().toUpperCase(); markDirty(); };
+    d.querySelector('.acts .ic').onclick=()=>{ F.stair_labels.splice(i,1); markDirty(); };
+    d.onclick=e=>{ if (e.target.closest('button,input,select')) return; sel={t:'s',i}; centreOn(s.x,s.y); renderLists(); draw(); };
+    sl.appendChild(d); });
+  // rules
+  const rl=$('#ruleList'); rl.innerHTML='';
+  (F.oneways||[]).forEach((o,i)=>{ const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<span class="tag">➜</span><span>One-way, floor ${o.floor}</span><div class="acts"><button class="ic" title="Reverse">⇄</button><button class="ic" title="Delete">×</button></div>`;
+    const [rev,del]=d.querySelectorAll('.ic'); rev.onclick=()=>{ [o.entry,o.exit]=[o.exit,o.entry]; o.dir=o.dir.map(v=>-v); markDirty(); }; del.onclick=()=>{ F.oneways.splice(i,1); markDirty(); };
+    d.onclick=e=>{ if (!e.target.closest('button')) centreOn((o.box[0]+o.box[2])/2,(o.box[1]+o.box[3])/2); }; rl.appendChild(d); });
+  (F.crossings||[]).forEach((c,i)=>{ const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<span class="tag">✚</span><span>Straight on only, floor ${c.floor}</span><div class="acts"><button class="ic" title="Delete">×</button></div>`;
+    d.querySelector('.ic').onclick=()=>{ F.crossings.splice(i,1); markDirty(); }; d.onclick=e=>{ if (!e.target.closest('button')) centreOn(c.x,c.y); }; rl.appendChild(d); });
+  if (!rl.children.length) rl.innerHTML='<div class="muted">None found on this map.</div>';
+  // pockets
+  const pl=$('#pocketList'); pl.innerHTML=''; F.pockets=F.pockets||[];
+  F.pockets.forEach((p,i)=>{ const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<span class="tag">${esc(p.control.replace('C',''))}</span><span>only via ${esc(flightLabel(p.flight))}</span><div class="acts"><button class="ic">×</button></div>`;
+    d.querySelector('.ic').onclick=()=>{ F.pockets.splice(i,1); markDirty(); }; pl.appendChild(d); });
+  (M.suggested_pockets||[]).filter(s=>!F.pockets.some(p=>p.control===s.control)).forEach(s=>{ const d=document.createElement('div'); d.className='row';
+    d.innerHTML=`<span class="tag">${esc(s.control.replace('C',''))}</span><span class="muted">Suggestion (${esc(s.why)}): only via ${esc(flightLabel(s.flight))}?</span><div class="acts"><button class="btn small">Apply</button></div>`;
+    d.querySelector('button').onclick=()=>{ F.pockets.push({control:s.control, flight:s.flight}); markDirty(); }; pl.appendChild(d); });
+  if (!pl.children.length) pl.innerHTML='<div class="muted">None needed so far.</div>';
+  const pc=$('#pkCtrl'); pc.innerHTML=''; F.controls.forEach((c,i)=>{ if (c.kind==='control'){ const o=document.createElement('option'); o.value='C'+c.n; o.textContent='Control '+ctrlLabel(c); pc.appendChild(o);} });
+  const fillFl=()=>{ const c=F.controls.find(c=>'C'+c.n===pc.value); const pf=$('#pkFlight'); pf.innerHTML='';
+    Object.keys(M.flights||{}).filter(n=>!c||n.startsWith(c.floor+'_')).sort().forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=flightLabel(n); pf.appendChild(o); }); };
+  pc.onchange=fillFl; fillFl();
+  $('#iFloors').textContent = `Floors found: ${floorsList().join(', ')}. ${(F.notes||[]).join(' ')}`;
+}
+const flightLabel = n => { const [f,L,t]=n.split('_'); return `${L} ${t==='up'?'up':'down'} from floor ${f}`; };
+$('#addPocket').onclick=()=>{ const c=$('#pkCtrl').value, fl=$('#pkFlight').value; if (!c||!fl) return; F.pockets=(F.pockets||[]).filter(p=>p.control!==c); F.pockets.push({control:c, flight:fl}); markDirty(); };
+$('#addCtrl').onclick=()=>setPick({t:'addCtrl', hint:'Click the new control on the map. It is added before the finish; use the arrows to move it in the order.'});
+$('#addStair').onclick=()=>setPick({t:'addStair', hint:'Click next to the stair symbol where the letter is.'});
+$('#addOneway').onclick=()=>setPick({t:'oneway1', hint:'Click where the one-way stretch starts (the side you enter from).'});
+$('#addCross').onclick=()=>setPick({t:'cross', hint:'Click the centre of the four-way crossing sign.'});
+$('#showLegs').onchange=draw;
+$('#saveBtn').onclick=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({features:{controls:F.controls,stair_labels:F.stair_labels,oneways:F.oneways,crossings:F.crossings,pockets:F.pockets,floors:F.floors}})}); toast('Saved. Rebuilding the route network…'); openMap(M.id); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message); } };
+['iName','iEvent','iScale'].forEach(id=>$('#'+id).onchange=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#iName').value,event:$('#iEvent').value,scale:+$('#iScale').value})}); toast('Saved'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} });
+$('#delMap').onclick=async()=>{ if ($('#delMap').dataset.armed!=='1'){ $('#delMap').dataset.armed='1'; $('#delMap').textContent='Click again to delete for good'; return; }
+  try { await api('maps/'+M.id,{method:'DELETE'}); location.hash=''; } catch(e){ toast(e.message); } };
+let ADMIN=false;
+async function checkAdmin(){ try { const r=await api('admin'); ADMIN=!!r.admin && (r.required ? !!KEY : true); if (r.required===false) ADMIN=true; } catch(e){ ADMIN=false; }
+  document.body.classList.toggle('is-admin', ADMIN); $('#keyBtn').textContent = ADMIN ? 'Sign out' : 'Admin sign in'; $('#keyBtn').hidden = ADMIN && !KEY;
+  if ($('#showLegs')) $('#showLegs').checked = ADMIN; }
+function askKey(){ if (!ADMIN) $('#keyBtn').click(); }
+$('#keyBtn').onclick=()=>{
+  if (ADMIN){ KEY=''; try{ localStorage.removeItem('ior:key'); }catch(e){} checkAdmin().then(route); return; }
+  if ($('#keyBox')) return;
+  const box=document.createElement('form'); box.id='keyBox'; box.className='card'; box.style.cssText='position:fixed;right:16px;top:16px;z-index:30;width:min(300px,calc(100% - 32px))';
+  box.innerHTML='<label class="lbl">Admin password<input class="field" type="password" id="keyIn" autocomplete="current-password"></label><div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Sign in</button><button class="btn small" type="button" id="keyCancel">Cancel</button></div>';
+  document.body.appendChild(box); $('#keyIn').focus(); $('#keyCancel').onclick=()=>box.remove();
+  box.onsubmit=async ev=>{ ev.preventDefault(); KEY=$('#keyIn').value; await checkAdmin();
+    if (!ADMIN){ KEY=''; toast('Wrong password.'); return; }
+    try{ localStorage.setItem('ior:key',KEY);}catch(e){} box.remove(); toast('Signed in as admin.'); route(); }; };
+
+/* ---------- canvas ---------- */
+const cv=$('#cv'), ctx=cv.getContext('2d'), stage=$('#stage'); let cw=0,ch=0,dpr=1;
+new ResizeObserver(()=>{ const r=stage.getBoundingClientRect(); dpr=devicePixelRatio||1; cw=r.width; ch=r.height; cv.width=cw*dpr; cv.height=ch*dpr; if (img&&img.complete&&!view.init) fit(); draw(); }).observe(stage);
+function fit(){ if (!img||!img.naturalWidth||!cw) return; view.k=Math.min(cw/img.naturalWidth, ch/img.naturalHeight)*0.97; view.x=(cw-img.naturalWidth*view.k)/2; view.y=(ch-img.naturalHeight*view.k)/2; view.init=true; }
+function centreOn(x,y){ const k=K(); view.k=Math.max(view.k, Math.min(cw/img.naturalWidth, ch/img.naturalHeight)*3.5); view.x=cw/2-x*k*view.k; view.y=ch/2-y*k*view.k; draw(); }
+const FC=['#1F6FE0','#0E9F6E','#F29A07','#E0457B','#7B3FE4','#13A3B5','#6B7A0F','#B4540A'];
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cw,ch);
+  if (!img||!img.complete||!F) return;
+  ctx.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.x,dpr*view.y); const lw=1/view.k, k=K();
+  ctx.drawImage(img,0,0);
+  ctx.lineJoin=ctx.lineCap='round';
+  // floors
+  (F.floors||[]).forEach(f=>{ const c=FC[(f.floor-1)%FC.length]; f.boxes.forEach(b=>{ ctx.strokeStyle=c; ctx.globalAlpha=.55; ctx.lineWidth=2.5*lw; ctx.setLineDash([8*lw,6*lw]); ctx.strokeRect(b[0]*k,b[1]*k,(b[2]-b[0])*k,(b[3]-b[1])*k); ctx.setLineDash([]);
+    ctx.globalAlpha=1; ctx.fillStyle=c; ctx.font=`700 ${14*lw}px IBM Plex Sans, sans-serif`; ctx.fillText('Floor '+f.floor, b[0]*k+4*lw, b[1]*k-5*lw); }); });
+  // leg preview
+  if ($('#showLegs').checked && M.legs_preview){ ctx.strokeStyle='#1F6FE0'; ctx.globalAlpha=.8; ctx.lineWidth=3*lw;
+    M.legs_preview.forEach(L=>L.lines.forEach(seg=>{ ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke(); })); ctx.globalAlpha=1; }
+  // flights
+  Object.entries(M.flights||{}).forEach(([n,[f,x,y]])=>{ ctx.beginPath(); ctx.arc(x,y,4*lw,0,7); ctx.fillStyle=n.endsWith('up')?'#E3262B':'#1F6FE0'; ctx.fill(); ctx.lineWidth=1.5*lw; ctx.strokeStyle='#fff'; ctx.stroke(); });
+  // stair labels
+  F.stair_labels.forEach((s,i)=>{ const on=sel&&sel.t==='s'&&sel.i===i; ctx.fillStyle=on?'#A3309B':'rgba(255,255,255,.85)'; ctx.strokeStyle='#A3309B'; ctx.lineWidth=1.5*lw;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(s.x*k-9*lw,s.y*k-9*lw,18*lw,18*lw,3*lw) : ctx.rect(s.x*k-9*lw,s.y*k-9*lw,18*lw,18*lw); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=on?'#fff':'#A3309B'; ctx.font=`700 ${12*lw}px IBM Plex Sans, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(s.letter, s.x*k, s.y*k+0.5*lw); });
+  // one-ways
+  (F.oneways||[]).forEach(o=>{ const [ax,ay]=o.entry, [bx,by]=o.exit; ctx.strokeStyle='#0E9F6E'; ctx.lineWidth=4*lw; ctx.beginPath(); ctx.moveTo(ax*k,ay*k); ctx.lineTo(bx*k,by*k); ctx.stroke();
+    const an=Math.atan2(by-ay,bx-ax); ctx.beginPath(); ctx.moveTo(bx*k,by*k); ctx.lineTo(bx*k-12*lw*Math.cos(an-0.5),by*k-12*lw*Math.sin(an-0.5)); ctx.lineTo(bx*k-12*lw*Math.cos(an+0.5),by*k-12*lw*Math.sin(an+0.5)); ctx.closePath(); ctx.fillStyle='#0E9F6E'; ctx.fill(); });
+  (F.crossings||[]).forEach(c=>{ ctx.strokeStyle='#E3262B'; ctx.lineWidth=3*lw; const b=c.box; ctx.strokeRect(b[0]*k,b[1]*k,(b[2]-b[0])*k,(b[3]-b[1])*k); });
+  // pockets
+  (F.pockets||[]).forEach(p=>{ const c=F.controls.find(c=>ctrlName(c)===p.control), fl=(M.flights||{})[p.flight]; if (!c||!fl) return; ctx.strokeStyle='#F29A07'; ctx.lineWidth=3*lw; ctx.setLineDash([5*lw,4*lw]); ctx.beginPath(); ctx.moveTo(c.x*k,c.y*k); ctx.lineTo(fl[1],fl[2]); ctx.stroke(); ctx.setLineDash([]); });
+  // controls
+  F.controls.forEach((c,i)=>{ const on=sel&&sel.t==='c'&&sel.i===i; const x=c.x*k, y=c.y*k, r=(c.r||27)*k;
+    ctx.strokeStyle=on?'#F29A07':'#A3309B'; ctx.lineWidth=(on?4:2.5)*lw; ctx.beginPath(); ctx.arc(x,y,Math.max(r,9*lw),0,7); ctx.stroke();
+    ctx.font=`700 ${15*lw}px IBM Plex Sans, sans-serif`; ctx.textAlign='left'; ctx.textBaseline='bottom'; const t=c.kind==='start'?'S':c.kind==='finish'?'F':String(c.n);
+    ctx.lineWidth=4*lw; ctx.strokeStyle='#fff'; ctx.strokeText(t,x+r+2*lw,y-r*0.4); ctx.fillStyle='#A3309B'; ctx.fillText(t,x+r+2*lw,y-r*0.4); });
+}
+/* pan / zoom / pick */
+const ptrs=new Map(); let g=null;
+cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY}); g={sx:e.offsetX,sy:e.offsetY,vx:view.x,vy:view.y,moved:false,d:null}; });
+cv.addEventListener('pointermove',e=>{ if(!ptrs.has(e.pointerId)||!g) return; ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+  if (ptrs.size===2){ const [a,b]=[...ptrs.values()], d=Math.hypot(a.x-b.x,a.y-b.y); if (g.d) zoomAt(d/g.d,(a.x+b.x)/2,(a.y+b.y)/2); g.d=d; g.moved=true; return; }
+  const dx=e.offsetX-g.sx, dy=e.offsetY-g.sy; if (Math.hypot(dx,dy)>4) g.moved=true; if (g.moved){ view.x=g.vx+dx; view.y=g.vy+dy; draw(); } });
+cv.addEventListener('pointerup',e=>{ ptrs.delete(e.pointerId); if (g&&!g.moved&&ptrs.size===0) tap(e.offsetX,e.offsetY); if(!ptrs.size) g=null; });
+cv.addEventListener('wheel',e=>{ e.preventDefault(); zoomAt(Math.exp(-e.deltaY*0.0015),e.offsetX,e.offsetY); },{passive:false});
+function zoomAt(f,sx,sy){ const k2=Math.min(30,Math.max(0.02,view.k*f)); f=k2/view.k; view.x=sx-(sx-view.x)*f; view.y=sy-(sy-view.y)*f; view.k=k2; draw(); }
+function setPick(p){ pick=p; stage.classList.toggle('pick',!!p); $('#hint').hidden=!p; if (p) $('#hint').textContent=p.hint; }
+function floorAt(x,y){ let best=null; (F.floors||[]).forEach(f=>f.boxes.forEach(b=>{ const d=Math.hypot(Math.max(b[0]-x,0,x-b[2]),Math.max(b[1]-y,0,y-b[3])); if (!best||d<best[1]) best=[f.floor,d]; })); return best?best[0]:1; }
+function tap(sx,sy){
+  const k=K(); const x=(sx-view.x)/view.k/k, y=(sy-view.y)/view.k/k;   // 300 dpi page pixels
+  if (!pick){ // select nearest control / letter
+    let best=null; F.controls.forEach((c,i)=>{ const d=Math.hypot(c.x-x,c.y-y); if (d<40/view.k/k+30 && (!best||d<best.d)) best={t:'c',i,d}; });
+    F.stair_labels.forEach((s,i)=>{ const d=Math.hypot(s.x-x,s.y-y); if (d<20/view.k/k+12 && (!best||d<best.d)) best={t:'s',i,d}; });
+    sel=best; renderLists(); draw(); return; }
+  const p=pick;
+  if (p.t==='moveCtrl'){ const c=F.controls[p.i]; c.x=Math.round(x); c.y=Math.round(y); c.floor=floorAt(x,y); setPick(null); markDirty(); }
+  else if (p.t==='addCtrl'){ const fi=F.controls.findIndex(c=>c.kind==='finish'); F.controls.splice(fi<0?F.controls.length:fi,0,{kind:'control',n:0,x:Math.round(x),y:Math.round(y),r:27,floor:floorAt(x,y)}); renumber(); setPick(null); markDirty(); }
+  else if (p.t==='addStair'){ F.stair_labels.push({letter:'?',floor:floorAt(x,y),x:Math.round(x),y:Math.round(y)}); setPick(null); markDirty(); toast('Type the letter in the Stairs list.'); }
+  else if (p.t==='oneway1'){ setPick({t:'oneway2', a:[Math.round(x),Math.round(y)], hint:'Now click where it ends (the side you leave by).'}); }
+  else if (p.t==='oneway2'){ const a=p.a, b=[Math.round(x),Math.round(y)], hz=Math.abs(b[0]-a[0])>=Math.abs(b[1]-a[1]);
+    const box = hz ? [Math.min(a[0],b[0])+12, Math.min(a[1],b[1])-28, Math.max(a[0],b[0])-12, Math.max(a[1],b[1])+28] : [Math.min(a[0],b[0])-28, Math.min(a[1],b[1])+12, Math.max(a[0],b[0])+28, Math.max(a[1],b[1])-12];
+    F.oneways=F.oneways||[]; F.oneways.push({floor:floorAt(x,y), box, dir: hz?[Math.sign(b[0]-a[0]),0]:[0,Math.sign(b[1]-a[1])], entry:a, exit:b}); setPick(null); markDirty(); }
+  else if (p.t==='cross'){ const cx=Math.round(x), cy=Math.round(y), h=30; F.crossings=F.crossings||[];
+    F.crossings.push({floor:floorAt(x,y), x:cx, y:cy, box:[cx-h,cy-h,cx+h,cy+h], arms:{N:[cx,cy-h-12],S:[cx,cy+h+12],W:[cx-h-12,cy],E:[cx+h+12,cy]}}); setPick(null); markDirty(); }
+}
+document.addEventListener('keydown',e=>{ if (e.key==='Escape') setPick(null); });
+checkAdmin().then(route);
+})();
+</script>
+</body></html>
