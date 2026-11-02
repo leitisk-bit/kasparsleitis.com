@@ -21,4 +21,16 @@ jobs:
               print(f"- {m['id']} | {m.get('name')} | status={m.get('status')} | controls={m.get('controls')} | legs={len(d['features']['controls'])-1 if d.get('features') else '?'}"
                     f" | results: {r.get('event','-')} groups={[g['name'] for g in r.get('groups',[])]} runners={sum(len(g['runners']) for g in r.get('groups',[]))}"
                     f" | meta.results={m.get('results')} | runs={[(x.get('name'), x.get('status')) for x in d.get('runs',[])]}")
+          for m in maps:
+              d = get(f"/api/maps/{m['id']}")
+              me = d['meta']; f = d['features']
+              print('MAP', m['id'], 'problems', me.get('problems'), 'floors', [x['floor'] for x in f.get('floors', [])], 'pockets', f.get('pockets'))
+              print('  controls', [(c['kind'], c.get('n'), c.get('code'), c.get('floor'), int(c['x']), int(c['y'])) for c in f['controls']])
+              for L in me.get('legs_preview', []): print('  preview', L.get('leg'), L.get('time'), L.get('stairs'), 'ERROR' if L.get('error') else '')
+              for r in d.get('runs', []):
+                  run = get(f"/api/runs/{r['id']}")
+                  print('RUN', r['id'], run.get('name'), run.get('status'), run.get('error'), 'msg', run.get('message'), 'offset', run.get('offset'), 'track', run.get('has_track'))
+                  pts = (run.get('runners') or [{}])[0].get('pts', [])
+                  print('  points', len(pts), 'first', pts[:1], 'last', pts[-1:])
+                  for L in run.get('legs', []): print('  leg', L['label'], L['split'], '|', L.get('route'), '|', (L.get('note') or '')[:120])
           PY
