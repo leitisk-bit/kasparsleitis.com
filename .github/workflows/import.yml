@@ -1,5 +1,7 @@
 # One-off: copies what is on the Namecheap site now into site/ and commits it,
 # so the repository starts from the real current site. Run it from the Actions tab.
+# The WordPress install (Wordpress/) and Namecheap's old site-builder folders are left out:
+# WordPress keeps its content in a database and updates its own files.
 name: Import current site from Namecheap
 
 on:
@@ -29,7 +31,7 @@ jobs:
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "ftp://$FTP_SERVER" -e "
             set ftp:ssl-force true; set ftp:ssl-protect-data true; set ssl:verify-certificate yes; set ftp:prefer-epsv false; set ftp:passive-mode true; set net:timeout 20; set net:max-retries 3; set net:reconnect-interval-base 5; set xfer:log true; debug 2 -o lftp-debug.txt; cls -la;
             mirror --verbose --parallel=4 \
-              --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob error_log --exclude-glob '*.log' \
+              --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob Wordpress/ --exclude-glob ncsitebuilder/ --exclude-glob nc_assets/ --exclude-glob .ftpquota --exclude-glob error_log --exclude-glob '*.log' \
               . site; bye"
           echo "Files: $(find site -type f | wc -l), size: $(du -sh site | cut -f1)"
 
