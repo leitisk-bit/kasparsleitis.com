@@ -12,6 +12,7 @@ from datetime import date, datetime, timezone
 import db
 from apifootball import Client, QuotaExhausted, store_fixture_details, upsert_fixture_basic
 from config import COMPETITIONS, FINISHED
+from odds import refresh_odds
 
 
 def current_season() -> int:
@@ -86,8 +87,17 @@ def run(kind: str, seasons=None, limit=None):
         refresh_fixture_lists(con, client, seasons)
         print("Fetching match statistics", flush=True)
         total = fetch_missing_details(con, client, limit)
+        if kind == "update":
+            print("Fetching bookmaker odds", flush=True)
+            try:
+                refresh_odds(con, client, current_season())
+            except Exception as e:  # noqa — odds are optional; never block the data update
+                print("  odds failed:", e, flush=True)
         _log_end(con, log_id, client, total)
         print(f"Done. {total} matches with details. API calls: {client.calls}, quota left: {client.quota_left}")
+        print("Running predictions", flush=True)
+        import model
+        model.run(con)
     except QuotaExhausted as e:
         _log_end(con, log_id, client, total, f"daily quota reached, resume tomorrow: {e}")
         print("Daily quota reached — run the same command again tomorrow, it continues where it stopped.")

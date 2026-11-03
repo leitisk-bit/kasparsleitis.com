@@ -83,19 +83,21 @@ def upsert_fixture_basic(con, fx: dict) -> None:
             (t["id"], t["name"], t.get("logo")),
         )
     ht = sc.get("halftime") or {}
+    ft = sc.get("fulltime") or {}
     con.execute(
         """INSERT INTO matches(id,league_id,season,round,is_qualifier,date_utc,status,home_id,away_id,
-                               home_goals,away_goals,ht_home,ht_away,referee,venue,updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                               home_goals,away_goals,ht_home,ht_away,ft_home,ft_away,referee,venue,updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET round=excluded.round, is_qualifier=excluded.is_qualifier,
              date_utc=excluded.date_utc, status=excluded.status,
              home_goals=excluded.home_goals, away_goals=excluded.away_goals,
              ht_home=excluded.ht_home, ht_away=excluded.ht_away,
+             ft_home=excluded.ft_home, ft_away=excluded.ft_away,
              referee=excluded.referee, venue=excluded.venue, updated_at=excluded.updated_at""",
         (
             f["id"], lg["id"], lg["season"], lg.get("round"), is_qualifier(lg.get("round")),
             f["date"], f["status"]["short"], tm["home"]["id"], tm["away"]["id"],
-            gl.get("home"), gl.get("away"), ht.get("home"), ht.get("away"),
+            gl.get("home"), gl.get("away"), ht.get("home"), ht.get("away"), ft.get("home"), ft.get("away"),
             f.get("referee"), (f.get("venue") or {}).get("name"), _now(),
         ),
     )

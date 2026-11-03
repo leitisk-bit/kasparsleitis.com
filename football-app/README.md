@@ -73,3 +73,23 @@ Update on the server after a change here:
 ```bash
 cd ~/kasparsleitis.com && git pull && sudo cp football-app/*.py /opt/football/ && sudo cp -r football-app/static /opt/football/ && sudo systemctl restart football-web
 ```
+
+## Predictions (model.py)
+Every statistic (goals, corners, shots, shots on target, offsides, substitutions) has its own model: each team
+gets an attack and a defence strength, plus home advantage and competition level — a weighted Poisson
+regression with shrinkage (few matches → close to average) and time decay. Counts are spread with a negative
+binomial (binomial for substitutions). Everything is saved in the database:
+
+| Table | What |
+|---|---|
+| `model_runs` | every model version: settings per statistic, test scores, which one is active |
+| `predictions` | one per match per version: `live` (made before kick-off) or `backtest` (walk-forward test) |
+| `picks` | what the tabs show (confidence / sure / easy / bet_on), scored won / lost / void after the match |
+| `odds` | bookmaker prices: opening and latest |
+
+```bash
+.venv/bin/python model.py run       # predict upcoming + score finished (also runs after every data update)
+.venv/bin/python model.py improve   # try other settings on the last year; keep only if better, then re-test
+.venv/bin/python model.py report    # scores of every version
+```
+The first `run` with enough data tunes and back-tests automatically (a few minutes).

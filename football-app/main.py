@@ -270,6 +270,298 @@ def match(match_id: int):
     return {"match": dict(m), "stats": stats, "substitutions": subs}
 
 
+# ---------------- predictions & tabs ----------------
+import json as _json
+
+import model as M
+
+PICK_STATS = M.PICK_STATS
+LIVE_FROM = None
+
+
+def _active(c):
+    run = c.execute("SELECT version FROM model_runs WHERE active=1 ORDER BY id DESC LIMIT 1").fetchone()
+    return run["version"] if run else None
+
+
+def _preds_for(c, ids):
+    """Best prediction per match: live (latest version) first, else the active version's walk-forward test."""
+    if not ids:
+        return {}
+    act = _active(c)
+    out = {}
+    q = ",".join("?" * len(ids))
+    for row in c.execute(f"""SELECT p.match_id, p.version, p.kind, p.made_at, p.data FROM predictions p
+                             JOIN model_runs r ON r.version=p.version
+                             WHERE p.match_id IN ({q}) ORDER BY r.id""", ids):
+        cur = out.get(row["match_id"])
+        rank = (2 if row["kind"] == "live" else 1 if row["version"] == act else 0)
+        if cur is None or rank >= cur[0]:
+            out[row["match_id"]] = (rank, row)
+    return {k: v[1] for k, v in out.items() if v[0] > 0}
+
+
+def _summary(pred):
+    out = {}
+    g = pred.get("goals")
+    if g:
+        out["p1"], out["px"], out["p2"] = g["p1"], g["px"], g["p2"]
+        out["goals"] = [g["eh"], g["ea"]]
+    for s in PICK_STATS:
+        if s in pred:
+            out[s] = [pred[s]["eh"], pred[s]["ea"]]
+    return out
+
+
+def _match_rows(c, where, args):
+    rows = [dict(x) for x in c.execute(f"""
+        SELECT m.id, m.date_utc, m.league_id, m.round, m.status, m.home_id, m.away_id, m.home_goals, m.away_goals,
+               m.ft_home, m.ft_away, th.name home, ta.name away, th.logo home_logo, ta.logo away_logo
+        FROM matches m JOIN teams th ON th.id=m.home_id JOIN teams ta ON ta.id=m.away_id
+        WHERE {where} ORDER BY m.date_utc""", args)]
+    for m in rows:
+        m["league"] = COMPETITIONS.get(m["league_id"], ("?",))[0]
+    return rows
+
+
+@r.get("/api/meta")
+def meta():
+    c = con()
+    act = c.execute("SELECT version, created_at FROM model_runs WHERE active=1").fetchone()
+    first_live = c.execute("SELECT MIN(made_at) FROM picks WHERE kind='live'").fetchone()[0]
+    until = c.execute("SELECT MAX(date_utc) FROM matches WHERE details_fetched=1").fetchone()[0]
+    n = c.execute("SELECT COUNT(*) FROM matches WHERE details_fetched=1").fetchone()[0]
+    comps = [dict(x) for x in c.execute("SELECT * FROM competitions ORDER BY type DESC, id")]
+    seasons = [x[0] for x in c.execute("SELECT DISTINCT season FROM matches ORDER BY season DESC")]
+    return {"competitions": comps, "seasons": seasons, "stats": STATS, "model": dict(act) if act else None,
+            "live_from": first_live, "data_until": until, "matches": n}
+
+
+@r.get("/api/matches")
+def matches(frm: str, to: str, league: int | None = None):
+    c = con()
+    where, args = ["m.date_utc >= ?", "m.date_utc < ?"], [frm, to]
+    if league:
+        where.append("m.league_id=?"); args.append(league)
+    rows = _match_rows(c, " AND ".join(where), args)
+    ids = [m["id"] for m in rows]
+    preds = _preds_for(c, ids)
+    stats = {}
+    if ids:
+        q = ",".join("?" * len(ids))
+        for s in c.execute(f"SELECT * FROM team_stats WHERE match_id IN ({q})", ids):
+            stats.setdefault(s["match_id"], {})["h" if s["is_home"] else "a"] = {k: s[k] for k in PICK_STATS}
+    for m in rows:
+        p = preds.get(m["id"])
+        if p:
+            m["pred"] = _summary(_json.loads(p["data"]))
+            m["pred_kind"], m["pred_version"] = p["kind"], p["version"]
+        st = stats.get(m["id"])
+        if st and "h" in st and "a" in st:
+            m["stats"] = {k: [st["h"][k], st["a"][k]] for k in PICK_STATS}
+    return rows
+
+
+def _lines(pmf, mean):
+    lo = max(0, int(mean - 2.5 * (mean ** 0.5 + 1)))
+    hi = int(mean + 2.5 * (mean ** 0.5 + 1)) + 1
+    return [{"line": k + 0.5, "over": round(M.p_over(pmf, k + 0.5), 4)} for k in range(lo, hi)]
+
+
+@r.get("/api/match/{match_id}/full")
+def match_full(match_id: int):
+    c = con()
+    base = match(match_id)
+    p = _preds_for(c, [match_id]).get(match_id)
+    out = {**base, "prediction": None}
+    if p:
+        pred = _json.loads(p["data"])
+        markets = {}
+        for s in PICK_STATS + ["goals"]:
+            if s not in pred:
+                continue
+            e = pred[s]
+            markets[s] = {"expected": [e["eh"], e["ea"]],
+                          "total": _lines(M.total_pmf(pred, s), e["eh"] + e["ea"]),
+                          "home": _lines(M._arr(e["ph"]), e["eh"]), "away": _lines(M._arr(e["pa"]), e["ea"])}
+        g = pred.get("goals", {})
+        d = M.margin_pmf(pred) if g else {}
+        out["prediction"] = {"version": p["version"], "kind": p["kind"], "made_at": p["made_at"],
+                             "p1": g.get("p1"), "px": g.get("px"), "p2": g.get("p2"), "markets": markets,
+                             "margin": {str(k): round(v, 4) for k, v in sorted(d.items()) if abs(k) <= 5}}
+    out["odds"] = [dict(x) for x in c.execute(
+        """SELECT market, scope, side, line, MAX(price) price, MIN(open_price) open_min, COUNT(*) books
+           FROM odds WHERE match_id=? GROUP BY market, scope, side, line ORDER BY market, scope, line, side""",
+        (match_id,))]
+    out["picks"] = [dict(x) for x in c.execute(
+        "SELECT tab, market, scope, side, line, prob, price, bookmaker, result, kind, version FROM picks "
+        "WHERE match_id=? AND kind='live' ORDER BY tab, prob DESC", (match_id,))]
+    return out
+
+
+def _latest_live(c, rows):
+    """When several versions predicted one match, keep the newest version's picks."""
+    newest = {}
+    for x in rows:
+        if x["match_id"] not in newest or x["run_id"] > newest[x["match_id"]]:
+            newest[x["match_id"]] = x["run_id"]
+    return [x for x in rows if x["run_id"] == newest[x["match_id"]]]
+
+
+def _boldest(rows, mn):
+    """Sure bets: for each statistic / team / side keep the boldest line that is still at least `mn` sure."""
+    best = {}
+    for x in rows:
+        if x["prob"] < mn:
+            continue
+        k = (x["match_id"], x["market"], x["scope"], x["side"])
+        b = best.get(k)
+        if b is None or (x["line"] > b["line"] if x["side"] == "over" else x["line"] < b["line"]):
+            best[k] = x
+    return list(best.values())
+
+
+@r.get("/api/picks")
+def picks(tab: str, frm: str, to: str, mn: float = 0.0):
+    if tab not in ("confidence", "sure", "easy", "bet_on"):
+        raise HTTPException(400, "bad tab")
+    c = con()
+    act = _active(c)
+    q = """SELECT p.*, r.id run_id FROM picks p JOIN matches m ON m.id=p.match_id JOIN model_runs r ON r.version=p.version
+           WHERE p.tab=? AND m.date_utc>=? AND m.date_utc<? AND {k}"""
+    rows = [dict(x) for x in c.execute(q.format(k="p.kind='live'"), (tab, frm, to))]
+    if rows:
+        rows = _latest_live(c, rows)
+    for x in rows:
+        x["source"] = "live"
+    # matches already played that had no live prediction (before live tracking started):
+    # show the walk-forward test picks, made only from earlier matches
+    if act:
+        have = {x["match_id"] for x in rows}
+        now_s = datetime.now(timezone.utc).isoformat()
+        test = [dict(x) for x in c.execute(q.format(k="p.kind='backtest' AND p.version=? AND m.date_utc<?"),
+                                           (tab, frm, to, act, now_s))]
+        for x in test:
+            if x["match_id"] not in have:
+                x["source"] = "backtest"
+                rows.append(x)
+    source = "live" if all(x["source"] == "live" for x in rows) else \
+        "backtest" if all(x["source"] == "backtest" for x in rows) else "mixed"
+    if tab == "sure":
+        rows = _boldest(rows, mn or M.SURE_MIN)
+    ids = sorted({x["match_id"] for x in rows})
+    ms = {m["id"]: m for m in _match_rows(c, f"m.id IN ({','.join('?' * len(ids))})", ids)} if ids else {}
+    if ids:
+        q2 = ",".join("?" * len(ids))
+        for s in c.execute(f"SELECT * FROM team_stats WHERE match_id IN ({q2})", ids):
+            if s["match_id"] in ms:
+                ms[s["match_id"]].setdefault("stats", {})["h" if s["is_home"] else "a"] = {k: s[k] for k in PICK_STATS}
+    preds = _preds_for(c, ids)
+    for mid, p in preds.items():
+        if mid in ms:
+            ms[mid]["pred"] = _summary(_json.loads(p["data"]))
+    for x in rows:
+        x.pop("run_id", None)
+    return {"source": source, "picks": rows, "matches": ms}
+
+
+def _bucket(p):
+    return "90%+" if p >= 0.9 else "85–90%" if p >= 0.85 else "80–85%" if p >= 0.8 else \
+        "70–80%" if p >= 0.7 else "60–70%" if p >= 0.6 else "50–60%" if p >= 0.5 else "<50%"
+
+
+def _agg(rows, key):
+    out = {}
+    for x in rows:
+        if x["result"] not in ("won", "lost"):
+            continue
+        k = key(x)
+        o = out.setdefault(k, {"n": 0, "won": 0, "said": 0.0, "profit": 0.0, "priced": 0})
+        o["n"] += 1; o["won"] += x["result"] == "won"; o["said"] += x["prob"]
+        if x.get("price"):
+            o["priced"] += 1
+            o["profit"] += (x["price"] - 1) if x["result"] == "won" else -1
+    for o in out.values():
+        o["hit"] = round(o["won"] / o["n"], 4); o["said"] = round(o["said"] / o["n"], 4)
+        o["roi"] = round(o["profit"] / o["priced"], 4) if o["priced"] else None
+        o["profit"] = round(o["profit"], 2)
+    return out
+
+
+_hist_cache = {}
+
+
+@r.get("/api/history")
+def history(tab: str, mn: float = 0.0):
+    """What the record says: walk-forward test of the active version, and live picks so far.
+    Cached until the active version or the number of scored picks changes."""
+    c = con()
+    act = _active(c)
+    key = (tab, act, c.execute("SELECT COUNT(*), MAX(id) FROM picks WHERE kind='live' AND result IS NOT NULL").fetchone()[:],
+           c.execute("SELECT MAX(id) FROM picks").fetchone()[0])
+    if key in _hist_cache:
+        return _hist_cache[key]
+    out = _history(c, tab, act)
+    _hist_cache.clear() if len(_hist_cache) > 20 else None
+    _hist_cache[key] = out
+    return out
+
+
+def _history(c, tab, act):
+    out = {"version": act}
+    for kind in ("backtest", "live"):
+        if kind == "backtest":
+            rows = [dict(x) for x in c.execute(
+                "SELECT match_id, market, scope, side, line, prob, price, result FROM picks "
+                "WHERE tab=? AND kind='backtest' AND version=? AND result IN ('won','lost')", (tab, act))]
+        else:
+            rows = [dict(x) for x in c.execute(
+                "SELECT p.match_id, p.market, p.scope, p.side, p.line, p.prob, p.price, p.result, r.id run_id "
+                "FROM picks p JOIN model_runs r ON r.version=p.version "
+                "WHERE p.tab=? AND p.kind='live' AND p.result IN ('won','lost')", (tab,))]
+            rows = _latest_live(c, rows) if rows else rows
+        if tab == "sure":
+            res = {}
+            for t in (0.8, 0.85, 0.9):
+                b = _boldest(rows, t)
+                res[str(t)] = {"all": _agg(b, lambda x: "all").get("all"), "by_stat": _agg(b, lambda x: x["market"])}
+            out[kind] = res
+        elif tab == "easy":
+            p15 = {x["match_id"]: x["prob"] for x in rows if x["line"] == -1.5}
+            res = {}
+            for t in (0.5, 0.6, 0.7):
+                sel = [x for x in rows if p15.get(x["match_id"], 0) >= t]
+                res[str(t)] = _agg(sel, lambda x: str(x["line"]))
+            out[kind] = res
+        elif tab == "confidence":
+            out[kind] = _agg(rows, lambda x: ("Winner " if x["market"] == "1x2" else "Double chance ") + _bucket(x["prob"]))
+        else:
+            out[kind] = {"all": _agg(rows, lambda x: "all").get("all"), "by_market": _agg(rows, lambda x: x["market"])}
+    return out
+
+
+@r.get("/api/model")
+def model_info():
+    c = con()
+    runs = []
+    for x in c.execute("SELECT * FROM model_runs ORDER BY id DESC"):
+        d = dict(x)
+        d["params"] = _json.loads(d["params"] or "{}")
+        m = _json.loads(d["metrics"] or "{}")
+        m.pop("grid", None)
+        d["metrics"] = m
+        runs.append(d)
+    calib = [dict(x) for x in c.execute(
+        """SELECT tab, CAST(MIN(prob, 0.9999)*20 AS INT)/20.0 b, COUNT(*) n, ROUND(AVG(prob),4) said, ROUND(AVG(result='won'),4) hit
+           FROM picks WHERE kind='backtest' AND version=(SELECT version FROM model_runs WHERE active=1)
+           AND result IN ('won','lost') AND tab IN ('confidence','sure') GROUP BY tab, b ORDER BY tab, b""")]
+    live = [dict(x) for x in c.execute(
+        """SELECT tab, COUNT(*) n, SUM(result='won') won, ROUND(AVG(prob),4) said,
+                  SUM(result IS NULL) open FROM picks WHERE kind='live' GROUP BY tab""")]
+    unknown = [dict(x) for x in c.execute("SELECT * FROM odds_unknown ORDER BY seen DESC LIMIT 15")]
+    return {"runs": runs, "calibration": calib, "live": live, "odds_unknown": unknown}
+
+
 # ---------------- admin ----------------
 _sync = {"proc": None, "started": None}
 LOG = BASE_DIR / "data" / "sync-web.log"
@@ -298,9 +590,12 @@ async def admin_sync(request: Request):
     if p is not None and p.poll() is None:
         return {"started": False, "reason": "already running"}
     kind = body.get("kind", "update")
-    cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
-    if kind == "backfill":
-        cmd += ["--seasons", str(body.get("seasons", "2021-2026"))]
+    if kind in ("predict", "improve", "backtest", "run"):
+        cmd = [sys.executable, str(BASE_DIR / "model.py"), kind]
+    else:
+        cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
+        if kind == "backfill":
+            cmd += ["--seasons", str(body.get("seasons", "2021-2026"))]
     LOG.parent.mkdir(parents=True, exist_ok=True)
     _sync["proc"] = subprocess.Popen(cmd, cwd=BASE_DIR, stdout=open(LOG, "w"), stderr=subprocess.STDOUT)
     _sync["started"] = time.time()

@@ -2,278 +2,416 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Football Stats</title>
 <meta name="robots" content="noindex,nofollow">
+<title>Football Stats</title>
 <style>
-:root{--bg:#f4f5f2;--card:#fff;--ink:#16201a;--muted:#6a756d;--accent:#1f7a4d;--accent-soft:#e3f1e9;--line:#e3e7e0;--over:#1f7a4d;--under:#b3561e}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1411;--card:#171e19;--ink:#e7ece8;--muted:#93a097;--accent:#3fbf7f;--accent-soft:#1c3226;--line:#26302a;--over:#3fbf7f;--under:#f0965a}}
+:root{--bg:#f4f5f2;--card:#fff;--ink:#16201a;--muted:#6a756d;--accent:#1f7a4d;--accent-soft:#e3f1e9;--line:#e3e7e0;--good:#1f7a4d;--bad:#b3261e;--warn:#9a6700;--bar:#cfd8d1}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1411;--card:#171e19;--ink:#e7ece8;--muted:#93a097;--accent:#3fbf7f;--accent-soft:#1c3226;--line:#26302a;--good:#3fbf7f;--bad:#ff8a80;--warn:#e3b341;--bar:#2e3a32}}
 *{box-sizing:border-box} [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
-header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5;flex-wrap:wrap}
-header h1{font-size:18px;margin:0;margin-right:auto}
-nav{display:flex;gap:4px;flex-wrap:wrap}
-nav button{border:0;background:none;color:var(--muted);padding:7px 12px;border-radius:8px;font:inherit;cursor:pointer}
+a{color:var(--ink);text-decoration:none} a:hover{color:var(--accent);text-decoration:underline}
+header{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;margin-right:auto;white-space:nowrap}
+nav{display:flex;gap:2px;flex-wrap:wrap}
+nav button{border:0;background:none;color:var(--muted);padding:6px 10px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
 nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.logout{border:1px solid var(--line);background:none;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer;font:inherit}
-main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
-.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:16px}
+.logout{border:1px solid var(--line);background:none;color:var(--muted);padding:5px 10px;border-radius:8px;cursor:pointer;font:inherit;font-size:14px}
+main{max-width:1150px;margin:0 auto;padding:18px 16px 60px}
+.head h2{font-size:21px;margin:0 0 4px} .head p{margin:0 0 4px;color:var(--muted);font-size:14px;max-width:820px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:14px 0}
 label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
-select,input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;min-width:0}
+select,input{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:7px 11px;font:inherit;font-size:13.5px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0} .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .btn{padding:8px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;font:inherit}
 .btn.ghost{background:none;border:1px solid var(--line);color:var(--ink)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card h3{font-size:15px;margin:0 0 8px}
+.note{background:var(--accent-soft);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:12px}
+.note b{font-variant-numeric:tabular-nums}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
 .tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
-.tile .k{font-size:12px;color:var(--muted)} .tile .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
-.tile .s{font-size:12px;color:var(--muted)}
+.tile .k{font-size:12px;color:var(--muted)} .tile .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums} .tile .s{font-size:12px;color:var(--muted)}
 .tablewrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
-th{font-size:12px;color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card)}
-td.l,th.l{text-align:left}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td.l,th.l{text-align:left} td.wrap{white-space:normal}
 tr.click{cursor:pointer} tr.click:hover td{background:var(--accent-soft)}
-.muted{color:var(--muted)} .over{color:var(--over);font-weight:600} .under{color:var(--under);font-weight:600}
-.logo{width:20px;height:20px;vertical-align:-5px;margin-right:6px;object-fit:contain}
-.fx{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
-.fx .t{font-weight:600} .fx .r{text-align:right}
-.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.chip{background:var(--accent-soft);border-radius:999px;padding:4px 10px;font-size:13px}
-.chip b{font-variant-numeric:tabular-nums}
-.empty{padding:30px;text-align:center;color:var(--muted)}
+.muted{color:var(--muted)} .small{font-size:12.5px}
+.won{color:var(--good);font-weight:650} .lost{color:var(--bad);font-weight:650} .void{color:var(--muted)}
+.logo{width:18px;height:18px;vertical-align:-4px;margin-right:5px;object-fit:contain}
+.probbar{display:flex;height:6px;border-radius:3px;overflow:hidden;width:120px;background:var(--bar)}
+.probbar i{display:block;height:100%} .probbar i:nth-child(1){background:var(--accent)} .probbar i:nth-child(2){background:var(--bar)} .probbar i:nth-child(3){background:var(--warn)}
+.chip{display:inline-block;background:var(--accent-soft);border-radius:999px;padding:2px 9px;font-size:12.5px;margin:2px 4px 2px 0}
+.empty{padding:28px;text-align:center;color:var(--muted)}
 pre{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:8px;max-height:260px;overflow:auto}
 .dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:8px}
 .dot{width:22px;height:22px;border-radius:5px;font-size:11px;display:grid;place-items:center;color:#fff}
-a{color:var(--ink);text-decoration:none} a:hover{color:var(--accent);text-decoration:underline}
-h2{font-size:16px;margin:0 0 10px} h3{font-size:14px;margin:14px 0 8px}
-@media (max-width:640px){header{padding:10px 16px} .fx{grid-template-columns:1fr}.fx .r{text-align:left}}
+.mgroup{font-size:12px;color:var(--muted);margin:14px 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:30px 12px}
+#modal .card{max-width:900px;width:100%;position:relative}
+#modal .x{position:absolute;right:12px;top:10px;border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)}
+@media (max-width:700px){header{padding:8px 12px} main{padding:14px 12px 50px} .cols2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <header>
   <h1>⚽ Football Stats</h1>
-  <nav id="nav">
-    <button data-v="upcoming" class="on">Upcoming</button>
-    <button data-v="team">Teams</button>
-    <button data-v="board">Leaderboard</button>
-    <button data-v="admin">Data</button>
-  </nav>
-  <button class="logout" id="outBtn" hidden>Log out</button>
+  <nav id="nav"></nav>
+  <button class="logout" id="outBtn">Log out</button>
 </header>
 <form id="signin" class="card" hidden style="max-width:340px;margin:60px auto">
-  <h2>Admin sign-in</h2>
-  <p class="muted" style="margin-top:0;font-size:14px">Same admin password as the map library and Server Info.</p>
+  <h3>Admin sign-in</h3>
+  <p class="muted small" style="margin-top:0">Same admin password as the map library and Server Info.</p>
   <input id="keyIn" type="password" placeholder="Password" autocomplete="current-password" style="width:100%">
   <button class="btn" style="width:100%;margin-top:10px">Sign in</button>
-  <p id="signErr" hidden style="color:var(--under);font-size:14px;margin:10px 0 0">Wrong password.</p>
+  <p id="signErr" hidden class="lost small" style="margin:10px 0 0">Wrong password.</p>
 </form>
 <main id="app"></main>
+<div id="modal" hidden><div class="card"><button class="x" id="mx">×</button><div id="mbody"></div></div></div>
 
 <script>
-// The page lives on kasparsleitis.com; the data comes from the home server through the Cloudflare tunnel
+// On kasparsleitis.com the data comes from the home server through the Cloudflare tunnel
 // (the replay app at telpuo.kasparsleitis.com passes /football-api/ on to the football app).
-const API = /(^|\.)kasparsleitis\.com$/.test(location.hostname) ? 'https://telpuo.kasparsleitis.com/football-api' : '/football/api';
+// On the home network (server-ip:8095/football/) the app's own login is used.
+const REMOTE = /(^|\.)kasparsleitis\.com$/.test(location.hostname);
+const API = REMOTE ? 'https://telpuo.kasparsleitis.com/football-api' : '/football/api';
 let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
-const LABEL = {corners:"Corners", total_shots:"Shots", shots_on_goal:"Shots on target", offsides:"Offsides", subs:"Substitutions", fouls:"Fouls", yellow:"Yellow cards"};
-const EXTRA = {shots_off_goal:"Shots off target", blocked_shots:"Blocked shots", red:"Red cards", possession:"Possession %", xg:"xG"};
-const MAIN_STATS = ["corners","total_shots","shots_on_goal","offsides","subs"];
-let META = {competitions:[], seasons:[]};
 const $ = s => document.querySelector(s);
-const app = $("#app");
+const app = $('#app');
+const LABEL = {corners:'Corners', total_shots:'Shots', shots_on_goal:'Shots on target', offsides:'Offsides', subs:'Substitutions', goals:'Goals', fouls:'Fouls', yellow:'Yellow cards'};
+const PSTATS = ['corners','total_shots','shots_on_goal','offsides','subs'];
+const TABS = [['matches','Matches'],['teams','Teams'],['predictions','Predictions'],['confidence','Confidence'],['bet','Bet on'],['sure','Sure Bets'],['easy','Easy Wins'],['data','Data']];
+let META = {competitions:[], seasons:[]};
+const ST = {}; try { Object.assign(ST, JSON.parse(localStorage.getItem('fb:ui') || '{}')); } catch(e){}
+const save = () => { try { localStorage.setItem('fb:ui', JSON.stringify(ST)); } catch(e){} };
 
 async function api(path, opts = {}){
-  const r = await fetch(API + path, {...opts, cache: "no-store", headers: {...(opts.headers || {}), "X-Admin-Key": KEY}});
-  if (r.status === 401 || r.status === 403) { showSignin(); throw new Error("login"); }
-  if (!r.ok) throw new Error(await r.text());
+  const headers = {...(opts.headers || {})}; if (REMOTE) headers['X-Admin-Key'] = KEY;
+  const r = await fetch(API + path, {...opts, headers, cache:'no-store', credentials: REMOTE ? 'omit' : 'same-origin'});
+  if (r.status === 401 || r.status === 403){ if (REMOTE) showSignin(); else location.href = '/football/login'; throw new Error('login'); }
+  if (!r.ok) throw new Error((await r.text()).slice(0, 200));
   return r.json();
 }
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = v => v == null ? "–" : (Math.round(v*100)/100).toString();
-const dt = s => new Date(s).toLocaleString(undefined, {weekday:"short", day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"});
-const d = s => new Date(s).toLocaleDateString(undefined, {day:"2-digit", month:"short", year:"2-digit"});
-const logo = u => u ? `<img class="logo" src="${esc(u)}" alt="" loading="lazy">` : "";
-const opts = (list, val, blank) => (blank ? `<option value="">${blank}</option>` : "") + list.map(([v,t]) => `<option value="${v}" ${String(v)===String(val)?"selected":""}>${esc(t)}</option>`).join("");
-const compOpts = (v, blank) => opts(META.competitions.map(c => [c.id, c.name]), v, blank);
-const seasonOpts = (v, blank) => opts(META.seasons.map(s => [s, `${s}/${String(s+1).slice(2)}`]), v, blank);
-const statOpts = v => opts(Object.entries(LABEL), v);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const f1 = v => v == null ? '–' : (+v).toFixed(1);
+const fmt = v => v == null ? '–' : (Math.round(v*100)/100).toString();
+const pct = (p, d=0) => p == null ? '–' : (p*100).toFixed(d) + '%';
+const fair = p => p > 0 ? (1/p).toFixed(2) : '–';
+const dt = s => new Date(s).toLocaleString(undefined, {weekday:'short', day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'});
+const tm = s => new Date(s).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+const dd = s => new Date(s).toLocaleDateString(undefined, {weekday:'short', day:'2-digit', month:'short'});
+const logo = u => u ? `<img class="logo" src="${esc(u)}" alt="" loading="lazy">` : '';
+const opts = (list, val, blank) => (blank ? `<option value="">${blank}</option>` : '') + list.map(([v,t]) => `<option value="${v}" ${String(v)===String(val)?'selected':''}>${esc(t)}</option>`).join('');
+const compSel = (v, blank='All competitions') => `<select class="comp">${opts(META.competitions.map(c => [c.id, c.name]), v, blank)}</select>`;
+const FINISHED = ['FT','AET','PEN'];
+const resCls = r => r === 'won' ? 'won' : r === 'lost' ? 'lost' : 'void';
+const resTxt = r => r === 'won' ? '✓ won' : r === 'lost' ? '✗ lost' : r === 'void' ? 'void' : '';
 
-// ---------- views ----------
-const views = {
-  async upcoming(){
-    app.innerHTML = `<div class="bar">
-      <label>Days ahead<select id="days">${opts([[1,"1"],[3,"3"],[7,"7"],[14,"14"]], 7)}</select></label>
-      <label>Form (last N)<select id="last">${opts([[5,"5"],[10,"10"],[20,"20"]], 10)}</select></label>
-      <label>Competition<select id="comp">${compOpts("", "All")}</select></label>
-    </div><div id="list"><div class="empty">Loading…</div></div>`;
-    const load = async () => {
-      const data = await api(`/upcoming?days=${$("#days").value}&last=${$("#last").value}`);
-      const c = $("#comp").value;
-      const rows = data.filter(m => !c || String(m.league_id) === c);
-      $("#list").innerHTML = rows.length ? rows.map(m => {
-        const e = m.expected || {};
-        return `<div class="card">
-          <div class="muted" style="font-size:12px;margin-bottom:6px">${esc(m.league)} · ${esc(m.round||"")} · ${dt(m.date_utc)}</div>
-          <div class="fx"><div class="t">${logo(m.home_logo)}<a href="#team/${m.home_id}">${esc(m.home)}</a></div>
-            <div class="muted">vs</div>
-            <div class="t r"><a href="#team/${m.away_id}">${esc(m.away)}</a>${logo(m.away_logo)}</div></div>
-          ${Object.keys(e).length ? `<div class="chips">${MAIN_STATS.map(s => e[s] ? `<span class="chip">${LABEL[s]}: <b>${fmt(e[s].home)}</b> – <b>${fmt(e[s].away)}</b> · total <b>${fmt(e[s].total)}</b></span>` : "").join("")}</div>`
-            : `<div class="muted" style="margin-top:8px;font-size:13px">Not enough history yet for these teams.</div>`}
-        </div>`;}).join("") : `<div class="empty">No upcoming matches in this window. Run a data sync on the Data tab.</div>`;
+function seg(name, value, options, onChange){
+  const id = 'seg-' + name.replace(/[^a-z0-9]/gi, '');
+  setTimeout(() => document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
+    document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle('on', x === b)); onChange(b.dataset.v); }));
+  return `<label>${esc(name)}<span class="seg" id="${id}">${options.map(([v,t]) => `<button type="button" data-v="${v}" class="${String(v)===String(value)?'on':''}">${t}</button>`).join('')}</span></label>`;
+}
+const DAYS = [['week','Last 7 days'],['yesterday','Yesterday'],['today','Today'],['tomorrow','Tomorrow'],['next','Next 7 days']];
+function dayRange(k){
+  const d0 = new Date(); d0.setHours(0,0,0,0); const day = 864e5, now = Date.now();
+  const r = {week:[now - 7*day, now], yesterday:[+d0 - day, +d0], today:[+d0, +d0 + day], tomorrow:[+d0 + day, +d0 + 2*day], next:[now, now + 7*day]}[k];
+  return {frm: new Date(r[0]).toISOString(), to: new Date(r[1]).toISOString(), past: r[1] <= now + 36e5};
+}
+function sideName(m, side){ return side === 'home' ? m.home : side === 'away' ? m.away : side; }
+function pickLabel(p, m){
+  if (p.market === '1x2') return p.side === 'draw' ? 'Draw' : `${esc(sideName(m, p.side))} to win`;
+  if (p.market === 'dc') return p.side === '1X' ? `${esc(m.home)} or draw` : p.side === 'X2' ? `${esc(m.away)} or draw` : 'No draw';
+  if (p.market === 'ah') return `${esc(sideName(m, p.side))} ${p.line > 0 ? '+' : '−'}${Math.abs(p.line)}`;
+  const who = p.scope === 'total' ? 'match' : esc(sideName(m, p.scope));
+  return `${LABEL[p.market] || p.market} · ${who} ${p.side} ${p.line}`;
+}
+function actual(p, m){
+  if (!FINISHED.includes(m.status)) return '';
+  if (['1x2','dc','ah','goals'].includes(p.market)) return m.ft_home != null ? `${m.ft_home}–${m.ft_away}` : '';
+  const s = m.stats; if (!s) return '';
+  const h = (s.h || {})[p.market] ?? (s[p.market] || [])[0], a = (s.a || {})[p.market] ?? (s[p.market] || [])[1];
+  if (h == null || a == null) return '';
+  return String(p.scope === 'home' ? h : p.scope === 'away' ? a : h + a);
+}
+function matchCell(m){
+  const score = FINISHED.includes(m.status) ? ` <b>${m.ft_home ?? m.home_goals}–${m.ft_away ?? m.away_goals}</b>${m.status !== 'FT' ? ` <span class="muted small">${m.status}</span>` : ''}` : '';
+  return `<a href="#" data-m="${m.id}">${esc(m.home)} – ${esc(m.away)}</a>${score}<div class="muted small">${esc(m.league)} · ${dd(m.date_utc)} ${tm(m.date_utc)}</div>`;
+}
+function bindMatchLinks(){ document.querySelectorAll('[data-m]').forEach(a => a.onclick = ev => { ev.preventDefault(); showMatch(+a.dataset.m); }); }
+function recordLine(o, label){
+  if (!o || !o.n) return '';
+  return `<span class="chip">${label}: <b>${o.won}/${o.n}</b> won (${pct(o.hit)}) · model said ${pct(o.said)}${o.roi != null ? ` · ROI ${o.roi >= 0 ? '+' : ''}${pct(o.roi,1)}` : ''}</span>`;
+}
+
+// ---------------------------------------------------------------- tabs
+const views = {};
+
+views.matches = async () => {
+  ST.mday ??= 'today';
+  app.innerHTML = `<div class="head"><h2>Matches</h2><p>Every match with the model's prediction: win chances and expected corners, shots, shots on target, offsides and substitutions. After the match the real numbers are shown next to the prediction.</p></div>
+    <div class="bar">${seg('Day', ST.mday, DAYS, v => { ST.mday = v; save(); load(); })}<label>Competition${compSel(ST.mcomp)}</label></div><div id="out"><div class="empty">Loading…</div></div>`;
+  $('.comp').onchange = e => { ST.mcomp = e.target.value; save(); load(); };
+  async function load(){
+    const r = dayRange(ST.mday);
+    const rows = await api(`/matches?frm=${r.frm}&to=${r.to}${ST.mcomp ? '&league=' + ST.mcomp : ''}`);
+    if (!rows.length){ $('#out').innerHTML = `<div class="empty">No matches in this period.</div>`; return; }
+    const byDay = {};
+    rows.forEach(m => (byDay[dd(m.date_utc)] ??= []).push(m));
+    const cell = (m, s) => {
+      const e = m.pred && m.pred[s], a = m.stats && m.stats[s];
+      const exp = e ? f1(e[0] + e[1]) : '–';
+      if (a && a[0] != null) { const t = a[0] + a[1]; return `${t} <span class="muted small">/ ${exp}</span>`; }
+      return `<span class="muted">${exp}</span>`;
     };
-    ["days","last","comp"].forEach(id => $("#"+id).onchange = load);
-    load();
-  },
-
-  async team(id){
-    const teams = await api(`/teams`);
-    app.innerHTML = `<div class="bar">
-      <label style="flex:1;min-width:200px">Team<input id="tq" list="tl" placeholder="Type a team name…"><datalist id="tl">${teams.map(t => `<option value="${esc(t.name)}">`).join("")}</datalist></label>
-      <label>Last N<select id="last">${opts([[5,"5"],[10,"10"],[20,"20"],[38,"38"],[100,"100"]], 10)}</select></label>
-      <label>Venue<select id="venue">${opts([["all","All"],["home","Home"],["away","Away"]], "all")}</select></label>
-      <label>Competition<select id="comp">${compOpts("", "All")}</select></label>
-      <label>Season<select id="season">${seasonOpts("", "All")}</select></label>
-    </div><div id="out">${teams.length ? `<div class="empty">Choose a team.</div>` : `<div class="empty">No data yet. Start a backfill on the Data tab.</div>`}</div>`;
-    let current = id ? Number(id) : null;
-    if (current){ const t = teams.find(x => x.id === current); if (t) $("#tq").value = t.name; }
-    $("#tq").onchange = () => { const t = teams.find(x => x.name === $("#tq").value); if (t){ current = t.id; location.hash = "team/"+t.id; load(); } };
-    ["last","venue","comp","season"].forEach(i => $("#"+i).onchange = load);
-    async function load(){
-      if (!current) return;
-      const q = `last=${$("#last").value}&venue=${$("#venue").value}` + ($("#comp").value?`&league=${$("#comp").value}`:"") + ($("#season").value?`&season=${$("#season").value}`:"");
-      const data = await api(`/team/${current}?${q}`);
-      const sm = data.summary;
-      $("#out").innerHTML = `
-        <div class="card"><h2>${logo(data.team.logo)}${esc(data.team.name)} <span class="muted" style="font-weight:400;font-size:13px">· ${sm.matches} matches</span></h2>
-          <div class="grid">${MAIN_STATS.map(s => `<div class="tile"><div class="k">${LABEL[s]}</div>
-            <div class="v">${fmt(sm[s].for)}</div><div class="s">against ${fmt(sm[s].against)} · match ${fmt(sm[s].total)}</div></div>`).join("")}</div>
-        </div>
-        <div class="card"><h2>Over / under check</h2>
-          <div class="bar" style="margin:0">
-            <label>Stat<select id="ous">${statOpts("corners")}</select></label>
-            <label>Count<select id="ouc">${opts([["total","Match total"],["for","Team's own"],["against","Opponent's"]], "total")}</select></label>
-            <label>Line<input id="oul" type="number" step="0.5" value="9.5" style="width:90px"></label>
-            <button class="btn" id="oub">Check</button>
-          </div><div id="ouo"></div></div>
-        <div class="card"><h2>Matches</h2><div class="tablewrap"><table>
-          <tr><th class="l">Date</th><th class="l">Comp</th><th class="l">Match</th><th>Score</th>${MAIN_STATS.map(s => `<th>${LABEL[s]}</th>`).join("")}</tr>
-          ${data.matches.map(m => `<tr class="click" data-m="${m.id}"><td class="l">${d(m.date_utc)}</td><td class="l muted">${esc(m.league)}</td>
-            <td class="l">${m.venue==="H"?"<b>"+esc(m.home)+"</b> – "+esc(m.away):esc(m.home)+" – <b>"+esc(m.away)+"</b>"}</td>
-            <td>${m.home_goals}–${m.away_goals}</td>
-            ${MAIN_STATS.map(s => `<td>${m["for_"+s]??"–"} <span class="muted">/ ${m["against_"+s]??"–"}</span></td>`).join("")}</tr>`).join("")}
-        </table></div><div class="muted" style="font-size:12px;margin-top:6px">Team / opponent. Click a row for match details.</div></div>
-        <div id="md"></div>`;
-      document.querySelectorAll("tr[data-m]").forEach(tr => tr.onclick = () => showMatch(tr.dataset.m));
-      $("#oub").onclick = async () => {
-        const r = await api(`/overunder?team=${current}&stat=${$("#ous").value}&scope=${$("#ouc").value}&line=${$("#oul").value}&${q}`);
-        const line = Number($("#oul").value);
-        $("#ouo").innerHTML = r.matches ? `<div class="chips" style="margin-top:12px">
-            <span class="chip">Over <b class="over">${r.over}/${r.matches}</b> (${r.over_pct}%)</span>
-            <span class="chip">Fair odds over <b>${r.fair_odds_over ?? "–"}</b></span>
-            <span class="chip">Fair odds under <b>${r.fair_odds_under ?? "–"}</b></span></div>
-          <div class="dots">${r.values.map(v => `<span class="dot" style="background:var(${v>line?"--over":"--under"})" title="${v}">${v}</span>`).join("")}</div>
-          <div class="muted" style="font-size:12px;margin-top:4px">Newest first. Compare fair odds with the bookmaker's price.</div>` : `<div class="empty">No matches.</div>`;
-      };
-    }
-    load();
-  },
-
-  async board(){
-    const comp = META.competitions[0]?.id, season = META.seasons[0];
-    app.innerHTML = `<div class="bar">
-      <label>Competition<select id="comp">${compOpts(comp)}</select></label>
-      <label>Season<select id="season">${seasonOpts(season)}</select></label>
-      <label>Stat<select id="stat">${statOpts("corners")}</select></label>
-      <label>Venue<select id="venue">${opts([["all","All"],["home","Home"],["away","Away"]], "all")}</select></label>
-    </div><div class="card"><div class="tablewrap" id="out"><div class="empty">Loading…</div></div></div>`;
-    const load = async () => {
-      if (!$("#season").value){ $("#out").innerHTML = `<div class="empty">No data yet.</div>`; return; }
-      const rows = await api(`/leaderboard?league=${$("#comp").value}&season=${$("#season").value}&stat=${$("#stat").value}&venue=${$("#venue").value}`);
-      let key = "avg_for", dir = -1;
-      const render = () => {
-        rows.sort((a,b) => (a[key]-b[key])*dir);
-        $("#out").innerHTML = rows.length ? `<table><tr><th class="l">#</th><th class="l">Team</th><th>Matches</th>
-          <th data-k="avg_for" class="click">For ↕</th><th data-k="avg_against" class="click">Against ↕</th><th data-k="avg_total" class="click">Match total ↕</th></tr>
-          ${rows.map((t,i) => `<tr class="click" data-t="${t.id}"><td class="l muted">${i+1}</td><td class="l">${logo(t.logo)}${esc(t.name)}</td><td>${t.matches}</td>
-          <td>${fmt(t.avg_for)}</td><td>${fmt(t.avg_against)}</td><td>${fmt(t.avg_total)}</td></tr>`).join("")}</table>`
-          : `<div class="empty">No statistics for this selection yet.</div>`;
-        document.querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { if (key===th.dataset.k) dir=-dir; else {key=th.dataset.k; dir=-1;} render(); });
-        document.querySelectorAll("tr[data-t]").forEach(tr => tr.onclick = () => location.hash = "team/" + tr.dataset.t);
-      };
-      render();
-    };
-    ["comp","season","stat","venue"].forEach(i => $("#"+i).onchange = load);
-    load();
-  },
-
-  async admin(){
-    app.innerHTML = `<div class="card"><h2>Data sync</h2>
-      <p class="muted" style="margin-top:0">Update fetches the current season and new finished matches. Backfill fetches whole seasons; if the daily API quota runs out, start it again tomorrow and it continues.</p>
-      <div class="bar" style="margin:0"><button class="btn" id="upd">Run update</button>
-      <label>Seasons<input id="seas" value="2021-2026" style="width:120px"></label>
-      <button class="btn ghost" id="bf">Run backfill</button><span id="st" class="muted"></span></div>
-      <pre id="outp"></pre></div>
-      <div class="card"><h2>Coverage</h2><div class="tablewrap" id="cov"></div></div>
-      <div class="card"><h2>Sync history</h2><div class="tablewrap" id="hist"></div></div>`;
-    const start = async (kind) => {
-      const r = await api(`/admin/sync`, {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({kind, seasons: $("#seas").value})});
-      $("#st").textContent = r.started ? "Started…" : r.reason; refresh();
-    };
-    $("#upd").onclick = () => start("update");
-    $("#bf").onclick = () => start("backfill");
-    let timer;
-    async function refresh(){
-      const s = await api(`/admin/status`);
-      $("#st").textContent = s.running ? "Running…" : "";
-      $("#outp").textContent = s.output || "No sync output yet.";
-      $("#cov").innerHTML = s.coverage.length ? `<table><tr><th class="l">Competition</th><th>Season</th><th>Matches</th><th>With stats</th><th>Pending</th></tr>
-        ${s.coverage.map(c => `<tr><td class="l">${esc(c.name)}</td><td>${c.season}/${String(c.season+1).slice(2)}</td><td>${c.matches}</td><td>${c.with_stats}</td><td>${c.pending||""}</td></tr>`).join("")}</table>`
-        : `<div class="empty">Database is empty.</div>`;
-      $("#hist").innerHTML = s.log.length ? `<table><tr><th class="l">Started</th><th class="l">Kind</th><th>API calls</th><th>Matches</th><th>Quota left</th><th class="l">Result</th></tr>
-        ${s.log.map(l => `<tr><td class="l">${esc(l.started_at)}</td><td class="l">${esc(l.kind)}</td><td>${l.calls}</td><td>${l.matches}</td><td>${l.quota_left??"–"}</td><td class="l">${esc((l.message||"running").slice(0,80))}</td></tr>`).join("")}</table>`
-        : `<div class="empty">No syncs yet.</div>`;
-      clearTimeout(timer);
-      if (s.running && location.hash.startsWith("#admin")) timer = setTimeout(refresh, 4000);
-    }
-    refresh();
+    $('#out').innerHTML = Object.entries(byDay).map(([d, ms]) => `<div class="mgroup">${d}</div><div class="card tablewrap" style="padding:4px 8px"><table>
+      <tr><th class="l">Match</th><th class="l">Home · Draw · Away</th>${PSTATS.map(s => `<th>${LABEL[s]}</th>`).join('')}</tr>
+      ${ms.map(m => { const p = m.pred; return `<tr><td class="l">${matchCell(m)}</td>
+        <td class="l">${p ? `<div class="probbar"><i style="width:${p.p1*100}%"></i><i style="width:${p.px*100}%"></i><i style="width:${p.p2*100}%"></i></div><span class="small">${pct(p.p1)} · ${pct(p.px)} · ${pct(p.p2)}</span>` : '<span class="muted small">no prediction</span>'}</td>
+        ${PSTATS.map(s => `<td>${cell(m, s)}</td>`).join('')}</tr>`; }).join('')}
+    </table></div>`).join('') + `<p class="muted small">Statistics columns: expected match total; after the match: <b>real</b> / expected. ${rows.some(m => m.pred_kind === 'backtest') ? 'Past matches before live tracking show the walk-forward test prediction (made only from earlier matches).' : ''}</p>`;
+    bindMatchLinks();
   }
+  load();
 };
 
+views.teams = async () => {
+  const teams = await api('/teams');
+  ST.tlast ??= 10; ST.tvenue ??= 'all';
+  app.innerHTML = `<div class="head"><h2>Teams</h2><p>Averages for and against, recent matches, an over/under checker, and a ranking per competition.</p></div>
+    <div class="bar"><label style="flex:1;min-width:200px">Team<input id="tq" list="tl" placeholder="Type a team name…"><datalist id="tl">${teams.map(t => `<option value="${esc(t.name)}">`).join('')}</datalist></label>
+      <label>Last N<select id="last">${opts([[5,'5'],[10,'10'],[20,'20'],[38,'38'],[100,'100']], ST.tlast)}</select></label>
+      <label>Venue<select id="venue">${opts([['all','All'],['home','Home'],['away','Away']], ST.tvenue)}</select></label></div>
+    <div id="out"></div>
+    <div class="card"><h3>Ranking</h3><div class="bar" style="margin-top:0">
+      <label>Competition<select id="bcomp">${opts(META.competitions.map(c => [c.id, c.name]), ST.bcomp || 39)}</select></label>
+      <label>Season<select id="bseason">${opts(META.seasons.map(s => [s, `${s}/${String(s+1).slice(2)}`]), ST.bseason || META.seasons[0])}</select></label>
+      <label>Stat<select id="bstat">${opts(Object.entries(LABEL).filter(([k]) => k !== 'goals'), ST.bstat || 'corners')}</select></label></div><div class="tablewrap" id="board"></div></div>`;
+  let current = ST.team || null;
+  if (current){ const t = teams.find(x => x.id === current); if (t) $('#tq').value = t.name; }
+  $('#tq').onchange = () => { const t = teams.find(x => x.name === $('#tq').value); if (t){ current = ST.team = t.id; save(); load(); } };
+  $('#last').onchange = e => { ST.tlast = e.target.value; save(); load(); };
+  $('#venue').onchange = e => { ST.tvenue = e.target.value; save(); load(); };
+  ['bcomp','bseason','bstat'].forEach(i => $('#'+i).onchange = e => { ST[i] = e.target.value; save(); board(); });
+  async function load(){
+    if (!current){ $('#out').innerHTML = teams.length ? '' : `<div class="empty">No data yet. Start a backfill on the Data tab.</div>`; return; }
+    const q = `last=${$('#last').value}&venue=${$('#venue').value}`;
+    const d = await api(`/team/${current}?${q}`), sm = d.summary;
+    $('#out').innerHTML = `<div class="card"><h3>${logo(d.team.logo)}${esc(d.team.name)} <span class="muted small" style="font-weight:400">· ${sm.matches} matches</span></h3>
+      <div class="grid">${PSTATS.map(s => `<div class="tile"><div class="k">${LABEL[s]}</div><div class="v">${fmt(sm[s].for)}</div><div class="s">against ${fmt(sm[s].against)} · match ${fmt(sm[s].total)}</div></div>`).join('')}</div></div>
+      <div class="card"><h3>Over / under check</h3><div class="bar" style="margin:0">
+        <label>Stat<select id="ous">${opts(Object.entries(LABEL).filter(([k]) => k !== 'goals'), 'corners')}</select></label>
+        <label>Count<select id="ouc">${opts([['total','Match total'],['for','Team\'s own'],['against','Opponent\'s']], 'total')}</select></label>
+        <label>Line<input id="oul" type="number" step="0.5" value="9.5" style="width:90px"></label><button class="btn" id="oub">Check</button></div><div id="ouo"></div></div>
+      <div class="card tablewrap"><h3>Matches</h3><table><tr><th class="l">Match</th>${PSTATS.map(s => `<th>${LABEL[s]}</th>`).join('')}</tr>
+        ${d.matches.map(m => `<tr><td class="l"><a href="#" data-m="${m.id}">${m.venue==='H' ? '<b>'+esc(m.home)+'</b> – '+esc(m.away) : esc(m.home)+' – <b>'+esc(m.away)+'</b>'}</a> ${m.home_goals}–${m.away_goals}<div class="muted small">${esc(m.league)} · ${dd(m.date_utc)}</div></td>
+        ${PSTATS.map(s => `<td>${m['for_'+s] ?? '–'} <span class="muted">/ ${m['against_'+s] ?? '–'}</span></td>`).join('')}</tr>`).join('')}</table>
+        <p class="muted small">Team / opponent.</p></div>`;
+    bindMatchLinks();
+    $('#oub').onclick = async () => {
+      const r = await api(`/overunder?team=${current}&stat=${$('#ous').value}&scope=${$('#ouc').value}&line=${$('#oul').value}&${q}`), line = +$('#oul').value;
+      $('#ouo').innerHTML = r.matches ? `<div style="margin-top:10px"><span class="chip">Over <b>${r.over}/${r.matches}</b> (${r.over_pct}%)</span><span class="chip">Fair odds over <b>${r.fair_odds_over ?? '–'}</b></span><span class="chip">under <b>${r.fair_odds_under ?? '–'}</b></span></div>
+        <div class="dots">${r.values.map(v => `<span class="dot" style="background:var(${v > line ? '--good' : '--warn'})">${v}</span>`).join('')}</div>` : `<div class="empty">No matches.</div>`;
+    };
+  }
+  async function board(){
+    if (!$('#bseason').value){ $('#board').innerHTML = `<div class="empty">No data yet.</div>`; return; }
+    const rows = await api(`/leaderboard?league=${$('#bcomp').value}&season=${$('#bseason').value}&stat=${$('#bstat').value}`);
+    $('#board').innerHTML = rows.length ? `<table><tr><th class="l">#</th><th class="l">Team</th><th>Matches</th><th>For</th><th>Against</th><th>Match total</th></tr>
+      ${rows.map((t,i) => `<tr class="click" data-t="${t.id}"><td class="l muted">${i+1}</td><td class="l">${logo(t.logo)}${esc(t.name)}</td><td>${t.matches}</td><td>${fmt(t.avg_for)}</td><td>${fmt(t.avg_against)}</td><td>${fmt(t.avg_total)}</td></tr>`).join('')}</table>` : `<div class="empty">No statistics for this selection.</div>`;
+    document.querySelectorAll('tr[data-t]').forEach(tr => tr.onclick = () => { current = ST.team = +tr.dataset.t; save(); const t = teams.find(x => x.id === current); if (t) $('#tq').value = t.name; load(); scrollTo({top:0, behavior:'smooth'}); });
+  }
+  load(); board();
+};
+
+views.predictions = async () => {
+  const d = await api('/model');
+  const act = d.runs.find(r => r.active);
+  const bt = act?.metrics?.backtest || {};
+  const tun = act?.metrics?.tuning || {};
+  const calib = tab => d.calibration.filter(c => c.tab === tab && c.n >= 30);
+  app.innerHTML = `<div class="head"><h2>Predictions</h2><p>How the model works, how good it is, and its history. Every statistic has its own model: each team gets an attack and a defence strength, plus home advantage and competition level, fitted on earlier matches with recent ones counting more. "Improve" tries other settings on the last year and keeps them only if they predict better.</p></div>
+    <div class="bar"><button class="btn" data-job="run">Run predictions now</button><button class="btn ghost" data-job="improve">Improve model</button><button class="btn ghost" data-job="backtest">Re-run test</button><span id="jobst" class="muted small"></span></div>
+    ${act ? `<div class="card"><h3>Active model ${esc(act.version)} <span class="muted small" style="font-weight:400">· ${esc(dt(act.created_at))} · ${esc(act.notes || '')}</span></h3>
+      <div class="tablewrap"><table><tr><th class="l">Statistic</th><th>Matches tested</th><th>Log score</th><th>Without team strengths</th><th>Gain</th><th>Avg. error</th><th class="l">Settings</th></tr>
+      ${['goals', ...PSTATS].map(s => { const m = bt[s]; const p = act.params[s] || {}; return m ? `<tr><td class="l">${LABEL[s]}</td><td>${m.n.toLocaleString()}</td><td>${m.log_score.toFixed(3)}</td><td class="muted">${m.baseline.toFixed(3)}</td><td class="${m.skill > 0 ? 'won' : 'lost'}">${m.skill > 0 ? '+' : ''}${m.skill.toFixed(3)}</td><td>±${m.mae.toFixed(2)}</td><td class="l muted small">memory ${p.half_life} d · shrink ${p.lam}</td></tr>` : ''; }).join('')}
+      </table></div>
+      ${bt['1x2'] ? `<p class="small" style="margin-bottom:0">Match result (home / draw / away): favourite right in <b>${pct(bt['1x2'].accuracy, 1)}</b> of ${bt['1x2'].n.toLocaleString()} matches · log loss ${bt['1x2'].log_loss.toFixed(3)} (always 33/33/33 would be 1.099) · Brier ${bt['1x2'].brier.toFixed(3)}.</p>` : `<p class="muted small">No walk-forward test yet — press "Re-run test".</p>`}
+      <p class="muted small" style="margin-bottom:0">Walk-forward test: each match predicted only from matches before it, refitted every week. Log score: higher (closer to 0) is better; "gain" is how much the team strengths add over competition averages.</p></div>` : `<div class="empty">No model yet. After the data backfill press "Run predictions now".</div>`}
+    <div class="cols2">${['confidence','sure'].map(tab => `<div class="card"><h3>${tab === 'sure' ? 'Sure Bets' : 'Confidence'}: said vs happened</h3>${calib(tab).length ? `<table><tr><th class="l">Model said</th><th>Picks</th><th>Avg. said</th><th>Won</th></tr>
+      ${calib(tab).map(c => `<tr><td class="l">${pct(c.b)}–${pct(c.b + .05)}</td><td>${c.n.toLocaleString()}</td><td>${pct(c.said,1)}</td><td class="${Math.abs(c.hit - c.said) < .03 ? 'won' : 'lost'}">${pct(c.hit,1)}</td></tr>`).join('')}</table>
+      <p class="muted small" style="margin-bottom:0">If the model is honest, "won" is close to "avg. said".</p>` : '<div class="muted small">No test yet.</div>'}</div>`).join('')}</div>
+    <div class="card"><h3>Live record (picks made before kick-off)</h3>${d.live.length ? `<table><tr><th class="l">Tab</th><th>Picks</th><th>Settled</th><th>Won</th><th>Model said</th></tr>
+      ${d.live.map(l => { const s = l.n - l.open; return `<tr><td class="l">${({confidence:'Confidence',sure:'Sure Bets',easy:'Easy Wins',bet_on:'Bet on'})[l.tab]}</td><td>${l.n}</td><td>${s}</td><td>${s ? `${l.won} (${pct(l.won / s)})` : '–'}</td><td>${pct(l.said)}</td></tr>`; }).join('')}</table>` : '<div class="muted small">Starts with the first predictions.</div>'}</div>
+    <div class="card"><h3>Model history</h3><table><tr><th class="l">Version</th><th class="l">Made</th><th class="l">Result</th><th>Total log score (last year)</th></tr>
+      ${d.runs.map(r => { const t = r.metrics.tuning; const tot = t ? Object.entries(t).filter(([k]) => k !== '1x2').reduce((a,[,v]) => a + v.log_score, 0) : null; return `<tr><td class="l">${esc(r.version)} ${r.active ? '<span class="chip">active</span>' : ''}</td><td class="l">${esc(dt(r.created_at))}</td><td class="l small">${esc(r.notes || '')}</td><td>${tot != null ? tot.toFixed(4) : '–'}</td></tr>`; }).join('')}</table></div>`;
+  document.querySelectorAll('[data-job]').forEach(b => b.onclick = async () => {
+    const r = await api('/admin/sync', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({kind: b.dataset.job})});
+    $('#jobst').textContent = r.started ? 'Started — progress on the Data tab.' : r.reason;
+  });
+};
+
+async function pickTab({tab, title, intro, history, controls, filter, row, head, extra}){
+  ST[tab + 'day'] ??= 'today';
+  app.innerHTML = `<div class="head"><h2>${title}</h2>${intro}</div><div id="hist"></div>
+    <div class="bar">${seg('Day', ST[tab + 'day'], DAYS, v => { ST[tab + 'day'] = v; save(); load(); })}${controls()}<label>Competition${compSel(ST[tab + 'comp'])}</label></div>
+    <div id="sum"></div><div id="out"><div class="empty">Loading…</div></div>`;
+  $('.comp').onchange = e => { ST[tab + 'comp'] = e.target.value; save(); load(); };
+  let H = null;
+  async function load(){
+    const r = dayRange(ST[tab + 'day']);
+    const [d, h] = await Promise.all([api(`/picks?tab=${tab}&frm=${r.frm}&to=${r.to}&mn=${extra ? extra() : 0}`), H ? H : api(`/history?tab=${tab}`)]);
+    H = h; $('#hist').innerHTML = history(h);
+    let ps = d.picks.filter(p => { const m = d.matches[p.match_id]; return m && (!ST[tab + 'comp'] || String(m.league_id) === ST[tab + 'comp']); }).filter(p => filter(p, d.matches[p.match_id], d));
+    const settled = ps.filter(p => p.result === 'won' || p.result === 'lost');
+    $('#sum').innerHTML = (d.source === 'backtest' ? `<p class="muted small">Live tracking hadn't started for this period, so these are the walk-forward test picks (made only from earlier matches).</p>` : d.source === 'mixed' ? `<p class="muted small">Matches played before live tracking started show the walk-forward test picks (made only from earlier matches).</p>` : '') +
+      (settled.length ? `<div class="note">This period: <b>${settled.filter(p => p.result === 'won').length}/${settled.length}</b> won (${pct(settled.filter(p => p.result === 'won').length / settled.length)}) · model said ${pct(settled.reduce((a,p) => a + p.prob, 0) / settled.length)} on average${settled.some(p => p.price) ? ` · profit ${(settled.reduce((a,p) => a + (p.result === 'won' ? p.price - 1 : -1), 0) * 10).toFixed(2)} € per 10 € stakes` : ''}.</div>` : '');
+    if (!ps.length){ $('#out').innerHTML = `<div class="empty">Nothing for this selection.</div>`; return; }
+    ps.sort((a,b) => d.matches[a.match_id].date_utc.localeCompare(d.matches[b.match_id].date_utc) || b.prob - a.prob);
+    $('#out').innerHTML = `<div class="card tablewrap" style="padding:4px 8px"><table><tr>${head}</tr>${ps.map(p => row(p, d.matches[p.match_id], d)).join('')}</table></div>`;
+    bindMatchLinks();
+  }
+  window.__reload = load;
+  load();
+}
+
+views.confidence = () => {
+  ST.cmin ??= '0.85'; ST.ctype ??= 'all';
+  return pickTab({tab:'confidence', title:'Confidence',
+    intro:`<p>Matches where the model is at least this sure of the result: a team to win, or a team not to lose (double chance). Football has draws, so 90%+ on a winner is rare; double chance is where the high numbers are.</p>`,
+    controls: () => seg('At least', ST.cmin, [['0.8','80%'],['0.85','85%'],['0.9','90%']], v => { ST.cmin = v; save(); __reload(); }) +
+      seg('Bet', ST.ctype, [['all','All'],['1x2','Winner'],['dc','Double chance']], v => { ST.ctype = v; save(); __reload(); }),
+    filter: p => p.prob >= +ST.cmin && (ST.ctype === 'all' || p.market === ST.ctype),
+    history: h => { const rows = Object.entries(h.backtest || {}).sort(); return rows.length ? `<div class="note"><b>What the test says</b> (${esc(h.version)}, each match predicted from earlier matches only):<br>${rows.map(([k,o]) => recordLine(o, k)).join('')}${Object.keys(h.live || {}).length ? '<br><b>Live:</b> ' + Object.entries(h.live).map(([k,o]) => recordLine(o, k)).join('') : ''}</div>` : ''; },
+    head: `<th class="l">Match</th><th class="l">Pick</th><th>Model</th><th>Fair odds</th><th>Result</th>`,
+    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+};
+
+views.bet = () => {
+  ST.bconf ??= '0.6'; ST.bodds ??= '1.5';
+  return pickTab({tab:'bet_on', title:'Bet on',
+    intro:`<p>Bets where the model is sure enough and a bookmaker pays more than the model's fair price: match result, double chance, goals, Asian handicap, and corners / shots / shots on target / offsides over-under. Prices are the best of the bookmakers collected (opening and latest price are both saved). Every pick is scored after the match, so the record shows whether these really pay.</p>
+      <p class="muted small">Odds collection started with this version, so the record builds up from now. The market usually knows something the model doesn't: treat the model's edge as an upper bound until the record shows otherwise.</p>`,
+    controls: () => seg('Model at least', ST.bconf, [['0.55','55%'],['0.6','60%'],['0.7','70%'],['0.8','80%']], v => { ST.bconf = v; save(); __reload(); }) +
+      seg('Odds at least', ST.bodds, [['1.3','1.30'],['1.5','1.50'],['1.8','1.80'],['2.2','2.20']], v => { ST.bodds = v; save(); __reload(); }),
+    filter: p => p.prob >= +ST.bconf && p.price >= +ST.bodds,
+    history: h => { const l = h.live || {}; return l.all ? `<div class="note"><b>Live record:</b> ${recordLine(l.all, 'all picks')}${Object.entries(l.by_market || {}).map(([k,o]) => recordLine(o, LABEL[k] || k)).join('')}</div>` : ''; },
+    head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Market</th><th>Price</th><th>Value per 10 €</th><th>Result</th>`,
+    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+};
+
+views.sure = () => {
+  ST.smin ??= '0.85'; ST.sstat ??= 'all'; ST.sscope ??= 'total';
+  return pickTab({tab:'sure', title:'Sure Bets',
+    intro:`<p>Statistics bets the model is at least this sure about: corners, shots, shots on target, offsides and substitutions, for the match and for each team. For each one the line shown is the boldest one that is still that sure (closest to the expected number), not an easy line like "over 2.5 corners".</p>`,
+    extra: () => ST.smin,
+    controls: () => seg('At least', ST.smin, [['0.8','80%'],['0.85','85%'],['0.9','90%']], v => { ST.smin = v; save(); __reload(); }) +
+      seg('For', ST.sscope, [['total','Match'],['teams','Teams'],['all','Both']], v => { ST.sscope = v; save(); __reload(); }) +
+      `<label>Statistic<select id="sstat">${opts([['all','All'], ...PSTATS.map(s => [s, LABEL[s]])], ST.sstat)}</select></label>`,
+    filter: p => (ST.sstat === 'all' || p.market === ST.sstat) && (ST.sscope === 'all' || (ST.sscope === 'total') === (p.scope === 'total')),
+    history: h => { const b = (h.backtest || {})[ST.smin], l = (h.live || {})[ST.smin]; setTimeout(() => { const s = $('#sstat'); if (s) s.onchange = e => { ST.sstat = e.target.value; save(); __reload(); }; });
+      return b && b.all ? `<div class="note"><b>What the test says at ${pct(+ST.smin)}+</b> (${esc(h.version)}): ${recordLine(b.all, 'all')}<br>${Object.entries(b.by_stat).map(([k,o]) => recordLine(o, LABEL[k])).join('')}${l && l.all ? `<br><b>Live:</b> ${recordLine(l.all, 'all')}` : ''}</div>` : ''; },
+    head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Fair odds</th><th>Expected</th><th>Real</th><th>Result</th>`,
+    row: (p, m) => { const e = m.pred && m.pred[p.market]; const ex = e ? (p.scope === 'home' ? e[0] : p.scope === 'away' ? e[1] : e[0] + e[1]) : null;
+      return `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="muted">${f1(ex)}</td><td>${actual(p, m)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`; }});
+};
+
+views.easy = () => {
+  ST.emin ??= '0.5';
+  // one row per match: the -1.5 / -2.5 / -3.5 picks side by side
+  return pickTab({tab:'easy', title:'Easy Wins',
+    intro:`<p>Matches the model expects to be one-sided: the favourite's chance to win by 2+, 3+ and 4+ goals (handicap −1.5, −2.5, −3.5), with the lowest odds worth taking. These pay far more than the favourite simply to win. Ranked by the chance to win by 2 or more.</p>`,
+    controls: () => seg('Win by 2+ at least', ST.emin, [['0.4','40%'],['0.5','50%'],['0.6','60%'],['0.7','70%']], v => { ST.emin = v; save(); __reload(); }),
+    filter: (p, m, d) => { if (p.line !== -1.5 || p.prob < +ST.emin) return false; p.__all = d.picks.filter(x => x.match_id === p.match_id); return true; },
+    history: h => { const b = (h.backtest || {})[ST.emin === '0.4' ? '0.5' : ST.emin]; return b ? `<div class="note"><b>What the test says</b> (${esc(h.version)}, favourite's 2+ chance at least ${pct(ST.emin === '0.4' ? .5 : +ST.emin)}): ${['-1.5','-2.5','-3.5'].map(k => recordLine(b[k], k.replace('-', '−'))).join('')}</div>` : ''; },
+    head: `<th class="l">Match</th><th class="l">Favourite</th><th>Win by 2+ (−1.5)</th><th>3+ (−2.5)</th><th>4+ (−3.5)</th><th>Result</th>`,
+    row: (p, m) => { const g = l => p.__all.find(x => x.line === l) || {}; const c = x => x.prob != null ? `<b>${pct(x.prob)}</b> <span class="muted small">@${fair(x.prob)}</span> ${x.result ? `<span class="${resCls(x.result)}">${x.result === 'won' ? '✓' : x.result === 'lost' ? '✗' : ''}</span>` : ''}` : '–';
+      return `<tr><td class="l">${matchCell(m)}</td><td class="l">${esc(sideName(m, p.side))}</td><td>${c(g(-1.5))}</td><td>${c(g(-2.5))}</td><td>${c(g(-3.5))}</td><td>${FINISHED.includes(m.status) && m.ft_home != null ? `${m.ft_home}–${m.ft_away}` : ''}</td></tr>`; }});
+};
+
+views.data = async () => {
+  app.innerHTML = `<div class="card"><h3>Data and model jobs</h3>
+    <p class="muted small" style="margin-top:0">Update: new results, upcoming fixtures, odds, then predictions (runs by itself 4× a day). Backfill: whole seasons. Model jobs are on the Predictions tab too.</p>
+    <div class="bar" style="margin:0"><button class="btn" data-job="update">Run update</button><label>Seasons<input id="seas" value="2021-2026" style="width:110px"></label>
+    <button class="btn ghost" data-job="backfill">Run backfill</button><button class="btn ghost" data-job="improve">Improve model</button><span id="st" class="muted small"></span></div><pre id="outp"></pre></div>
+    <div class="card tablewrap"><h3>Coverage</h3><div id="cov"></div></div><div class="card tablewrap"><h3>Sync history</h3><div id="hist"></div></div>
+    <div class="card tablewrap"><h3>Odds markets not recognised yet</h3><div id="unk" class="small"></div></div>`;
+  document.querySelectorAll('[data-job]').forEach(b => b.onclick = async () => {
+    const r = await api('/admin/sync', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({kind: b.dataset.job, seasons: $('#seas').value})});
+    $('#st').textContent = r.started ? 'Started…' : r.reason; refresh();
+  });
+  let timer;
+  async function refresh(){
+    const [s, m] = await Promise.all([api('/admin/status'), api('/model')]);
+    $('#st').textContent = s.running ? 'Running…' : '';
+    $('#outp').textContent = s.output || 'No job output yet.';
+    $('#cov').innerHTML = s.coverage.length ? `<table><tr><th class="l">Competition</th><th>Season</th><th>Matches</th><th>With stats</th><th>Pending</th></tr>${s.coverage.map(c => `<tr><td class="l">${esc(c.name)}</td><td>${c.season}/${String(c.season+1).slice(2)}</td><td>${c.matches}</td><td>${c.with_stats}</td><td>${c.pending || ''}</td></tr>`).join('')}</table>` : `<div class="empty">Database is empty.</div>`;
+    $('#hist').innerHTML = s.log.length ? `<table><tr><th class="l">Started</th><th class="l">Kind</th><th>API calls</th><th>Matches</th><th>Quota left</th><th class="l">Result</th></tr>${s.log.map(l => `<tr><td class="l">${esc(l.started_at)}</td><td class="l">${esc(l.kind)}</td><td>${l.calls}</td><td>${l.matches}</td><td>${l.quota_left ?? '–'}</td><td class="l">${esc((l.message || 'running').slice(0, 80))}</td></tr>`).join('')}</table>` : `<div class="empty">No syncs yet.</div>`;
+    $('#unk').innerHTML = m.odds_unknown.length ? `<table><tr><th class="l">Bet name</th><th>Seen</th><th class="l">Example values</th></tr>${m.odds_unknown.map(u => `<tr><td class="l">${esc(u.name)}</td><td>${u.seen}</td><td class="l muted">${esc(u.example)}</td></tr>`).join('')}</table>` : '<span class="muted">None.</span>';
+    clearTimeout(timer); if (s.running && location.hash.startsWith('#data')) timer = setTimeout(refresh, 4000);
+  }
+  refresh();
+};
+
+// ---------------------------------------------------------------- match detail
 async function showMatch(id){
-  const m = await api(`/match/${id}`);
-  const [h, a] = m.stats;
-  const subs = m.substitutions;
-  $("#md").innerHTML = `<div class="card"><h2>${esc(m.match.home)} ${m.match.home_goals}–${m.match.away_goals} ${esc(m.match.away)}</h2>
-    <div class="muted" style="font-size:13px;margin-bottom:8px">${dt(m.match.date_utc)} · ${esc(m.match.round||"")} · ${esc(m.match.venue||"")} · Ref: ${esc(m.match.referee||"–")}</div>
-    ${h && a ? `<table><tr><th class="l">Stat</th><th>${esc(m.match.home)}</th><th>${esc(m.match.away)}</th></tr>
-      ${["corners","total_shots","shots_on_goal","shots_off_goal","blocked_shots","offsides","fouls","yellow","red","possession","xg","subs"].map(s =>
-        `<tr><td class="l">${LABEL[s] || EXTRA[s] || s}</td><td>${h[s]??"–"}</td><td>${a[s]??"–"}</td></tr>`).join("")}</table>` : `<div class="empty">No statistics.</div>`}
-    ${subs.length ? `<h3>Substitutions</h3><table>${subs.map(s => `<tr><td class="l">${s.minute}'${s.extra?"+"+s.extra:""}</td>
-      <td class="l">${s.team_id===m.match.home_id?esc(m.match.home):esc(m.match.away)}</td><td class="l">${esc(s.player)} ⇄ ${esc(s.assist)}</td></tr>`).join("")}</table>` : ""}
-  </div>`;
-  $("#md").scrollIntoView({behavior:"smooth"});
+  $('#modal').hidden = false; $('#mbody').innerHTML = '<div class="empty">Loading…</div>';
+  const d = await api(`/match/${id}/full`), m = d.match, p = d.prediction;
+  const [h, a] = [d.stats.find(s => s.is_home), d.stats.find(s => !s.is_home)];
+  const odds = {}; d.odds.forEach(o => odds[[o.market, o.scope, o.side, o.line].join('|')] = o);
+  const done = FINISHED.includes(m.status);
+  const linesTable = (s, scope) => { const L = p.markets[s][scope]; const real = done && h && a ? (scope === 'home' ? h[s] : scope === 'away' ? a[s] : h[s] + a[s]) : null;
+    return `<table class="small"><tr><th class="l">Line</th><th>Over</th><th>Fair</th><th>Best price</th><th>Under</th><th>Fair</th><th>Best price</th></tr>${L.filter(x => x.over > .03 && x.over < .97).map(x => {
+      const oo = odds[[s, scope, 'over', x.line].join('|')], ou = odds[[s, scope, 'under', x.line].join('|')];
+      const hit = real != null ? (real > x.line ? 'won' : 'lost') : '';
+      return `<tr><td class="l">${x.line}</td><td class="${hit}">${pct(x.over)}</td><td class="muted">${fair(x.over)}</td><td>${oo ? `<b class="${oo.price * x.over > 1 ? 'won' : ''}">${oo.price.toFixed(2)}</b>` : ''}</td><td class="${hit ? (hit === 'won' ? 'lost' : 'won') : ''}">${pct(1 - x.over)}</td><td class="muted">${fair(1 - x.over)}</td><td>${ou ? `<b class="${ou.price * (1 - x.over) > 1 ? 'won' : ''}">${ou.price.toFixed(2)}</b>` : ''}</td></tr>`; }).join('')}</table>`; };
+  $('#mbody').innerHTML = `<h3 style="font-size:18px">${esc(m.home)} ${done ? `${m.ft_home ?? m.home_goals}–${m.ft_away ?? m.away_goals}` : 'vs'} ${esc(m.away)}</h3>
+    <div class="muted small">${dt(m.date_utc)} · ${esc(m.round || '')} · ${esc(m.venue || '')}${m.referee ? ' · Ref: ' + esc(m.referee) : ''}</div>
+    ${p ? `<div class="note" style="margin-top:12px">Model ${esc(p.version)} (${p.kind === 'live' ? 'before kick-off' : 'walk-forward test'}): <b>${esc(m.home)} ${pct(p.p1)}</b> · draw <b>${pct(p.px)}</b> · <b>${esc(m.away)} ${pct(p.p2)}</b> · fair odds ${fair(p.p1)} / ${fair(p.px)} / ${fair(p.p2)}
+      <br>Expected: ${['goals', ...PSTATS].filter(s => p.markets[s]).map(s => `${LABEL[s]} <b>${f1(p.markets[s].expected[0])}–${f1(p.markets[s].expected[1])}</b>${done && h && a && s !== 'goals' ? ` <span class="muted">(real ${h[s]}–${a[s]})</span>` : ''}`).join(' · ')}</div>` : '<p class="muted">No prediction for this match.</p>'}
+    ${d.picks.length ? `<div class="mgroup">Picks</div>${d.picks.map(x => `<span class="chip">${({confidence:'Confidence',sure:'Sure',easy:'Easy',bet_on:'Bet on'})[x.tab]}: ${pickLabel(x, m)} ${pct(x.prob)}${x.price ? ' @' + x.price.toFixed(2) : ''} <span class="${resCls(x.result)}">${resTxt(x.result)}</span></span>`).join('')}` : ''}
+    ${p ? `<div class="mgroup">Over / under — model chance, fair odds and best bookmaker price</div>
+      <div class="bar" style="margin:6px 0"><label>Statistic<select id="mstat">${opts(['goals', ...PSTATS].filter(s => p.markets[s]).map(s => [s, LABEL[s]]), 'corners')}</select></label><label>For<select id="mscope">${opts([['total','Match'],['home',m.home],['away',m.away]], 'total')}</select></label></div>
+      <div id="mlines" class="tablewrap"></div>` : ''}
+    ${h && a ? `<div class="mgroup">Match statistics</div><table class="small"><tr><th class="l"></th><th>${esc(m.home)}</th><th>${esc(m.away)}</th></tr>${['corners','total_shots','shots_on_goal','offsides','subs','fouls','yellow','red','possession','xg'].map(s => `<tr><td class="l">${LABEL[s] || {red:'Red cards',possession:'Possession %',xg:'xG'}[s]}</td><td>${h[s] ?? '–'}</td><td>${a[s] ?? '–'}</td></tr>`).join('')}</table>` : ''}
+    ${d.substitutions.length ? `<div class="mgroup">Substitutions</div><table class="small">${d.substitutions.map(s => `<tr><td class="l">${s.minute}'${s.extra ? '+' + s.extra : ''}</td><td class="l">${s.team_id === m.home_id ? esc(m.home) : esc(m.away)}</td><td class="l">${esc(s.player)} ⇄ ${esc(s.assist)}</td></tr>`).join('')}</table>` : ''}`;
+  if (p){ const draw = () => $('#mlines').innerHTML = linesTable($('#mstat').value, $('#mscope').value); $('#mstat').onchange = draw; $('#mscope').onchange = draw; draw(); }
 }
+$('#mx').onclick = () => $('#modal').hidden = true;
+$('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').hidden = true; };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#modal').hidden = true; });
 
+// ---------------------------------------------------------------- start
+$('#nav').innerHTML = TABS.map(([k,t]) => `<button data-v="${k}">${t}</button>`).join('');
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => location.hash = b.dataset.v);
 function route(){
-  const [v, arg] = (location.hash.slice(1) || "upcoming").split("/");
-  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
-  (views[v] || views.upcoming)(arg).catch(e => { if (e.message !== "login") app.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; });
+  const v = (location.hash.slice(1) || 'matches').split('/')[0];
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  Promise.resolve((views[v] || views.matches)()).catch(e => { if (e.message !== 'login') app.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; });
 }
-document.querySelectorAll("#nav button").forEach(b => b.onclick = () => location.hash = b.dataset.v);
-window.onhashchange = route;
-function showSignin(){ app.hidden = true; $("#nav").hidden = true; $("#outBtn").hidden = true; $("#signin").hidden = false; $("#keyIn").focus(); }
+function showSignin(){ app.hidden = true; $('#nav').hidden = true; $('#outBtn').hidden = true; $('#signin').hidden = false; $('#keyIn').focus(); }
 async function start(){
-  try { META = await api("/competitions"); } catch(e){ if (e.message !== "login") app.innerHTML = `<div class="empty">Could not reach the football data: ${esc(e.message)}</div>`; return; }
-  $("#signin").hidden = true; app.hidden = false; $("#nav").hidden = false; $("#outBtn").hidden = false;
-  route();
+  try { META = await api('/meta'); } catch(e){ if (e.message !== 'login') app.innerHTML = `<div class="empty">Could not reach the football data: ${esc(e.message)}</div>`; return; }
+  $('#signin').hidden = true; app.hidden = false; $('#nav').hidden = false; $('#outBtn').hidden = false;
+  window.onhashchange = route; route();
 }
-$("#signin").onsubmit = async ev => {
-  ev.preventDefault(); KEY = $("#keyIn").value;
-  const r = await fetch(API + "/competitions", {headers: {"X-Admin-Key": KEY}}).catch(() => null);
-  if (!r || !r.ok){ $("#signErr").hidden = false; KEY = ""; return; }
-  try { localStorage.setItem("ior:key", KEY); } catch(e){}
-  $("#signErr").hidden = true; $("#keyIn").value = ""; start();
+$('#signin').onsubmit = async ev => {
+  ev.preventDefault(); KEY = $('#keyIn').value;
+  const r = await fetch(API + '/meta', {headers: {'X-Admin-Key': KEY}}).catch(() => null);
+  if (!r || !r.ok){ $('#signErr').hidden = false; KEY = ''; return; }
+  try { localStorage.setItem('ior:key', KEY); } catch(e){}
+  $('#signErr').hidden = true; $('#keyIn').value = ''; start();
 };
-$("#outBtn").onclick = () => { KEY = ""; try { localStorage.removeItem("ior:key"); } catch(e){} showSignin(); };
-if (KEY) start(); else showSignin();
+$('#outBtn').onclick = async () => {
+  if (REMOTE){ KEY = ''; try { localStorage.removeItem('ior:key'); } catch(e){} showSignin(); }
+  else { await fetch('/football/logout', {method:'POST'}); location.href = '/football/login'; }
+};
+if (!REMOTE || KEY) start(); else showSignin();
 </script>
 </body>
 </html>

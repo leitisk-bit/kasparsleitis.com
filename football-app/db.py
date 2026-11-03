@@ -58,6 +58,39 @@ CREATE TABLE IF NOT EXISTS raw_fixtures (
     match_id INTEGER PRIMARY KEY, fetched_at TEXT, body BLOB
 );
 
+-- bookmaker prices: first price seen (opening) and latest price (closing once the match starts)
+-- market: 1x2 | dc | goals | ah | corners | total_shots | shots_on_goal | offsides | subs
+-- scope: total | home | away ; side: home/draw/away, 1X/X2/12, over/under ; line 0 when the market has none
+CREATE TABLE IF NOT EXISTS odds (
+    match_id INTEGER, bookmaker TEXT, market TEXT, scope TEXT, side TEXT, line REAL NOT NULL DEFAULT 0,
+    open_price REAL, price REAL, first_seen TEXT, last_seen TEXT,
+    PRIMARY KEY (match_id, bookmaker, market, scope, side, line)
+);
+-- bet names from the odds feed we don't understand yet (to extend the classifier later)
+CREATE TABLE IF NOT EXISTS odds_unknown (name TEXT PRIMARY KEY, seen INTEGER DEFAULT 0, example TEXT);
+
+-- every model version: its settings and how well it did
+CREATE TABLE IF NOT EXISTS model_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, version TEXT UNIQUE, created_at TEXT, kind TEXT,
+    params TEXT, metrics TEXT, active INTEGER DEFAULT 0, notes TEXT
+);
+-- one prediction per match per model version. kind: live (made before kick-off) | backtest (walk-forward test)
+CREATE TABLE IF NOT EXISTS predictions (
+    match_id INTEGER, version TEXT, kind TEXT, made_at TEXT, data TEXT,
+    PRIMARY KEY (match_id, version, kind)
+);
+CREATE INDEX IF NOT EXISTS ix_pred_kind ON predictions(kind, version);
+-- picks shown on the tabs, scored after the match. result: won | lost | void | NULL (not played yet)
+CREATE TABLE IF NOT EXISTS picks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, version TEXT, match_id INTEGER, made_at TEXT,
+    tab TEXT, market TEXT, scope TEXT, side TEXT, line REAL NOT NULL DEFAULT 0,
+    prob REAL, price REAL, bookmaker TEXT, market_prob REAL, result TEXT, settled_at TEXT,
+    UNIQUE (kind, version, match_id, tab, market, scope, side, line)
+);
+CREATE INDEX IF NOT EXISTS ix_picks_tab ON picks(tab, kind, version);
+CREATE INDEX IF NOT EXISTS ix_picks_match ON picks(match_id);
+CREATE INDEX IF NOT EXISTS ix_picks_open ON picks(result);
+
 CREATE TABLE IF NOT EXISTS sync_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT DEFAULT CURRENT_TIMESTAMP, finished_at TEXT,
@@ -82,9 +115,33 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+def _migrate(con) -> None:
+    cols = {r[1] for r in con.execute("PRAGMA table_info(matches)")}
+    if "ft_home" not in cols:
+        # 90-minute score (goals markets are settled on it; 'home_goals' includes extra time)
+        con.execute("ALTER TABLE matches ADD COLUMN ft_home INTEGER")
+        con.execute("ALTER TABLE matches ADD COLUMN ft_away INTEGER")
+    # fill the 90-minute score from the stored raw responses where it is still missing
+    import json, zlib
+    rows = con.execute(
+        "SELECT r.match_id, r.body FROM raw_fixtures r JOIN matches m ON m.id=r.match_id "
+        "WHERE m.ft_home IS NULL AND m.status IN ('FT','AET','PEN')").fetchall()
+    for mid, body in rows:
+        try:
+            ft = (json.loads(zlib.decompress(body)).get("score") or {}).get("fulltime") or {}
+            if ft.get("home") is not None:
+                con.execute("UPDATE matches SET ft_home=?, ft_away=? WHERE id=?", (ft["home"], ft["away"], mid))
+        except Exception:
+            pass
+    # plain full-time matches: the final score is the 90-minute score
+    con.execute("UPDATE matches SET ft_home=home_goals, ft_away=away_goals "
+                "WHERE ft_home IS NULL AND status='FT' AND home_goals IS NOT NULL")
+
+
 def init_db() -> None:
     con = connect()
     con.executescript(SCHEMA)
+    _migrate(con)
     for lid, (name, country, typ) in COMPETITIONS.items():
         con.execute(
             "INSERT OR REPLACE INTO competitions(id,name,country,type) VALUES (?,?,?,?)",
