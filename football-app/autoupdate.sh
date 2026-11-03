@@ -4,18 +4,26 @@
 # It only *fetches*: the checkout itself is left to the replay app's updater (telpuo-app/autoupdate.sh),
 # which decides whether to rebuild by comparing the checkout with GitHub.
 set -euo pipefail
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO=${FB_REPO:-$(cd "$(dirname "$0")/.." && pwd)}
 APP=${FOOTBALL_DIR:-/opt/football}
 cd "$REPO"
 exec 9>/tmp/telpuo-update.lock; flock -w 120 9 || exit 0      # same lock as the replay app's updater
 git fetch -q origin main
 flock -u 9
+# The checkout only moves when the replay app updates, so always run this script's newest version from GitHub
+if [ -z "${FB_LATEST:-}" ]; then
+  latest=$(mktemp); git show origin/main:football-app/autoupdate.sh > "$latest"
+  FB_LATEST="$latest" FB_REPO="$REPO" exec bash "$latest"
+fi
+[ -f "$FB_LATEST" ] && rm -f "$FB_LATEST"
 
 tree=$(git rev-parse origin/main:football-app)
 [ "$(cat "$APP/.deployed" 2>/dev/null)" = "$tree" ] && exit 0
 
 # never swap code under a running data update or model job; try again in 5 minutes
-if pgrep -f "$APP/(sync|model)\.py|python (sync|model)\.py" >/dev/null; then
+# (the same lock the jobs take, so only a real running job blocks the update)
+mkdir -p "$APP/data"
+if ! flock -n "$APP/data/.job.lock" true; then
   echo "$(date '+%F %T') new version waiting: a data/model job is running"; exit 0
 fi
 
