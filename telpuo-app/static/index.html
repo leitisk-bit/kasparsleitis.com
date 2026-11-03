@@ -68,7 +68,8 @@ body:not(.is-admin) .admin-only{display:none!important}
 .steps{list-style:none;margin:8px 0;padding:0;display:grid;gap:4px}.steps li{display:grid;grid-template-columns:18px auto minmax(0,1fr);gap:8px;align-items:baseline;font-size:13px}.steps li.wait b{color:var(--muted);font-weight:500}
 .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:sp 0.8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 .jobbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.sugg{list-style:none;margin:6px 0 0;padding-left:0;display:grid;gap:8px;font-size:13px}.sugg li div{margin-left:2px}
+.sugg{list-style:none;margin:6px 0 0;padding-left:0;display:grid;gap:8px;font-size:12.5px}
+#suggCard{gap:4px}.sugg li div{margin-left:2px}
 #suggCard summary{cursor:pointer}
 .legcheck{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:12.5px}
 .ok{color:var(--ok,#1a7f45)}
@@ -110,7 +111,6 @@ body:not(.is-admin) .admin-only{display:none!important}
       <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#">All maps</a><a class="btn primary" id="anaLink" hidden>Analyze routes</a><a class="btn" id="pdfLink" target="_blank" rel="noopener">Original PDF</a></div>
     </div>
     <div class="status" id="mStatus"></div>
-    <details class="card" id="suggCard" hidden><summary><b>Route suggestions</b> <span class="muted">fastest way for every leg, with the closest alternatives</span></summary><div id="suggBody"></div></details>
     <div class="layout">
       <div class="stage" id="stage"><canvas id="cv"></canvas><div class="hint" id="hint" hidden></div></div>
       <div class="side">
@@ -199,6 +199,7 @@ body:not(.is-admin) .admin-only{display:none!important}
             <button class="btn small" id="delMap" style="color:var(--bad)">Delete map and its runs</button>
           </div>
         </div>
+        <details class="card" id="suggCard" open hidden><summary><b>Route suggestions</b> <span class="muted">fastest way for every leg</span></summary><div id="suggBody"></div></details>
         <div class="card" id="saveCard" hidden>
           <div class="muted">You changed the map reading. Save to rebuild the route network (about a minute).</div>
           <button class="btn primary" id="saveBtn">Save and rebuild</button>
@@ -304,7 +305,6 @@ function renderSugg(){
   c.hidden = M.status!=='ready' || !S_.length;
   $('#anaLink').hidden = c.hidden; $('#anaLink').href = 'replay?map='+M.id;
   if (c.hidden) return;
-  c.open = true;
   $('#suggBody').innerHTML = `<div class="muted" style="margin:6px 0">At a standard running pace. <a class="btn small" href="replay?map=${M.id}">Analyze routes on the map</a></div>` +
     '<ul class="sugg">' + S_.map(L => `<li><b>${esc(L.label)}</b>` + (L.options.length ? L.options.map((o,i)=>`<div class="${i?'muted':''}">${i?'':'<span class="pill ok">fastest</span> '}${esc(o.route)} · ${fmt(o.time)}${i?` · <b>+${fmt(o.diff)}</b>`:''} · ${o.dist_m} m</div>`).join('') : '<div class="bad">no route</div>') + '</li>').join('') + '</ul>';
 }
