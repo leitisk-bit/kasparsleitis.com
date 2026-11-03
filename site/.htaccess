@@ -28,6 +28,11 @@ RewriteEngine On
 RewriteBase /
 RewriteRule ^\.well-known/.+ - [L]
 
+# Always use HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
 # /telpuo, /TelpuO … → /telpuO/
 RewriteCond %{REQUEST_URI} !^/telpuO(/|$)
 RewriteRule ^telpuo(/.*)?$ /telpuO$1 [R=301,L,NC]
