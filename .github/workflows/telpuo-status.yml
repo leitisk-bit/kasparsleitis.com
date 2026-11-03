@@ -8,7 +8,7 @@ jobs:
       - run: |
           B=https://telpuo.kasparsleitis.com
           curl -s --max-time 30 $B/api/maps > maps.json
-          echo "app version: $(curl -s --max-time 30 $B/ | grep -c data-job) (1+ = has the progress panel)"
+          echo "app version: $(curl -s --max-time 30 $B/ | grep -c suggCard) (1+ = has route suggestions)"
           python3 - <<'PY'
           import json, urllib.request
           B = 'https://telpuo.kasparsleitis.com'
@@ -24,7 +24,7 @@ jobs:
           for m in maps:
               d = get(f"/api/maps/{m['id']}")
               me = d['meta']; f = d['features']
-              print('MAP', m['id'], 'problems', me.get('problems'), 'floors', [x['floor'] for x in f.get('floors', [])], 'pockets', f.get('pockets'))
+              print('MAP', m['id'], 'built', me.get('built'), 'suggestions', len(me.get('suggestions') or []), 'job', me.get('job'), 'problems', me.get('problems'), 'floors', [x['floor'] for x in f.get('floors', [])], 'pockets', f.get('pockets'))
               print('  controls', [(c['kind'], c.get('n'), c.get('code'), c.get('floor'), int(c['x']), int(c['y'])) for c in f['controls']])
               for L in me.get('legs_preview', []): print('  preview', L.get('leg'), L.get('time'), L.get('stairs'), 'ERROR' if L.get('error') else '')
               for r in d.get('runs', []):
