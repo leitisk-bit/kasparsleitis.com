@@ -227,6 +227,11 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 
 <script>
 /* server mode: /replay?run=<id>[,<id>...]&ghost=1 */
+// where each floor is drawn on the sheet (for dimming the floors the runner is not on)
+function setFloorBoxes(m){
+  const k = m.meta.display_scale || 1;
+  window.IOR_FLOORBOXES = ((m.features && m.features.floors) || []).map(f => ({ floor: f.floor, boxes: (f.boxes || []).map(b => b.map(v => v * k)) }));
+}
 async function load3d(mapId, runs, ids, q, k){
   try {
     const T = await (await fetch('api/maps/'+encodeURIComponent(mapId)+'/three')).json();
@@ -254,6 +259,7 @@ window.IOR_LOAD = async function(){
     const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
     const sm=document.querySelector('.brand small'); if (sm) sm.textContent=m.meta.name;
     await load3d(m.meta.id, [], [], q, m.meta.display_scale);
+    setFloorBoxes(m);
     const k = m.meta.display_scale || 1;
     return { mapImage: 'api/maps/'+m.meta.id+'/image', mapKey: 'server:'+m.meta.id, dpm: 300/0.0254*k, scaleDen: m.meta.scale || 1000, follow: false,
              chip: m.meta.name + ': every sensible route for each leg at a standard pace. Red is the fastest.', data: { runners: [] } };
@@ -272,6 +278,7 @@ window.IOR_LOAD = async function(){
   const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
   const sm=document.querySelector('.brand small'); if (sm) sm.textContent=m.meta.name;
   await load3d(m.meta.id, runs, ids, q, m.meta.display_scale);
+  setFloorBoxes(m);
   const k = m.meta.display_scale || 1;
   return { mapImage: 'api/maps/'+m.meta.id+'/image', mapKey: 'server:'+m.meta.id, dpm: 300/0.0254*k, scaleDen: m.meta.scale || 1000, follow: true,
            chip: m.meta.name + (m.meta.event? ' · '+m.meta.event:'') + '. Red = '+runs[0].name+'; blue = fastest option found for each leg. Routes are reconstructed from splits'+(runs.some(r=>r.has_track)?' and watch altitude':'')+'.',
@@ -527,6 +534,17 @@ const toMap = (sx,sy) => [(sx-S.view.x)/S.view.k, (sy-S.view.y)/S.view.k];
 let drawQueued=false;
 function requestDraw(){ if (!drawQueued){ drawQueued=true; requestAnimationFrame(()=>{ drawQueued=false; draw(); }); } }
 function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+const FLOOR_DIM = 0.25;           // how much the floors the runner is not on are faded
+function dimOtherFloors(){
+  const FB = window.IOR_FLOORBOXES, r = S.runners[S.sel] || S.runners.find(x => x.visible);
+  if (!FB || !FB.length || !r || !r.pts || !r.pts.length) return;
+  const a = at(r, Math.min(Math.max(runnerT(r), r.start), r.end));
+  const inside = f => f.boxes.some(b => a.u >= b[0] && a.u <= b[2] && a.v >= b[1] && a.v <= b[3]);
+  const cur = FB.find(inside); if (!cur) return;
+  ctx.fillStyle = css('--stage') || '#DDE2DA'; ctx.globalAlpha = FLOOR_DIM;
+  FB.forEach(f => { if (f !== cur) f.boxes.forEach(b => ctx.fillRect(b[0], b[1], b[2] - b[0], b[3] - b[1])); });
+  ctx.globalAlpha = 1;
+}
 function draw(){
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cw,ch);
   if (!S.map) return;
@@ -536,6 +554,7 @@ function draw(){
   ctx.setTransform(dpr*k,0,0,dpr*k,dpr*x,dpr*y);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(S.map.c, 0, 0);
+  dimOtherFloors();
   ctx.lineJoin = ctx.lineCap = 'round';
   const accent = css('--accent');
   // route being drawn
