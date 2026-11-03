@@ -39,6 +39,24 @@ cd ~/kasparsleitis.com && git pull && cd telpuo-app && docker compose up -d --bu
 `telpuo.kasparsleitis.com` points to the service `http://web:8000`. No router ports are opened.
 Updates then use `docker compose --profile public up -d --build`.
 
+## Server Info page
+
+**https://telpuo.kasparsleitis.com/serverinfo** (also **kasparsleitis.com/ServerInfo**) shows the server's CPU, memory, disk,
+load, network, top apps, Docker containers and Uptime Kuma monitors. It needs the admin password (the same `ADMIN_KEY`);
+it never opens without one.
+
+The app reads Netdata from inside Docker, so Netdata must accept connections from Docker but nobody else. Once, on the server:
+
+```bash
+sudo sed -i '/^[[:space:]]*bind to[[:space:]]*=/d; /^[[:space:]]*allow connections from[[:space:]]*=/d' /etc/netdata/netdata.conf
+sudo sed -i '/^\[web\]/a\    bind to = *\n    allow connections from = localhost 172.*' /etc/netdata/netdata.conf
+sudo systemctl restart netdata
+sudo ufw status | grep -q "Status: active" && sudo ufw allow from 172.16.0.0/12 to any port 19999,3001 proto tcp
+```
+
+Uptime monitors (optional): in Uptime Kuma make a **Status Page** (e.g. slug `server`), add your monitors to it,
+then put `KUMA_STATUS_SLUG=server` in `.env` and run the update command.
+
 `install.sh` and `nginx-oreplay.conf` are an alternative for a server without Docker.
 
 ## Timing

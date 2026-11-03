@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Server Info</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#ECEEE9; --panel:#F9FAF7; --fg:#1B1F1A; --muted:#5F685D; --line:#D3D8CF; --grid:#E2E6DE;
+  --accent:#A3309B; --flag:#E0601A; --ok:#1E7F4E; --warn:#B4540A; --bad:#B42318;
+  --c1:#A3309B; --c2:#2F6FB3; --c3:#E0601A; --c4:#B42318; --c5:#7A8476;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111411; --panel:#191D19; --fg:#E6EAE3; --muted:#98A193; --line:#2D332C; --grid:#232822;
+  --accent:#D865CF; --flag:#F07C3C; --ok:#4CC38A; --warn:#F0A04B; --bad:#F2716A;
+  --c1:#D865CF; --c2:#6AA6E8; --c3:#F07C3C; --c4:#F2716A; --c5:#7E8879; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111411; --panel:#191D19; --fg:#E6EAE3; --muted:#98A193; --line:#2D332C; --grid:#232822;
+  --accent:#D865CF; --flag:#F07C3C; --ok:#4CC38A; --warn:#F0A04B; --bad:#F2716A;
+  --c1:#D865CF; --c2:#6AA6E8; --c3:#F07C3C; --c4:#F2716A; --c5:#7E8879; color-scheme:dark}
+*{box-sizing:border-box} html,body{margin:0} [hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-body)}
+.wrap{max-width:1200px;margin:0 auto;padding:14px max(16px,env(safe-area-inset-left,0px)) 40px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;color:inherit;text-decoration:none}
+.flag{width:26px;height:26px;flex:none;background:linear-gradient(135deg,#fff 50%,var(--flag) 50%);border:1.5px solid var(--fg);border-radius:2px}
+.brand h1{font:700 22px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.brand small{display:block;font:500 11px/1.2 var(--f-body);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
+h2{font:700 15px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 13px var(--f-body);cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;height:30px;padding:0 10px;font:600 12.5px var(--f-body);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.muted{color:var(--muted);font-size:12.5px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile .big{font:700 34px/1 var(--f-display);letter-spacing:.02em}
+.tile .big small{font-size:18px;color:var(--muted);margin-left:2px}
+.bar{height:6px;border-radius:3px;background:var(--grid);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok)}
+.bar i.warn{background:var(--warn)} .bar i.bad{background:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:12px}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px 16px;margin:0}
+.facts div{display:flex;flex-direction:column;min-width:0}
+.facts dt{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.facts dd{margin:0;font:500 13.5px var(--f-mono);overflow-wrap:anywhere}
+.chart svg{width:100%;height:180px;display:block}
+.legend{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.legend b{font:500 12px var(--f-mono);color:var(--fg)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:5px 4px;border-top:1px solid var(--line)} td.n{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+tr:first-child td{border-top:0}
+.beats{display:flex;gap:2px;align-items:end}
+.beats i{width:5px;height:16px;border-radius:2px;background:var(--grid)}
+.beats i.s1{background:var(--ok)} .beats i.s0{background:var(--bad)} .beats i.s2{background:var(--warn)} .beats i.s3{background:var(--c2)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--muted);flex:none}
+.dot.s1{background:var(--ok)} .dot.s0{background:var(--bad)} .dot.s2{background:var(--warn)}
+.signin{max-width:340px;margin:12vh auto 0}
+.field{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:8px 10px;font:14px var(--f-body)}
+.err{border-left:3px solid var(--bad)}
+.tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:12px var(--f-mono);z-index:20;box-shadow:0 4px 14px #0002;white-space:nowrap}
+code{font:12.5px var(--f-mono);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/serverinfo"><span class="flag" aria-hidden="true"></span><div><h1>Server Info</h1><small id="sub">Home server</small></div></a>
+    <div class="tabs" id="ranges" role="group" aria-label="Time range"></div>
+    <span class="muted" id="updated"></span>
+    <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
+  </header>
+
+  <form class="card signin" id="signin" hidden>
+    <h2>Admin sign in</h2>
+    <p class="muted" style="margin:0">Same admin password as the Telpu O map library.</p>
+    <input class="field" type="password" id="keyIn" autocomplete="current-password" aria-label="Admin password" required>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p class="muted" id="signErr" style="margin:0;color:var(--bad)" hidden>Wrong password.</p>
+  </form>
+
+  <div id="errBox" class="card err" hidden></div>
+
+  <main id="main" hidden style="display:flex;flex-direction:column;gap:14px">
+    <section class="tiles" id="tiles" aria-label="Right now"></section>
+    <section class="grid2">
+      <div class="card chart"><h2>CPU</h2><div id="ch-cpu"></div></div>
+      <div class="card chart"><h2>Memory</h2><div id="ch-ram"></div></div>
+      <div class="card chart"><h2>Load</h2><div id="ch-load"></div></div>
+      <div class="card chart"><h2>Network</h2><div id="ch-net"></div></div>
+      <div class="card chart"><h2>Disk read / write</h2><div id="ch-io"></div></div>
+      <div class="card"><h2>Uptime monitors</h2><div id="kuma"></div></div>
+    </section>
+    <section class="grid2">
+      <div class="card"><h2>Top apps · CPU now</h2><table id="topCpu"></table></div>
+      <div class="card"><h2>Top apps · memory now</h2><table id="topMem"></table></div>
+    </section>
+    <section class="card" id="contCard"><h2>Docker containers · CPU now</h2><table id="cont"></table></section>
+    <section class="card"><h2>Server</h2><dl class="facts" id="facts"></dl>
+      <p class="muted" style="margin:0">Full Netdata dashboard: on your PC run <code>ssh -L 19999:localhost:19999 &lt;user&gt;@&lt;server&gt;</code>, then open <a href="http://localhost:19999" style="color:var(--accent)">localhost:19999</a>.</p>
+    </section>
+  </main>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
+let RANGE = 900; try { RANGE = +(localStorage.getItem('srv:range') || 900); } catch(e){}
+let timer = null, busy = false;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = (v, d=1) => v == null || isNaN(v) ? '–' : (+v).toLocaleString(undefined, {maximumFractionDigits:d, minimumFractionDigits:0});
+const bytes = mib => mib >= 1024 ? fmt(mib/1024, 1) + ' GiB' : fmt(mib, 0) + ' MiB';
+const dur = s => { if (s == null) return '–'; s = Math.floor(s); const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
+
+async function load(){
+  if (busy) return; busy = true;
+  try {
+    const r = await fetch('/api/server?range=' + RANGE, {headers: KEY ? {'X-Admin-Key': KEY} : {}, cache: 'no-store'});
+    if (r.status === 403){ showSignin(); return; }
+    const d = await r.json();
+    $('#signin').hidden = true; $('#outBtn').hidden = !KEY;
+    render(d);
+  } catch(e){
+    showError('Could not load server data: ' + esc(e.message));
+  } finally { busy = false; }
+}
+function showSignin(){ clearInterval(timer); $('#main').hidden = true; $('#errBox').hidden = true; $('#signin').hidden = false; $('#outBtn').hidden = true; $('#keyIn').focus(); }
+function showError(msg){ const b = $('#errBox'); b.innerHTML = `<h2>Problem</h2><div>${msg}</div>`; b.hidden = false; }
+
+$('#signin').onsubmit = async ev => {
+  ev.preventDefault(); KEY = $('#keyIn').value;
+  const r = await fetch('/api/admin', {headers: {'X-Admin-Key': KEY}}).then(r => r.json()).catch(() => ({}));
+  if (!r.admin || !r.required){ $('#signErr').hidden = false; KEY = ''; return; }
+  try { localStorage.setItem('ior:key', KEY); } catch(e){}
+  $('#signErr').hidden = true; $('#keyIn').value = ''; start();
+};
+$('#outBtn').onclick = () => { KEY = ''; try { localStorage.removeItem('ior:key'); } catch(e){} showSignin(); };
+
+function ranges(all){
+  const box = $('#ranges'); if (box.childElementCount) { [...box.children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.r === RANGE)); return; }
+  for (const [k, v] of Object.entries(all)){
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = v; b.dataset.r = k;
+    b.setAttribute('aria-pressed', +k === RANGE);
+    b.onclick = () => { RANGE = +k; try { localStorage.setItem('srv:range', k); } catch(e){} ranges(all); start(); };
+    box.appendChild(b);
+  }
+}
+
+/* ---------- data helpers ---------- */
+function series(h){ // -> {t:[...], cols:{label:[...]}}
+  if (!h) return null;
+  const rows = [...h.data].sort((a, b) => a[0] - b[0]); const cols = {};
+  h.labels.slice(1).forEach((l, i) => cols[l] = rows.map(r => r[i+1] ?? 0));
+  return {t: rows.map(r => r[0]), cols};
+}
+const last = a => a && a.length ? a[a.length-1] : null;
+const sumCols = (s, names) => s.t.map((_, i) => names.reduce((a, n) => a + (s.cols[n]?.[i] || 0), 0));
+
+/* ---------- chart ---------- */
+function chart(el, s, lines, o = {}){
+  if (!s){ el.innerHTML = '<p class="muted">Not available on this server.</p>'; return; }
+  const W = 600, H = 180, L = 44, R = 8, T = 8, B = 22, t = s.t, n = t.length;
+  if (n < 2){ el.innerHTML = '<p class="muted">Not enough data yet.</p>'; return; }
+  let tops = lines.map(l => l.v);
+  if (o.stack){ let acc = t.map(() => 0); tops = lines.map(l => (acc = acc.map((a, i) => a + (l.v[i] || 0)))); }
+  let max = o.max ?? Math.max(1e-9, ...tops.flat(), ...(o.ref ? [o.ref] : []));
+  if (o.max == null){ const p = 10 ** Math.floor(Math.log10(max)); max = Math.ceil(max / p * 1.05) * p; }
+  const x = i => L + (W-L-R) * (t[i]-t[0]) / ((t[n-1]-t[0]) || 1), y = v => T + (H-T-B) * (1 - Math.min(v, max) / max);
+  let g = '';
+  for (let k = 0; k <= 4; k++){ const v = max * k / 4, yy = y(v); g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="${css('--grid')}"/><text x="${L-6}" y="${yy+4}" text-anchor="end" font-size="10" fill="${css('--muted')}" font-family="IBM Plex Mono,monospace">${fmt(v, max < 1 ? 2 : max < 10 ? 1 : 0)}</text>`; }
+  const tf = new Intl.DateTimeFormat(undefined, RANGE > 86400 ? {weekday:'short', hour:'2-digit'} : {hour:'2-digit', minute:'2-digit'});
+  for (let k = 0; k <= 4; k++){ const i = Math.round((n-1) * k / 4); g += `<text x="${x(i)}" y="${H-6}" text-anchor="${k===0?'start':k===4?'end':'middle'}" font-size="10" fill="${css('--muted')}" font-family="IBM Plex Mono,monospace">${tf.format(new Date(t[i]*1000))}</text>`; }
+  if (o.ref){ g += `<line x1="${L}" x2="${W-R}" y1="${y(o.ref)}" y2="${y(o.ref)}" stroke="${css('--bad')}" stroke-dasharray="4 4" opacity=".7"/><text x="${W-R}" y="${y(o.ref)-4}" text-anchor="end" font-size="10" fill="${css('--bad')}">${esc(o.refLabel||'')}</text>`; }
+  const path = v => v.map((val, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join('');
+  let shapes = '';
+  if (o.stack){
+    let prev = t.map(() => 0);
+    lines.forEach((l, k) => { const top = tops[k], c = css(l.c);
+      const d = path(top) + prev.map((v, i) => `L${x(n-1-i+0).toFixed(1)},${y(prev[n-1-i]).toFixed(1)}`).join('') + 'Z';
+      shapes += `<path d="${d}" fill="${c}" fill-opacity=".55" stroke="${c}" stroke-width="1"/>`; prev = top; });
+  } else lines.forEach(l => { shapes += `<path d="${path(l.v)}" fill="none" stroke="${css(l.c)}" stroke-width="1.8" stroke-linejoin="round"/>`; });
+  const unit = o.unit || '';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(o.label||'chart')}">${g}${shapes}<line class="cur" y1="${T}" y2="${H-B}" stroke="${css('--fg')}" opacity="0" /></svg>
+    <div class="legend">${lines.map(l => `<span><i style="background:${css(l.c)}"></i>${esc(l.name)} <b>${fmt(last(l.v), last(l.v) < 1 ? 2 : 1)}${unit}</b></span>`).join('')}</div>`;
+  const svg = el.querySelector('svg'), cur = svg.querySelector('.cur');
+  svg.onpointermove = ev => { const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) / r.width * W;
+    let i = Math.round((px - L) / (W-L-R) * (n-1)); i = Math.max(0, Math.min(n-1, i));
+    cur.setAttribute('x1', x(i)); cur.setAttribute('x2', x(i)); cur.setAttribute('opacity', .35);
+    tip(ev, `${new Date(t[i]*1000).toLocaleTimeString()}<br>` + lines.map(l => `${esc(l.name)}: ${fmt(l.v[i], 1)}${unit}`).join('<br>')); };
+  svg.onpointerleave = () => { cur.setAttribute('opacity', 0); tip(); };
+}
+let tipEl = null;
+function tip(ev, html){
+  if (!html){ tipEl?.remove(); tipEl = null; return; }
+  if (!tipEl){ tipEl = document.createElement('div'); tipEl.className = 'tip'; document.body.appendChild(tipEl); }
+  tipEl.innerHTML = html; const w = tipEl.offsetWidth;
+  tipEl.style.left = Math.min(innerWidth - w - 8, ev.clientX + 12) + 'px'; tipEl.style.top = (ev.clientY + 12) + 'px';
+}
+
+/* ---------- render ---------- */
+function tile(label, big, unit, pct, note){
+  const cls = pct == null ? '' : pct > 90 ? 'bad' : pct > 75 ? 'warn' : '';
+  return `<div class="card tile"><h2>${label}</h2><div class="big">${big}<small>${unit}</small></div>${pct == null ? '' : `<div class="bar"><i class="${cls}" style="width:${Math.min(100, pct)}%"></i></div>`}<div class="muted">${note}</div></div>`;
+}
+function table(el, rows, unit, emptyMsg){
+  el.innerHTML = rows && rows.length ? rows.map(r => `<tr><td>${esc(r.name)}</td><td class="n">${unit === 'MiB' ? bytes(r.value) : fmt(r.value, 1) + unit}</td></tr>`).join('')
+    : `<tr><td class="muted">${emptyMsg}</td></tr>`;
+}
+
+function render(d){
+  ranges(d.ranges || {900:'15 min'});
+  if (d.error){ $('#main').hidden = true; showError(esc(d.error)); return; }
+  $('#errBox').hidden = true; $('#main').hidden = false;
+  const h = d.host || {}, H = d.history || {};
+  $('#sub').textContent = [h.hostname, h.os].filter(Boolean).join(' · ') || 'Home server';
+  $('#updated').textContent = 'Updated ' + new Date(d.now*1000).toLocaleTimeString();
+
+  const cpu = series(H.cpu), ram = series(H.ram), load = series(H.load), net = series(H.net), io = series(H.io), disk = series(H.disk);
+  // CPU: group Netdata's dimensions
+  let cpuLines = null, cpuNow = null, niceNow = null;
+  if (cpu){
+    const known = ['user', 'system', 'nice', 'iowait'], other = Object.keys(cpu.cols).filter(k => !known.includes(k));
+    cpuLines = [
+      {name:'user', v: cpu.cols.user || [], c:'--c2'},
+      {name:'system', v: cpu.cols.system || [], c:'--c1'},
+      {name:'nice (low priority)', v: cpu.cols.nice || [], c:'--c3'},
+      {name:'iowait', v: cpu.cols.iowait || [], c:'--c4'},
+      {name:'other', v: sumCols(cpu, other), c:'--c5'},
+    ].filter(l => l.v.length);
+    cpuNow = last(sumCols(cpu, Object.keys(cpu.cols))); niceNow = last(cpu.cols.nice);
+  }
+  let ramUsed = null, ramTotal = null;
+  if (ram){ ramUsed = last(ram.cols.used); ramTotal = Object.keys(ram.cols).reduce((a, k) => a + (last(ram.cols[k]) || 0), 0); }
+  let diskUsed = null, diskTot = null;
+  if (disk){ diskUsed = last(disk.cols.used); diskTot = Object.keys(disk.cols).reduce((a, k) => a + (last(disk.cols[k]) || 0), 0); }
+  const cores = h.cores || null, l1 = load ? last(load.cols.load1) : null;
+
+  $('#tiles').innerHTML = [
+    tile('CPU', fmt(cpuNow, 0), '%', cpuNow, niceNow > 1 ? `of which ${fmt(niceNow, 0)}% low-priority (nice)` : `${cores ?? '?'} cores`),
+    tile('Memory', ramTotal ? fmt(ramUsed / ramTotal * 100, 0) : '–', '%', ramTotal ? ramUsed / ramTotal * 100 : null, ramTotal ? `${bytes(ramUsed)} of ${bytes(ramTotal)}` : ''),
+    tile('Disk /', diskTot ? fmt(diskUsed / diskTot * 100, 0) : '–', '%', diskTot ? diskUsed / diskTot * 100 : null, diskTot ? `${fmt(diskUsed, 0)} of ${fmt(diskTot, 0)} GiB` : ''),
+    tile('Load', fmt(l1, 2), '', cores && l1 != null ? l1 / cores * 100 : null, cores ? `${cores} cores = full` : '1-minute average'),
+    tile('Uptime', dur(h.uptime), '', null, h.alarms && (h.alarms.critical || h.alarms.warning) ? `<span style="color:var(--bad)">Alerts: ${h.alarms.critical||0} critical, ${h.alarms.warning||0} warning</span>` : 'No active Netdata alerts'),
+  ].join('');
+
+  chart($('#ch-cpu'), cpu, cpuLines || [], {stack:true, max:100, unit:'%', label:'CPU'});
+  chart($('#ch-ram'), ram, ram ? [
+    {name:'used', v: ram.cols.used || [], c:'--c1'}, {name:'buffers', v: ram.cols.buffers || [], c:'--c3'},
+    {name:'cached', v: ram.cols.cached || [], c:'--c2'}, {name:'free', v: ram.cols.free || [], c:'--c5'}].filter(l => l.v.length) : [],
+    {stack:true, unit:' MiB', label:'Memory'});
+  chart($('#ch-load'), load, load ? [
+    {name:'1 min', v: load.cols.load1 || [], c:'--c1'}, {name:'5 min', v: load.cols.load5 || [], c:'--c2'}, {name:'15 min', v: load.cols.load15 || [], c:'--c5'}] : [],
+    {ref: cores, refLabel: cores ? `${cores} cores` : '', label:'Load'});
+  chart($('#ch-net'), net, net ? [
+    {name:'in', v: (net.cols.received || []).map(v => v/1000), c:'--c2'}, {name:'out', v: (net.cols.sent || []).map(v => v/1000), c:'--c3'}] : [],
+    {unit:' Mbit/s', label:'Network'});
+  chart($('#ch-io'), io, io ? [
+    {name:'read', v: (io.cols.in || io.cols.reads || []).map(v => v/1024), c:'--c2'}, {name:'write', v: (io.cols.out || io.cols.writes || []).map(v => v/1024), c:'--c3'}] : [],
+    {unit:' MiB/s', label:'Disk IO'});
+
+  table($('#topCpu'), d.top_cpu, '%', 'Per-app numbers not available.');
+  table($('#topMem'), d.top_mem, 'MiB', 'Per-app numbers not available.');
+  table($('#cont'), d.containers, '%', 'No container data.');
+  $('#contCard').hidden = !(d.containers && d.containers.length);
+
+  const k = d.kuma || {};
+  $('#kuma').innerHTML = !k.configured
+    ? '<p class="muted" style="margin:0">Not connected yet. In Uptime Kuma make a status page with your monitors, then put its slug in the app\'s <code>.env</code> as <code>KUMA_STATUS_SLUG</code>.</p>'
+    : k.error ? `<p class="muted" style="margin:0;color:var(--bad)">${esc(k.error)}</p>`
+    : !k.monitors.length ? '<p class="muted" style="margin:0">The status page has no monitors.</p>'
+    : '<table>' + k.monitors.map(m => `<tr><td><span style="display:inline-flex;align-items:center;gap:7px"><span class="dot s${m.status}"></span>${esc(m.name)}</span>
+        <div class="muted">${m.status === 1 ? 'Up' : m.status === 0 ? 'Down: ' + esc(m.msg) : m.status === 2 ? 'Pending' : m.status === 3 ? 'Maintenance' : 'No checks yet'}${m.ping ? ' · ' + m.ping + ' ms' : ''}</div></td>
+        <td class="n"><div class="beats" aria-hidden="true">${m.recent.map(s => `<i class="s${s}"></i>`).join('')}</div><div class="muted">${m.uptime24 != null ? fmt(m.uptime24 * 100, 2) + '% 24 h' : ''}</div></td></tr>`).join('') + '</table>';
+
+  $('#facts').innerHTML = [
+    ['Host', h.hostname], ['System', h.os], ['Kernel', h.kernel], ['Architecture', h.arch],
+    ['CPU cores', h.cores], ['CPU speed', h.cpu_freq ? fmt(h.cpu_freq / 1e6, 0) + ' MHz' : null],
+    ['Memory', h.ram_total ? fmt(h.ram_total / 2**30, 1) + ' GiB' : null], ['Disks total', h.disk_total ? fmt(h.disk_total / 2**30, 0) + ' GiB' : null],
+    ['Virtualisation', h.virtualization && h.virtualization !== 'none' ? h.virtualization : 'none (bare metal)'], ['Netdata', h.netdata],
+  ].filter(f => f[1] != null && f[1] !== '').map(f => `<div><dt>${f[0]}</dt><dd>${esc(f[1])}</dd></div>`).join('');
+}
+
+function start(){ clearInterval(timer); load(); timer = setInterval(() => { if (!document.hidden) load(); }, RANGE <= 900 ? 10000 : 60000); }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && KEY) load(); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', load);
+start();
+</script>
+</body></html>

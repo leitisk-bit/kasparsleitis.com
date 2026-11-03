@@ -3,10 +3,10 @@
 Run:  python3 app.py            (dev, port 8090)
       gunicorn -w 1 --threads 4 -b 127.0.0.1:8090 app:app   (production behind nginx)
 """
-import os, time, json, math, re, traceback, threading
+import os, time, json, math, re, traceback, threading, hmac
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
-from oreplay import store, analyze, walk, results, three
+from oreplay import store, analyze, walk, results, three, serverinfo
 from oreplay.recon import Recon, parse_splits, parse_track, track_summary, find_offset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +15,7 @@ app.config['MAX_CONTENT_LENGTH'] = 60 * 1024 * 1024
 ADMIN_KEY = os.environ.get('OREPLAY_ADMIN_KEY', '')       # if set, needed to edit/delete maps
 
 def admin_ok():
-    return not ADMIN_KEY or request.headers.get('X-Admin-Key') == ADMIN_KEY
+    return not ADMIN_KEY or hmac.compare_digest(request.headers.get('X-Admin-Key', '').encode(), ADMIN_KEY.encode())
 
 NEED_ADMIN = 'This needs the admin password.'
 OPT_VER = 2               # bump when route options are worked out differently (old saved ones are ignored)
@@ -36,6 +36,19 @@ def api_admin():
     out = dict(admin=admin_ok(), required=bool(ADMIN_KEY))
     if out['admin']: out.update(version=_version(), started=STARTED, now=time.time())
     return jsonify(out)
+
+# ------------------------------------------------------------------ server info (admin only)
+@app.get('/serverinfo')
+@app.get('/ServerInfo')
+def serverinfo_page(): return send_from_directory(app.static_folder, 'serverinfo.html')
+
+@app.get('/api/server')
+def api_server():
+    # Never open without a password, even if the app itself runs without one.
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    try: after = int(request.args.get('range', 900))
+    except ValueError: after = 900
+    r = jsonify(serverinfo.overview(after)); r.headers['Cache-Control'] = 'no-store'; return r
 
 # ------------------------------------------------------------------ pages
 @app.get('/')
