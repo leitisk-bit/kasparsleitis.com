@@ -397,7 +397,8 @@ def analyze(pdf_path, page=0):
                      'hx': side(xs, r.x0, r.x1), 'hy': (nhi_y, nlo_y), 'dv': (cx - mx, cy - my)})
     f['oneways'] = _oneway_rows(chev, img, floor_at)
 
-    # ---- four-way crossing sign: four small red arrowheads around a centre, away from stairs
+    # ---- straight-crossing sign: four red arrowheads around a centre (upright + or diagonal ×).
+    # Two corridors cross here and each must be run straight through: no turning into the other one.
     heads = []
     for d in drawings:
         fc = _rgb(d.get('fill')); r = d['rect']
@@ -407,17 +408,27 @@ def analyze(pdf_path, page=0):
     used_h = set()
     for i, a in enumerate(heads):
         if i in used_h: continue
-        grp = [j for j, b in enumerate(heads) if math.hypot(a[0] - b[0], a[1] - b[1]) < 60]
+        grp = [j for j, b in enumerate(heads) if j not in used_h and math.hypot(a[0] - b[0], a[1] - b[1]) < 110]
         if len(grp) != 4: continue
-        used_h |= set(grp)
         cx = sum(heads[j][0] for j in grp) / 4; cy = sum(heads[j][1] for j in grp) / 4
-        if in_ignore(cx, cy): continue
         hs = [heads[j] for j in grp]
-        N_ = min(hs, key=lambda h: h[1]); S_ = max(hs, key=lambda h: h[1]); W_ = min(hs, key=lambda h: h[0]); E_ = max(hs, key=lambda h: h[0])
+        # opposite heads: the pairing whose midpoints both sit on the centre
+        best = None
+        for p1 in ((0, 1), (0, 2), (0, 3)):
+            p2 = tuple(k for k in range(4) if k not in p1)
+            err = sum(math.hypot((hs[u][0] + hs[v][0]) / 2 - cx, (hs[u][1] + hs[v][1]) / 2 - cy) for u, v in (p1, p2))
+            if best is None or err < best[0]: best = (err, p1, p2)
+        if best[0] > 30: continue
+        used_h |= set(grp)
+        if in_ignore(cx, cy): continue
+        arms = {}
+        for (u, v), names in ((best[1], ('N', 'S')), (best[2], ('W', 'E'))):
+            for k_, nm in ((u, names[0]), (v, names[1])):
+                hx, hy = hs[k_]; L = math.hypot(hx - cx, hy - cy) or 1
+                arms[nm] = [round(hx + (hx - cx) / L * 14), round(hy + (hy - cy) / L * 14)]
+        xs = [h[0] for h in hs]; ys = [h[1] for h in hs]
         f['crossings'].append({'floor': floor_at(cx, cy), 'x': round(cx), 'y': round(cy),
-                               'box': [round(W_[0]), round(N_[1]), round(E_[0]), round(S_[1])],
-                               'arms': {'N': [round(N_[0]), round(N_[1] - 12)], 'S': [round(S_[0]), round(S_[1] + 12)],
-                                        'W': [round(W_[0] - 12), round(W_[1])], 'E': [round(E_[0] + 12), round(E_[1])]}})
+                               'box': [round(min(xs)), round(min(ys)), round(max(xs)), round(max(ys))], 'arms': arms})
 
     f['pockets'] = []          # filled in walk.py once stair flights are known
     f['start_finish_zone'] = []
