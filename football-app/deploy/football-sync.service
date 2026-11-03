@@ -1,0 +1,8 @@
+[Unit]
+Description=Football stats daily data update
+
+[Service]
+Type=oneshot
+User=REPLACE_USER
+WorkingDirectory=/opt/football
+ExecStart=/opt/football/.venv/bin/python sync.py update

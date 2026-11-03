@@ -1,0 +1,13 @@
+[Unit]
+Description=Football stats web app (kasparsleitis.com/football)
+After=network-online.target
+
+[Service]
+User=REPLACE_USER
+WorkingDirectory=/opt/football
+ExecStart=/opt/football/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8095 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

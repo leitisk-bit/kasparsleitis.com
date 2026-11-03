@@ -38,6 +38,11 @@ RewriteCond %{REQUEST_URI} !^/serverinfo(/|$)
 RewriteRule ^serverinfo(/.*)?$ /serverinfo$1 [R=301,L,NC]
 RewriteRule ^serverinfo$ /serverinfo/ [R=301,L]
 
+# /Football, /FOOTBALL … → /football/  (admin football stats; data from the home server)
+RewriteCond %{REQUEST_URI} !^/football(/|$)
+RewriteRule ^football(/.*)?$ /football$1 [R=301,L,NC]
+RewriteRule ^football$ /football/ [R=301,L]
+
 # /telpuo, /TelpuO … → /telpuO/
 RewriteCond %{REQUEST_URI} !^/telpuO(/|$)
 RewriteRule ^telpuo(/.*)?$ /telpuO$1 [R=301,L,NC]

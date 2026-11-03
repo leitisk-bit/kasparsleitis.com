@@ -48,15 +48,41 @@ def serverinfo_page():                # the page itself is on the website
 
 @app.after_request
 def _site_cors(r):
-    # Let only kasparsleitis.com/serverinfo read these two answers from the browser.
+    # Let only kasparsleitis.com/serverinfo and /football read these answers from the browser.
     o = request.headers.get('Origin', '')
-    if request.path in ('/api/server', '/api/admin') and o in SITE_ORIGINS:
+    fb = request.path.startswith('/football-api/')
+    if (request.path in ('/api/server', '/api/admin') or fb) and o in SITE_ORIGINS:
         r.headers['Access-Control-Allow-Origin'] = o
-        r.headers['Access-Control-Allow-Headers'] = 'X-Admin-Key'
-        r.headers['Access-Control-Allow-Methods'] = 'GET'
+        r.headers['Access-Control-Allow-Headers'] = 'X-Admin-Key, Content-Type' if fb else 'X-Admin-Key'
+        r.headers['Access-Control-Allow-Methods'] = 'GET, POST' if fb else 'GET'
         r.headers['Access-Control-Max-Age'] = '600'
         r.headers.add('Vary', 'Origin')
     return r
+
+# ------------------------------------------------------------------ football stats (admin only)
+# kasparsleitis.com/football reads its data through here: the football app runs on the host (port 8095),
+# outside Docker, so this passes the request on to it. Same admin password as the rest of the site.
+FOOTBALL = os.environ.get('FOOTBALL_URL', 'http://host.docker.internal:8095/football/api').rstrip('/')
+
+@app.route('/football-api/<path:sub>', methods=['GET', 'POST', 'OPTIONS'])
+def football_proxy(sub):
+    if request.method == 'OPTIONS': return ('', 204)
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    import urllib.request, urllib.error
+    url = FOOTBALL + '/' + sub + ('?' + request.query_string.decode() if request.query_string else '')
+    req = urllib.request.Request(url, method=request.method,
+                                 data=request.get_data() if request.method == 'POST' else None,
+                                 headers={'X-Admin-Key': ADMIN_KEY,
+                                          'Content-Type': request.headers.get('Content-Type', 'application/json')})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as up:
+            body, status, ctype = up.read(), up.status, up.headers.get('Content-Type', 'application/json')
+    except urllib.error.HTTPError as e:
+        body, status, ctype = e.read(), e.code, e.headers.get('Content-Type', 'application/json')
+    except Exception as e:
+        return jsonify(error=f'Football app not reachable ({FOOTBALL}): {e}'), 502
+    from flask import Response
+    return Response(body, status=status, content_type=ctype, headers={'Cache-Control': 'no-store'})
 
 @app.get('/api/server')
 def api_server():

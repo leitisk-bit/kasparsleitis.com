@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Football Stats</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--bg:#f4f5f2;--card:#fff;--ink:#16201a;--muted:#6a756d;--accent:#1f7a4d;--accent-soft:#e3f1e9;--line:#e3e7e0;--over:#1f7a4d;--under:#b3561e}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1411;--card:#171e19;--ink:#e7ece8;--muted:#93a097;--accent:#3fbf7f;--accent-soft:#1c3226;--line:#26302a;--over:#3fbf7f;--under:#f0965a}}
+*{box-sizing:border-box} [hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:18px;margin:0;margin-right:auto}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:0;background:none;color:var(--muted);padding:7px 12px;border-radius:8px;font:inherit;cursor:pointer}
+nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.logout{border:1px solid var(--line);background:none;color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer;font:inherit}
+main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:16px}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:4px}
+select,input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;min-width:0}
+.btn{padding:8px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;font:inherit}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile .k{font-size:12px;color:var(--muted)} .tile .v{font-size:22px;font-weight:650;font-variant-numeric:tabular-nums}
+.tile .s{font-size:12px;color:var(--muted)}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card)}
+td.l,th.l{text-align:left}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--accent-soft)}
+.muted{color:var(--muted)} .over{color:var(--over);font-weight:600} .under{color:var(--under);font-weight:600}
+.logo{width:20px;height:20px;vertical-align:-5px;margin-right:6px;object-fit:contain}
+.fx{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}
+.fx .t{font-weight:600} .fx .r{text-align:right}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{background:var(--accent-soft);border-radius:999px;padding:4px 10px;font-size:13px}
+.chip b{font-variant-numeric:tabular-nums}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+pre{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:8px;max-height:260px;overflow:auto}
+.dots{display:flex;gap:3px;flex-wrap:wrap;margin-top:8px}
+.dot{width:22px;height:22px;border-radius:5px;font-size:11px;display:grid;place-items:center;color:#fff}
+a{color:var(--ink);text-decoration:none} a:hover{color:var(--accent);text-decoration:underline}
+h2{font-size:16px;margin:0 0 10px} h3{font-size:14px;margin:14px 0 8px}
+@media (max-width:640px){header{padding:10px 16px} .fx{grid-template-columns:1fr}.fx .r{text-align:left}}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚽ Football Stats</h1>
+  <nav id="nav">
+    <button data-v="upcoming" class="on">Upcoming</button>
+    <button data-v="team">Teams</button>
+    <button data-v="board">Leaderboard</button>
+    <button data-v="admin">Data</button>
+  </nav>
+  <button class="logout" id="outBtn" hidden>Log out</button>
+</header>
+<form id="signin" class="card" hidden style="max-width:340px;margin:60px auto">
+  <h2>Admin sign-in</h2>
+  <p class="muted" style="margin-top:0;font-size:14px">Same admin password as the map library and Server Info.</p>
+  <input id="keyIn" type="password" placeholder="Password" autocomplete="current-password" style="width:100%">
+  <button class="btn" style="width:100%;margin-top:10px">Sign in</button>
+  <p id="signErr" hidden style="color:var(--under);font-size:14px;margin:10px 0 0">Wrong password.</p>
+</form>
+<main id="app"></main>
+
+<script>
+// The page lives on kasparsleitis.com; the data comes from the home server through the Cloudflare tunnel
+// (the replay app at telpuo.kasparsleitis.com passes /football-api/ on to the football app).
+const API = /(^|\.)kasparsleitis\.com$/.test(location.hostname) ? 'https://telpuo.kasparsleitis.com/football-api' : '/football/api';
+let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
+const LABEL = {corners:"Corners", total_shots:"Shots", shots_on_goal:"Shots on target", offsides:"Offsides", subs:"Substitutions", fouls:"Fouls", yellow:"Yellow cards"};
+const EXTRA = {shots_off_goal:"Shots off target", blocked_shots:"Blocked shots", red:"Red cards", possession:"Possession %", xg:"xG"};
+const MAIN_STATS = ["corners","total_shots","shots_on_goal","offsides","subs"];
+let META = {competitions:[], seasons:[]};
+const $ = s => document.querySelector(s);
+const app = $("#app");
+
+async function api(path, opts = {}){
+  const r = await fetch(API + path, {...opts, cache: "no-store", headers: {...(opts.headers || {}), "X-Admin-Key": KEY}});
+  if (r.status === 401 || r.status === 403) { showSignin(); throw new Error("login"); }
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = v => v == null ? "–" : (Math.round(v*100)/100).toString();
+const dt = s => new Date(s).toLocaleString(undefined, {weekday:"short", day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit"});
+const d = s => new Date(s).toLocaleDateString(undefined, {day:"2-digit", month:"short", year:"2-digit"});
+const logo = u => u ? `<img class="logo" src="${esc(u)}" alt="" loading="lazy">` : "";
+const opts = (list, val, blank) => (blank ? `<option value="">${blank}</option>` : "") + list.map(([v,t]) => `<option value="${v}" ${String(v)===String(val)?"selected":""}>${esc(t)}</option>`).join("");
+const compOpts = (v, blank) => opts(META.competitions.map(c => [c.id, c.name]), v, blank);
+const seasonOpts = (v, blank) => opts(META.seasons.map(s => [s, `${s}/${String(s+1).slice(2)}`]), v, blank);
+const statOpts = v => opts(Object.entries(LABEL), v);
+
+// ---------- views ----------
+const views = {
+  async upcoming(){
+    app.innerHTML = `<div class="bar">
+      <label>Days ahead<select id="days">${opts([[1,"1"],[3,"3"],[7,"7"],[14,"14"]], 7)}</select></label>
+      <label>Form (last N)<select id="last">${opts([[5,"5"],[10,"10"],[20,"20"]], 10)}</select></label>
+      <label>Competition<select id="comp">${compOpts("", "All")}</select></label>
+    </div><div id="list"><div class="empty">Loading…</div></div>`;
+    const load = async () => {
+      const data = await api(`/upcoming?days=${$("#days").value}&last=${$("#last").value}`);
+      const c = $("#comp").value;
+      const rows = data.filter(m => !c || String(m.league_id) === c);
+      $("#list").innerHTML = rows.length ? rows.map(m => {
+        const e = m.expected || {};
+        return `<div class="card">
+          <div class="muted" style="font-size:12px;margin-bottom:6px">${esc(m.league)} · ${esc(m.round||"")} · ${dt(m.date_utc)}</div>
+          <div class="fx"><div class="t">${logo(m.home_logo)}<a href="#team/${m.home_id}">${esc(m.home)}</a></div>
+            <div class="muted">vs</div>
+            <div class="t r"><a href="#team/${m.away_id}">${esc(m.away)}</a>${logo(m.away_logo)}</div></div>
+          ${Object.keys(e).length ? `<div class="chips">${MAIN_STATS.map(s => e[s] ? `<span class="chip">${LABEL[s]}: <b>${fmt(e[s].home)}</b> – <b>${fmt(e[s].away)}</b> · total <b>${fmt(e[s].total)}</b></span>` : "").join("")}</div>`
+            : `<div class="muted" style="margin-top:8px;font-size:13px">Not enough history yet for these teams.</div>`}
+        </div>`;}).join("") : `<div class="empty">No upcoming matches in this window. Run a data sync on the Data tab.</div>`;
+    };
+    ["days","last","comp"].forEach(id => $("#"+id).onchange = load);
+    load();
+  },
+
+  async team(id){
+    const teams = await api(`/teams`);
+    app.innerHTML = `<div class="bar">
+      <label style="flex:1;min-width:200px">Team<input id="tq" list="tl" placeholder="Type a team name…"><datalist id="tl">${teams.map(t => `<option value="${esc(t.name)}">`).join("")}</datalist></label>
+      <label>Last N<select id="last">${opts([[5,"5"],[10,"10"],[20,"20"],[38,"38"],[100,"100"]], 10)}</select></label>
+      <label>Venue<select id="venue">${opts([["all","All"],["home","Home"],["away","Away"]], "all")}</select></label>
+      <label>Competition<select id="comp">${compOpts("", "All")}</select></label>
+      <label>Season<select id="season">${seasonOpts("", "All")}</select></label>
+    </div><div id="out">${teams.length ? `<div class="empty">Choose a team.</div>` : `<div class="empty">No data yet. Start a backfill on the Data tab.</div>`}</div>`;
+    let current = id ? Number(id) : null;
+    if (current){ const t = teams.find(x => x.id === current); if (t) $("#tq").value = t.name; }
+    $("#tq").onchange = () => { const t = teams.find(x => x.name === $("#tq").value); if (t){ current = t.id; location.hash = "team/"+t.id; load(); } };
+    ["last","venue","comp","season"].forEach(i => $("#"+i).onchange = load);
+    async function load(){
+      if (!current) return;
+      const q = `last=${$("#last").value}&venue=${$("#venue").value}` + ($("#comp").value?`&league=${$("#comp").value}`:"") + ($("#season").value?`&season=${$("#season").value}`:"");
+      const data = await api(`/team/${current}?${q}`);
+      const sm = data.summary;
+      $("#out").innerHTML = `
+        <div class="card"><h2>${logo(data.team.logo)}${esc(data.team.name)} <span class="muted" style="font-weight:400;font-size:13px">· ${sm.matches} matches</span></h2>
+          <div class="grid">${MAIN_STATS.map(s => `<div class="tile"><div class="k">${LABEL[s]}</div>
+            <div class="v">${fmt(sm[s].for)}</div><div class="s">against ${fmt(sm[s].against)} · match ${fmt(sm[s].total)}</div></div>`).join("")}</div>
+        </div>
+        <div class="card"><h2>Over / under check</h2>
+          <div class="bar" style="margin:0">
+            <label>Stat<select id="ous">${statOpts("corners")}</select></label>
+            <label>Count<select id="ouc">${opts([["total","Match total"],["for","Team's own"],["against","Opponent's"]], "total")}</select></label>
+            <label>Line<input id="oul" type="number" step="0.5" value="9.5" style="width:90px"></label>
+            <button class="btn" id="oub">Check</button>
+          </div><div id="ouo"></div></div>
+        <div class="card"><h2>Matches</h2><div class="tablewrap"><table>
+          <tr><th class="l">Date</th><th class="l">Comp</th><th class="l">Match</th><th>Score</th>${MAIN_STATS.map(s => `<th>${LABEL[s]}</th>`).join("")}</tr>
+          ${data.matches.map(m => `<tr class="click" data-m="${m.id}"><td class="l">${d(m.date_utc)}</td><td class="l muted">${esc(m.league)}</td>
+            <td class="l">${m.venue==="H"?"<b>"+esc(m.home)+"</b> – "+esc(m.away):esc(m.home)+" – <b>"+esc(m.away)+"</b>"}</td>
+            <td>${m.home_goals}–${m.away_goals}</td>
+            ${MAIN_STATS.map(s => `<td>${m["for_"+s]??"–"} <span class="muted">/ ${m["against_"+s]??"–"}</span></td>`).join("")}</tr>`).join("")}
+        </table></div><div class="muted" style="font-size:12px;margin-top:6px">Team / opponent. Click a row for match details.</div></div>
+        <div id="md"></div>`;
+      document.querySelectorAll("tr[data-m]").forEach(tr => tr.onclick = () => showMatch(tr.dataset.m));
+      $("#oub").onclick = async () => {
+        const r = await api(`/overunder?team=${current}&stat=${$("#ous").value}&scope=${$("#ouc").value}&line=${$("#oul").value}&${q}`);
+        const line = Number($("#oul").value);
+        $("#ouo").innerHTML = r.matches ? `<div class="chips" style="margin-top:12px">
+            <span class="chip">Over <b class="over">${r.over}/${r.matches}</b> (${r.over_pct}%)</span>
+            <span class="chip">Fair odds over <b>${r.fair_odds_over ?? "–"}</b></span>
+            <span class="chip">Fair odds under <b>${r.fair_odds_under ?? "–"}</b></span></div>
+          <div class="dots">${r.values.map(v => `<span class="dot" style="background:var(${v>line?"--over":"--under"})" title="${v}">${v}</span>`).join("")}</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">Newest first. Compare fair odds with the bookmaker's price.</div>` : `<div class="empty">No matches.</div>`;
+      };
+    }
+    load();
+  },
+
+  async board(){
+    const comp = META.competitions[0]?.id, season = META.seasons[0];
+    app.innerHTML = `<div class="bar">
+      <label>Competition<select id="comp">${compOpts(comp)}</select></label>
+      <label>Season<select id="season">${seasonOpts(season)}</select></label>
+      <label>Stat<select id="stat">${statOpts("corners")}</select></label>
+      <label>Venue<select id="venue">${opts([["all","All"],["home","Home"],["away","Away"]], "all")}</select></label>
+    </div><div class="card"><div class="tablewrap" id="out"><div class="empty">Loading…</div></div></div>`;
+    const load = async () => {
+      if (!$("#season").value){ $("#out").innerHTML = `<div class="empty">No data yet.</div>`; return; }
+      const rows = await api(`/leaderboard?league=${$("#comp").value}&season=${$("#season").value}&stat=${$("#stat").value}&venue=${$("#venue").value}`);
+      let key = "avg_for", dir = -1;
+      const render = () => {
+        rows.sort((a,b) => (a[key]-b[key])*dir);
+        $("#out").innerHTML = rows.length ? `<table><tr><th class="l">#</th><th class="l">Team</th><th>Matches</th>
+          <th data-k="avg_for" class="click">For ↕</th><th data-k="avg_against" class="click">Against ↕</th><th data-k="avg_total" class="click">Match total ↕</th></tr>
+          ${rows.map((t,i) => `<tr class="click" data-t="${t.id}"><td class="l muted">${i+1}</td><td class="l">${logo(t.logo)}${esc(t.name)}</td><td>${t.matches}</td>
+          <td>${fmt(t.avg_for)}</td><td>${fmt(t.avg_against)}</td><td>${fmt(t.avg_total)}</td></tr>`).join("")}</table>`
+          : `<div class="empty">No statistics for this selection yet.</div>`;
+        document.querySelectorAll("th[data-k]").forEach(th => th.onclick = () => { if (key===th.dataset.k) dir=-dir; else {key=th.dataset.k; dir=-1;} render(); });
+        document.querySelectorAll("tr[data-t]").forEach(tr => tr.onclick = () => location.hash = "team/" + tr.dataset.t);
+      };
+      render();
+    };
+    ["comp","season","stat","venue"].forEach(i => $("#"+i).onchange = load);
+    load();
+  },
+
+  async admin(){
+    app.innerHTML = `<div class="card"><h2>Data sync</h2>
+      <p class="muted" style="margin-top:0">Update fetches the current season and new finished matches. Backfill fetches whole seasons; if the daily API quota runs out, start it again tomorrow and it continues.</p>
+      <div class="bar" style="margin:0"><button class="btn" id="upd">Run update</button>
+      <label>Seasons<input id="seas" value="2021-2026" style="width:120px"></label>
+      <button class="btn ghost" id="bf">Run backfill</button><span id="st" class="muted"></span></div>
+      <pre id="outp"></pre></div>
+      <div class="card"><h2>Coverage</h2><div class="tablewrap" id="cov"></div></div>
+      <div class="card"><h2>Sync history</h2><div class="tablewrap" id="hist"></div></div>`;
+    const start = async (kind) => {
+      const r = await api(`/admin/sync`, {method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify({kind, seasons: $("#seas").value})});
+      $("#st").textContent = r.started ? "Started…" : r.reason; refresh();
+    };
+    $("#upd").onclick = () => start("update");
+    $("#bf").onclick = () => start("backfill");
+    let timer;
+    async function refresh(){
+      const s = await api(`/admin/status`);
+      $("#st").textContent = s.running ? "Running…" : "";
+      $("#outp").textContent = s.output || "No sync output yet.";
+      $("#cov").innerHTML = s.coverage.length ? `<table><tr><th class="l">Competition</th><th>Season</th><th>Matches</th><th>With stats</th><th>Pending</th></tr>
+        ${s.coverage.map(c => `<tr><td class="l">${esc(c.name)}</td><td>${c.season}/${String(c.season+1).slice(2)}</td><td>${c.matches}</td><td>${c.with_stats}</td><td>${c.pending||""}</td></tr>`).join("")}</table>`
+        : `<div class="empty">Database is empty.</div>`;
+      $("#hist").innerHTML = s.log.length ? `<table><tr><th class="l">Started</th><th class="l">Kind</th><th>API calls</th><th>Matches</th><th>Quota left</th><th class="l">Result</th></tr>
+        ${s.log.map(l => `<tr><td class="l">${esc(l.started_at)}</td><td class="l">${esc(l.kind)}</td><td>${l.calls}</td><td>${l.matches}</td><td>${l.quota_left??"–"}</td><td class="l">${esc((l.message||"running").slice(0,80))}</td></tr>`).join("")}</table>`
+        : `<div class="empty">No syncs yet.</div>`;
+      clearTimeout(timer);
+      if (s.running && location.hash.startsWith("#admin")) timer = setTimeout(refresh, 4000);
+    }
+    refresh();
+  }
+};
+
+async function showMatch(id){
+  const m = await api(`/match/${id}`);
+  const [h, a] = m.stats;
+  const subs = m.substitutions;
+  $("#md").innerHTML = `<div class="card"><h2>${esc(m.match.home)} ${m.match.home_goals}–${m.match.away_goals} ${esc(m.match.away)}</h2>
+    <div class="muted" style="font-size:13px;margin-bottom:8px">${dt(m.match.date_utc)} · ${esc(m.match.round||"")} · ${esc(m.match.venue||"")} · Ref: ${esc(m.match.referee||"–")}</div>
+    ${h && a ? `<table><tr><th class="l">Stat</th><th>${esc(m.match.home)}</th><th>${esc(m.match.away)}</th></tr>
+      ${["corners","total_shots","shots_on_goal","shots_off_goal","blocked_shots","offsides","fouls","yellow","red","possession","xg","subs"].map(s =>
+        `<tr><td class="l">${LABEL[s] || EXTRA[s] || s}</td><td>${h[s]??"–"}</td><td>${a[s]??"–"}</td></tr>`).join("")}</table>` : `<div class="empty">No statistics.</div>`}
+    ${subs.length ? `<h3>Substitutions</h3><table>${subs.map(s => `<tr><td class="l">${s.minute}'${s.extra?"+"+s.extra:""}</td>
+      <td class="l">${s.team_id===m.match.home_id?esc(m.match.home):esc(m.match.away)}</td><td class="l">${esc(s.player)} ⇄ ${esc(s.assist)}</td></tr>`).join("")}</table>` : ""}
+  </div>`;
+  $("#md").scrollIntoView({behavior:"smooth"});
+}
+
+function route(){
+  const [v, arg] = (location.hash.slice(1) || "upcoming").split("/");
+  document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  (views[v] || views.upcoming)(arg).catch(e => { if (e.message !== "login") app.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; });
+}
+document.querySelectorAll("#nav button").forEach(b => b.onclick = () => location.hash = b.dataset.v);
+window.onhashchange = route;
+function showSignin(){ app.hidden = true; $("#nav").hidden = true; $("#outBtn").hidden = true; $("#signin").hidden = false; $("#keyIn").focus(); }
+async function start(){
+  try { META = await api("/competitions"); } catch(e){ if (e.message !== "login") app.innerHTML = `<div class="empty">Could not reach the football data: ${esc(e.message)}</div>`; return; }
+  $("#signin").hidden = true; app.hidden = false; $("#nav").hidden = false; $("#outBtn").hidden = false;
+  route();
+}
+$("#signin").onsubmit = async ev => {
+  ev.preventDefault(); KEY = $("#keyIn").value;
+  const r = await fetch(API + "/competitions", {headers: {"X-Admin-Key": KEY}}).catch(() => null);
+  if (!r || !r.ok){ $("#signErr").hidden = false; KEY = ""; return; }
+  try { localStorage.setItem("ior:key", KEY); } catch(e){}
+  $("#signErr").hidden = true; $("#keyIn").value = ""; start();
+};
+$("#outBtn").onclick = () => { KEY = ""; try { localStorage.removeItem("ior:key"); } catch(e){} showSignin(); };
+if (KEY) start(); else showSignin();
+</script>
+</body>
+</html>
