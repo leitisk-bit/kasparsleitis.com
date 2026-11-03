@@ -54,6 +54,16 @@ def vector_mask(shape, lines, extra=0):
 
 def walk_mask(img, features, cls=None, k=None):
     if cls is None: cls, k = classify(img)
+    # the blue lines between floors have the colour of a down flight: they are neither stairs nor floor
+    if features.get('separators') or features.get('separator_polys') or features.get('floor_labels'):
+        from PIL import Image as _I, ImageDraw as _D
+        sm_ = vector_mask(img.shape, features.get('separators') or [], extra=6)
+        im_ = _I.new('L', (img.shape[1], img.shape[0]), 0); d_ = _D.Draw(im_)
+        for poly in features.get('separator_polys') or []: d_.polygon([tuple(p) for p in poly], fill=255, outline=255, width=7)
+        for lb in features.get('floor_labels') or []:      # the big blue floor numbers are not stairs either
+            if lb.get('box'): a_, b_, c_, e_ = lb['box']; d_.rectangle([a_ - 6, b_ - 6, c_ + 6, e_ + 6], fill=255)
+        sm_ = (sm_ | (np.array(im_) > 0)) & (cls == k['blue'])
+        cls = cls.copy(); cls[sm_] = k['white']
     # course overprint drawn from the vectors: what is underneath is decided from the surroundings
     if features.get('course_lines'):
         cm = vector_mask(img.shape, features['course_lines'], extra=2) & ~np.isin(cls, [k['tape'], k['black']])
@@ -258,16 +268,31 @@ def build(img, features, progress=None):
                 E.append((s, t, float(cst), 0, True)); POLY[(s, t)] = rdp([(int(x + x0), int(y + y0)) for y, x in tb])
         if progress: progress(f'floor {fl} done')
     # stairs (directed)
-    floors_present = sorted(fb)
+    # a flight leads to the next floor (up or down) where the same stairwell appears: floors may be 0, 1, 1.5, 2 …
+    def fnum(t): v = float(t); return int(v) if v == int(v) else v
+    by_letter = collections.defaultdict(set)
+    for n in N:
+        parts = n.split('_')
+        if len(parts) == 3 and parts[2] in ('up', 'dn'): by_letter[parts[1]].add(fnum(parts[0]))
     for n in list(N):
         parts = n.split('_')
         if len(parts) != 3 or parts[2] not in ('up', 'dn'): continue
-        f, L, tag = int(parts[0]), parts[1], parts[2]
-        g = f + 1 if tag == 'up' else f - 1
-        if g not in fb: continue
+        f, L, tag = fnum(parts[0]), parts[1], parts[2]
+        cand = sorted(x for x in by_letter[L] if (x > f if tag == 'up' else x < f))
+        if not cand: continue
+        g = cand[0] if tag == 'up' else cand[-1]
         first, second = (f'{g}_{L}_dn', f'{g}_{L}_up') if tag == 'up' else (f'{g}_{L}_up', f'{g}_{L}_dn')
         m_ = first if first in N else (second if second in N else None)
         if m_: add(n, m_, 0.0, 1)
+    # a stairwell goes on past a floor even when the exit to that floor is closed (a purple bar
+    # across the door): the up and down flights of one letter on one floor are always joined
+    for n in list(N):
+        parts = n.split('_')
+        if len(parts) != 3 or parts[2] != 'up': continue
+        o = f'{parts[0]}_{parts[1]}_dn'
+        if o in N:
+            d = math.hypot(N[n][1] - N[o][1], N[n][2] - N[o][2])
+            if d < 150: add(n, o, d, 0); add(o, n, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():
         if fl_name in N and c in N:

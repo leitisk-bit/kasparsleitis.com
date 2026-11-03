@@ -239,7 +239,7 @@ class Recon:
         for l in legs: cum.append(cum[-1] + l)
         obs = obs or []
         fit = fit_floors(obs, ctrl_floors or [], cum) if obs else None
-        if fit and levels: fit['levels'].update({int(f): float(e) for f, e in levels.items()})   # runner-confirmed floor heights
+        if fit and levels: fit['levels'].update({(lambda v: int(v) if v == int(v) else v)(float(f)): float(e) for f, e in levels.items()})   # runner-confirmed floor heights
         ele_of = (lambda f: fit['levels'].get(f, fit['base'] + fit['step'] * (f - 1))) if fit else None
         self.calibrate(legs)
         out = []

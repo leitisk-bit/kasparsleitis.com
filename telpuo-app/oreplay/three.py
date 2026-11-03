@@ -27,7 +27,7 @@ def floor_offsets(N, floors):
         else:
             for fl in todo: off[fl] = np.zeros(2)       # a floor with no shared stairwell stays where it is
             break
-    return {int(f): [round(float(v[0]), 1), round(float(v[1]), 1)] for f, v in off.items()}
+    return {f: [round(float(v[0]), 1), round(float(v[1]), 1)] for f, v in off.items()}
 
 
 def build(img, feat, N, out_dir):

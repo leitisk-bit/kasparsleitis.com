@@ -21,6 +21,9 @@ NEED_ADMIN = 'This needs the admin password.'
 DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
+def _fnum(t):
+    v = float(t); return int(v) if v == int(v) else v
+
 STARTED = time.time()
 def _version():
     try:
@@ -160,7 +163,8 @@ def _build_now(mid):
     except Exception: traceback.print_exc(); three_d = None
     store.set_meta(mid, three=three_d)
     fl = sorted(f['floor'] for f in feat.get('floors', []))
-    warn = [] if not fl or fl == list(range(fl[0], fl[0] + len(fl))) else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
+    whole = [x for x in fl if x == int(x)]          # half floors (1.5) are extra levels, not gaps
+    warn = [] if not whole or whole == list(range(int(whole[0]), int(whole[0]) + len(whole))) else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
     store.set_meta(mid, status='ready', message='', job={'step': 'done', 'finished': time.time()}, suggestions=sugg, legs_preview=preview, problems=problems, warnings=warn,
                    flights=flights, suggested_pockets=info['suggested_pockets'], built=built)
     _requeue_runs(mid)
@@ -232,7 +236,7 @@ def api_three(mid):
     t = m['three']; feat = store.get_features(mid)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'],
                    tex=[dict(x, img=f"api/maps/{mid}/tex/{x['floor']}.webp?{int(m.get('built') or 0)}") for x in t['tex']],
-                   controls=three.controls(feat, {int(k): v for k, v in t['offsets'].items()}), title=m.get('name', ''))
+                   controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}), title=m.get('name', ''))
 
 @app.get('/api/maps/<mid>/tex/<int:floor>.webp')
 def api_tex(mid, floor):
@@ -481,6 +485,23 @@ def api_run(rid):
 def api_delete_run(rid):
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     store.delete_run(rid); return jsonify(ok=True)
+
+def _resume():
+    """Jobs cut off by a restart (the server updates itself): start them again."""
+    for m in store.list_maps():
+        mid = m['id']
+        if m.get('status') in ('queued', 'analysing', 'building'):
+            if store.get_features(mid) and m.get('job', {}).get('step') not in (None, 'reading') and m.get('status') != 'analysing':
+                store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
+            else:
+                store.background(_analyse, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
+            continue                      # the map job re-does its runs when it finishes
+        if m.get('status') == 'ready':
+            for r in store.list_runs(mid):
+                if r.get('status') == 'working': _requeue_runs(mid); break
+
+try: _resume()
+except Exception: traceback.print_exc()
 
 if __name__ == '__main__':
     app.run(host=os.environ.get('HOST', '127.0.0.1'), port=int(os.environ.get('PORT', 8090)), debug=False, threaded=True)

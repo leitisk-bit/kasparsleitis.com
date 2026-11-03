@@ -68,6 +68,37 @@ def _norm(mask, n=40):
     im = Image.fromarray((mask * 255).astype(np.uint8)).resize((n, n), Image.BILINEAR)
     return np.array(im) > 100
 
+def _read_number(mask):
+    """A floor label drawn as one shape ("1.5", "12") or one digit: split into characters left to
+    right; a small round blob low down is the decimal point. Returns (value, confidence) or None."""
+    lab, n = ndi.label(mask)
+    if not n: return None
+    H = mask.shape[0]
+    parts = []
+    for sl in ndi.find_objects(lab):
+        if sl is None: continue
+        parts.append([sl[1].start, sl[1].stop, sl[0].start, sl[0].stop])
+    parts.sort()
+    merged = []                               # pieces of one character overlap in x (none in digits, but be safe)
+    for p_ in parts:
+        if merged and p_[0] < merged[-1][1] - 2: merged[-1] = [min(merged[-1][0], p_[0]), max(merged[-1][1], p_[1]), min(merged[-1][2], p_[2]), max(merged[-1][3], p_[3])]
+        else: merged.append(p_)
+    txt, confs = '', []
+    for x0, x1, y0, y1 in merged:
+        w, h = x1 - x0, y1 - y0
+        if h < 0.35 * H:
+            if w < 0.5 * H and y0 > 0.5 * H: txt += '.'; continue
+            return None
+        sub = mask[y0:y1, x0:x1]
+        if w < 0.2 * h: return None            # a thin line, not a figure
+        if w < 0.55 * h: ch, cf = '1', 1.0
+        else: ch, cf = classify_glyph(sub, '023456789')
+        if cf < 0.6: return None
+        txt += ch; confs.append(cf)
+    if not txt or txt.startswith('.') or txt.endswith('.') or txt.count('.') > 1 or not confs: return None
+    v = float(txt)
+    return (int(v) if v == int(v) else v), min(confs)
+
 def classify_glyph(mask, chars):
     m = _norm(mask)
     best = None
@@ -148,9 +179,15 @@ def analyze(pdf_path, page=0):
         # densest text cluster with legend keywords
         kw = [r for r, w in zip(text_boxes, words) if re.search(r'(?i)k[aā]pnes|apz[iī]m|legend|stairs', w[4])]
         if kw:
+            # grow from the legend keyword over nearby legend text only (not control labels like "5-36")
             lg = fitz.Rect(kw[0])
-            for r in text_boxes:
-                if r.intersects(fitz.Rect(lg.x0 - 120, lg.y0 - 120, lg.x1 + 260, lg.y1 + 160)): lg |= r
+            pool = [r for r, w in zip(text_boxes, words) if not re.fullmatch(r'\d+(-\d+)?|[A-Z]', w[4].strip())]
+            changed = True
+            while changed:
+                changed = False
+                for r in pool:
+                    if not lg.contains(r) and r.intersects(fitz.Rect(lg.x0 - 40, lg.y0 - 30, lg.x1 + 40, lg.y1 + 30)):
+                        lg |= r; changed = True
             legend = [lg.x0 * S - 20, lg.y0 * S - 60, lg.x1 * S + 200, lg.y1 * S + 40]
     f['ignore'] = [legend] if legend else []
     # vector masks: tape (never passable) and course overprint (to be looked through)
@@ -223,18 +260,34 @@ def analyze(pdf_path, page=0):
         f['notes'].append(f'{len(nodes) - len(order)} course symbol(s) could not be put in order; check the control list.')
 
     # ---- floor numbers (big blue digits) and blue floor separators
-    digits, seps = [], []
+    digits, seps, cand, sep_polys = [], [], [], []
     for d in drawings:
         fc = _rgb(d.get('fill')); sc = _rgb(d.get('color')); r = d['rect']
-        if _is_blue(fc) and 25 < r.height < 80 and r.width < r.height:
+        if _is_blue(fc) and 20 < r.height < 90 and r.width < 3 * r.height:
             m = path_mask(d)
             if m is not None:
-                ch, sc_ = ('1', 1.0) if r.width < 0.55 * r.height else classify_glyph(m, '23456789')
-                digits.append({'floor': int(ch), 'x': round((r.x0 + r.x1) / 2 * S), 'y': round((r.y0 + r.y1) / 2 * S), 'conf': round(float(sc_), 2)})
+                lab_ = _read_number(m)
+                if lab_ is not None: cand.append((lab_, r))
         if _is_blue(sc) and (d.get('width') or 0) > 3:
             for it in d['items']:
                 if it[0] == 'l': seps.append(((it[1].x * S, it[1].y * S), (it[2].x * S, it[2].y * S), d['width'] * S))
+        # floor separators may also be drawn as filled thin shapes (bands, a diamond around a half floor)
+        if _is_blue(fc) and (r.height >= 90 or r.width >= 90 or min(r.width, r.height) < 8) and max(r.width, r.height) > 30:
+            poly = []
+            for it in d['items']:
+                if it[0] == 'l': poly += [(it[1].x * S, it[1].y * S), (it[2].x * S, it[2].y * S)]
+                elif it[0] == 're': q = it[1]; poly += [(q.x0 * S, q.y0 * S), (q.x1 * S, q.y0 * S), (q.x1 * S, q.y1 * S), (q.x0 * S, q.y1 * S)]
+            if len(poly) >= 3: sep_polys.append([[round(x_, 1), round(y_, 1)] for x_, y_ in poly])
+    # floor numbers are the big blue figures, all printed at one size: drop smaller or larger blue shapes
+    if cand:
+        hs = sorted(r.height for _, r in cand); med = hs[len(hs) // 2]
+        for (val, conf), r in cand:
+            if 0.75 * med <= r.height <= 1.35 * med:
+                digits.append({'floor': val, 'x': round((r.x0 + r.x1) / 2 * S), 'y': round((r.y0 + r.y1) / 2 * S), 'conf': round(float(conf), 2),
+                               'box': [round(r.x0 * S), round(r.y0 * S), round(r.x1 * S), round(r.y1 * S)]})
     f['floor_labels'] = digits
+    f['separators'] = [[round(a_[0], 1), round(a_[1], 1), round(b_[0], 1), round(b_[1], 1), round(w_, 1)] for a_, b_, w_ in seps]
+    f['separator_polys'] = sep_polys
 
     sep_lines = [(a, b) for a, b, wd in seps]
     def crosses(p1, p2):
@@ -251,7 +304,7 @@ def analyze(pdf_path, page=0):
     # buildings: walls + rooms + open floor (not white, not overprint, not floor lines)
     q = 4
     sm = img[::q, ::q].astype(int)
-    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30))
+    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30) | (abs(sm - [202, 202, 202]).sum(-1) < 24))
     mapc = ndi.binary_closing(mapc, iterations=1)
     lab, n = ndi.label(mapc)
     floors = collections.defaultdict(list)
@@ -263,7 +316,9 @@ def analyze(pdf_path, page=0):
         cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
         if in_ignore(cx, cy): continue
         crop = img[box[1]:box[3], box[0]:box[2]].astype(int)
-        if (abs(crop - [255, 235, 194]).sum(-1) < 40).sum() < 800: continue   # small top floors have only a stairwell landing
+        cream_n = ((abs(crop - [255, 235, 194]).sum(-1) < 40) | (abs(crop - [255, 214, 135]).sum(-1) < 40)).sum()   # floor or stair landing
+        stair_n = ((crop[..., 0] > 200) & (crop[..., 1] < 80) & (crop[..., 2] < 80)).sum() + ((crop[..., 2] > 220) & (crop[..., 0] < 120) & (crop[..., 1] > 130)).sum()
+        if cream_n < 800 and not (cream_n >= 100 and stair_n >= 150): continue   # small top floors: only a stairwell
         if (crop.sum(-1) < 120).sum() < 2000: continue          # needs walls
         fl = floor_of_point(cx, cy)
         if fl is not None: floors[fl].append(box)
@@ -272,6 +327,10 @@ def analyze(pdf_path, page=0):
         f['notes'].append('No floors found: draw floor areas on the check screen.')
 
     def floor_at(x, y):
+        fp = floor_of_point(x, y)
+        if fp in floors:
+            for a_, b_, c_, d_ in floors[fp]:
+                if math.hypot(max(a_ - x, 0, x - c_), max(b_ - y, 0, y - d_)) <= 70: return fp
         best = None
         for fl, bx in floors.items():
             for a, b, c, d in bx:
@@ -318,8 +377,24 @@ def analyze(pdf_path, page=0):
         else:
             dirx = None
         nhi_y, nlo_y = side(ys, r.y0, r.y1)
+        # direction = from the two cut ends of the arms (the shortest edges) to the tip (farthest corner)
+        poly = []
+        for it in d['items']:
+            if it[0] != 'l': continue
+            for q_ in (it[1], it[2]):
+                if not poly or math.hypot(q_.x - poly[-1].x, q_.y - poly[-1].y) > 0.05: poly.append(q_)
+        if len(poly) > 2 and math.hypot(poly[0].x - poly[-1].x, poly[0].y - poly[-1].y) <= 0.05: poly.pop()
+        mx, my = cx, cy
+        if len(poly) >= 5:
+            edges = sorted(((math.hypot(poly[(i_ + 1) % len(poly)].x - poly[i_].x, poly[(i_ + 1) % len(poly)].y - poly[i_].y), i_) for i_ in range(len(poly))))
+            ends = [((poly[i_].x + poly[(i_ + 1) % len(poly)].x) / 2, (poly[i_].y + poly[(i_ + 1) % len(poly)].y) / 2) for _, i_ in edges[:2]]
+            bx_, by_ = (ends[0][0] + ends[1][0]) / 2, (ends[0][1] + ends[1][1]) / 2
+            endv = {i_ for _, i_ in edges[:2]} | {(i_ + 1) % len(poly) for _, i_ in edges[:2]}
+            rest = [q_ for j_, q_ in enumerate(poly) if j_ not in endv] or poly     # the tip and the notch
+            tip = max(rest, key=lambda q_: math.hypot(q_.x - bx_, q_.y - by_))
+            mx, my = cx - (tip.x - bx_), cy - (tip.y - by_)
         chev.append({'x': cx * S, 'y': cy * S, 'w': r.width * S, 'h': r.height * S,
-                     'hx': side(xs, r.x0, r.x1), 'hy': (nhi_y, nlo_y)})
+                     'hx': side(xs, r.x0, r.x1), 'hy': (nhi_y, nlo_y), 'dv': (cx - mx, cy - my)})
     f['oneways'] = _oneway_rows(chev, img, floor_at)
 
     # ---- four-way crossing sign: four small red arrowheads around a centre, away from stairs
@@ -390,9 +465,11 @@ def _course_order(nodes, lines):
         best = None
         for i, (_, x, y, r) in enumerate(nodes):
             dist = math.hypot(p1[0] - x, p1[1] - y); dd = dist - r      # outside the symbol edge
-            if dd >= 36: continue
+            if dd >= 70: continue
             od = outdir(k1, p1)
-            if dd > 6 and (od[0] * (x - p1[0]) + od[1] * (y - p1[1])) / (dist or 1) < 0.5: continue   # must head into it
+            head = (od[0] * (x - p1[0]) + od[1] * (y - p1[1])) / (dist or 1)
+            if dd > 6 and head < 0.5: continue                     # must head into it
+            if dd >= 36 and head < 0.95: continue                  # further off only when aimed straight at it
             if best is None or dd < best[1]: best = (i, dd)
         if best: link(k1, P + best[0]); at_sym[e1] = best[0]
     for e1 in range(len(ends)):
@@ -404,7 +481,7 @@ def _course_order(nodes, lines):
             if k1 == k2: continue
             gap = math.hypot(p1[0] - p2[0], p1[1] - p2[1])
             if gap < 3: link(k1, k2, 0.0); continue          # a bend in the line
-            if gap > 90: continue
+            if gap > 700: continue           # a line may be hidden for a long stretch where it crosses a building
             # an interrupted line continues straight on: both pieces and the gap must line up
             def dirv(k, p_):
                 a_, b_ = lines[k]; o = b_ if (a_[0] - p_[0]) ** 2 + (a_[1] - p_[1]) ** 2 < 1 else a_
@@ -412,7 +489,14 @@ def _course_order(nodes, lines):
                 return ((p_[0] - o[0]) / L, (p_[1] - o[1]) / L)       # pointing out of the piece
             d1, d2 = dirv(k1, p1), dirv(k2, p2)
             g = ((p2[0] - p1[0]) / gap, (p2[1] - p1[1]) / gap)
-            if d1[0] * g[0] + d1[1] * g[1] > 0.9 and -(d2[0] * g[0] + d2[1] * g[1]) > 0.9: link(k1, k2, gap)
+            need = 0.9 if gap <= 90 else 0.985          # long gaps only when everything lines up exactly
+            if d1[0] * g[0] + d1[1] * g[1] > need and -(d2[0] * g[0] + d2[1] * g[1]) > need: link(k1, k2, gap); continue
+            # a bend hidden under a building: one piece, carried straight on, runs into the other's end
+            if gap > 90:
+                def on_ray(p_, d_, q_):
+                    vx, vy = q_[0] - p_[0], q_[1] - p_[1]; along = vx * d_[0] + vy * d_[1]
+                    return along > 0 and abs(vx * d_[1] - vy * d_[0]) < 12
+                if on_ray(p1, d1, p2) or on_ray(p2, d2, p1): link(k1, k2, gap)
     import heapq
     def legs_from(i):
         """symbols reachable along the drawn line, with the total length of gaps jumped"""
@@ -454,15 +538,15 @@ def _oneway_rows(chev, img, floor_at):
         xs = [c_['x'] for c_ in g]; ys = [c_['y'] for c_ in g]
         horizontal = (max(xs) - min(xs)) >= (max(ys) - min(ys))
         if horizontal:
-            votes = sum(1 if c_['hx'][0] < c_['hx'][1] else -1 for c_ in g)
+            votes = sum(c_['dv'][0] for c_ in g)
             d = (1 if votes >= 0 else -1, 0)
         else:
-            votes = sum(1 if c_['hy'][0] < c_['hy'][1] else -1 for c_ in g)
+            votes = sum(c_['dv'][1] for c_ in g)
             d = (0, 1 if votes >= 0 else -1)
         pad = max(g[0]['w'], g[0]['h'])
         x0, x1, y0, y1 = min(xs) - pad, max(xs) + pad, min(ys) - pad, max(ys) + pad
         # widen across the corridor until walls
-        box = _grow_across(img, [x0, y0, x1, y1], horizontal)
+        box = _grow_across(img, [x0, y0, x1, y1], horizontal, limit=max(30, pad))
         cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
         if horizontal:
             a_, b_ = (box[0] - 12, cy), (box[2] + 12, cy)
@@ -473,17 +557,20 @@ def _oneway_rows(chev, img, floor_at):
                      'entry': [round(v) for v in entry], 'exit': [round(v) for v in exit_]})
     return rows
 
-def _grow_across(img, box, horizontal):
+def _grow_across(img, box, horizontal, limit=10 ** 6):
+    """Widen a one-way stretch across its corridor up to the walls, but never by more than `limit`
+    on each side: on a slanted corridor the box would otherwise swallow a whole junction."""
     x0, y0, x1, y1 = [int(v) for v in box]
+    X0, Y0, X1, Y1 = x0, y0, x1, y1
     def openrow(vals):
         v = vals.astype(int)
         return (abs(v - [255, 235, 194]).sum(-1) < 60).mean() > 0.8
     if horizontal:
-        while y0 > 0 and openrow(img[y0 - 1, x0:x1]): y0 -= 1
-        while y1 < img.shape[0] - 1 and openrow(img[y1 + 1, x0:x1]): y1 += 1
+        while y0 > 0 and Y0 - y0 < limit and openrow(img[y0 - 1, x0:x1]): y0 -= 1
+        while y1 < img.shape[0] - 1 and y1 - Y1 < limit and openrow(img[y1 + 1, x0:x1]): y1 += 1
     else:
-        while x0 > 0 and openrow(img[y0:y1, x0 - 1]): x0 -= 1
-        while x1 < img.shape[1] - 1 and openrow(img[y0:y1, x1 + 1]): x1 += 1
+        while x0 > 0 and X0 - x0 < limit and openrow(img[y0:y1, x0 - 1]): x0 -= 1
+        while x1 < img.shape[1] - 1 and x1 - X1 < limit and openrow(img[y0:y1, x1 + 1]): x1 += 1
     return [x0, y0, x1, y1]
 
 if __name__ == '__main__':
