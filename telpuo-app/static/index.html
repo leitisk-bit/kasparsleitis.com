@@ -107,7 +107,7 @@ body:not(.is-admin) .admin-only{display:none!important}
   <section id="mapPage" hidden>
     <div class="row" style="padding:0;grid-template-columns:minmax(0,1fr) auto;border:0">
       <div style="min-width:0"><h2 id="mName" style="font-size:22px;color:var(--fg)"></h2><div class="muted" id="mEvent"></div></div>
-      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#">All maps</a><a class="btn" id="pdfLink" target="_blank" rel="noopener">Original PDF</a></div>
+      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#">All maps</a><a class="btn primary" id="anaLink" hidden>Analyze routes</a><a class="btn" id="pdfLink" target="_blank" rel="noopener">Original PDF</a></div>
     </div>
     <div class="status" id="mStatus"></div>
     <details class="card" id="suggCard" hidden><summary><b>Route suggestions</b> <span class="muted">fastest way for every leg, with the closest alternatives</span></summary><div id="suggBody"></div></details>
@@ -301,7 +301,10 @@ function renderStatus(){
 }
 function renderSugg(){
   const c=$('#suggCard'), S_=M.suggestions||[];
-  c.hidden = M.status!=='ready' || !S_.length; if (c.hidden) return;
+  c.hidden = M.status!=='ready' || !S_.length;
+  $('#anaLink').hidden = c.hidden; $('#anaLink').href = 'replay?map='+M.id;
+  if (c.hidden) return;
+  c.open = true;
   $('#suggBody').innerHTML = `<div class="muted" style="margin:6px 0">At a standard running pace. <a class="btn small" href="replay?map=${M.id}">Analyze routes on the map</a></div>` +
     '<ul class="sugg">' + S_.map(L => `<li><b>${esc(L.label)}</b>` + (L.options.length ? L.options.map((o,i)=>`<div class="${i?'muted':''}">${i?'':'<span class="pill ok">fastest</span> '}${esc(o.route)} · ${fmt(o.time)}${i?` · <b>+${fmt(o.diff)}</b>`:''} · ${o.dist_m} m</div>`).join('') : '<div class="bad">no route</div>') + '</li>').join('') + '</ul>';
 }
