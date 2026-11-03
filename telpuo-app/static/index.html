@@ -68,6 +68,8 @@ body:not(.is-admin) .admin-only{display:none!important}
 .steps{list-style:none;margin:8px 0;padding:0;display:grid;gap:4px}.steps li{display:grid;grid-template-columns:18px auto minmax(0,1fr);gap:8px;align-items:baseline;font-size:13px}.steps li.wait b{color:var(--muted);font-weight:500}
 .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:sp 0.8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 .jobbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sugg{list-style:none;margin:6px 0 0;padding-left:0;display:grid;gap:8px;font-size:13px}.sugg li div{margin-left:2px}
+#suggCard summary{cursor:pointer}
 .legcheck{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:12.5px}
 .ok{color:var(--ok,#1a7f45)}
 .status{font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
@@ -108,6 +110,7 @@ body:not(.is-admin) .admin-only{display:none!important}
       <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="#">All maps</a><a class="btn" id="pdfLink" target="_blank" rel="noopener">Original PDF</a></div>
     </div>
     <div class="status" id="mStatus"></div>
+    <details class="card" id="suggCard" hidden><summary><b>Route suggestions</b> <span class="muted">fastest way for every leg, with the closest alternatives</span></summary><div id="suggBody"></div></details>
     <div class="layout">
       <div class="stage" id="stage"><canvas id="cv"></canvas><div class="hint" id="hint" hidden></div></div>
       <div class="side">
@@ -250,7 +253,7 @@ async function openMap(id){
   $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
   $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iScale').value=M.scale||1000;
   if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2000);
-  renderStatus();
+  renderStatus(); renderSugg();
   const v = String(M.display_scale ? (M.built||'r') : 'none');
   if (M.display_scale && (!img || img.dataset.id!==id || img.dataset.v!==v)){ img=new Image(); img.dataset.id=id; img.dataset.v=v; img.src='api/maps/'+id+'/image?'+v; img.onload=()=>{ view.init=false; fit(); draw(); }; }
   if (!F) return;
@@ -265,7 +268,7 @@ function renderStatus(){
       : M.status==='error' ? `<span class="pill bad">error</span> This map could not be prepared.` : `<span class="pill work">preparing</span> This map is being prepared. It takes a minute or two.`;
     return; }
   const J=M.job||{}, st=M.status, working = st!=='ready' && st!=='error';
-  const order=['queued','reading','network','check'], cur=order.indexOf(J.step);
+  const order=['queued','reading','network','check','options'], cur=order.indexOf(J.step);
   const stepState = i => st==='ready' ? 'done' : st==='error' ? (i===Math.max(cur,0) ? 'fail' : i<cur ? 'done' : 'wait') : i<cur ? 'done' : i===cur ? 'run' : 'wait';
   const L=M.legs_preview||[], ok=L.filter(x=>!x.error).length, p=M.problems||[];
   const res=M.results, runs=RUNS, rw=runs.filter(r=>r.status==='working'), rf=runs.filter(r=>r.status==='error'), rm=runs.filter(r=>r.status==='done'&&r.legs_missing);
@@ -275,6 +278,7 @@ function renderStatus(){
     [stepState(1), 'Read the map', stepState(1)==='run' ? `${esc(J.detail||'')} · running ${ago(J.started)}` : st==='ready' ? `Floors ${(M.floors||[]).join(', ')} · ${M.controls||0} controls` : st==='error'&&cur<=1 ? esc(M.message) : ''],
     [stepState(2), 'Build the route network', stepState(2)==='run' ? `floor ${Math.min((J.done||0)+1, J.total||1)} of ${J.total||'?'} · running ${ago(J.started)}` : ''],
     [st==='ready' ? (p.length?'fail':'done') : stepState(3), 'Check every leg', stepState(3)==='run' ? `leg ${(J.done||0)+1} of ${J.total||'?'}` : st==='ready' ? (p.length ? `routes found for ${ok} of ${L.length} legs: no route for leg ${p.join(', ')}` : `routes found for all ${L.length} legs`) : ''],
+    [stepState(4), 'Work out route options', stepState(4)==='run' ? `leg ${(J.done||0)+1} of ${J.total||'?'} · running ${ago(J.started)}` : st==='ready' && M.suggestions ? `${M.suggestions.reduce((a,x)=>a+x.count,0)} options over ${M.suggestions.length} legs` : ''],
     [res ? 'done' : 'wait', 'Results with splits', res ? `${esc(res.event||'')} · ${res.runners} runners in ${(res.groups||[]).join(', ')}` : 'not imported yet (Import results, under Runs)'],
     [!runs.length ? 'wait' : rw.length ? 'run' : (rf.length||rm.length) ? 'warn' : 'done', 'Runs',
       !runs.length ? 'none yet' : [`${runs.length} saved`, runs.length-rw.length-rf.length ? `${runs.length-rw.length-rf.length} done` : '', rw.length ? `${rw.length} being worked out` : '', rf.length ? `<span class="bad">${rf.length} failed</span>` : '', rm.length ? `<span class="bad">${rm.length} with legs missing</span>` : ''].filter(Boolean).join(' · ')],
@@ -294,6 +298,12 @@ function renderStatus(){
   s.querySelectorAll('[data-job]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.job; b.disabled=true;
     try { const r=await api('maps/'+M.id+'/'+k,{method:'POST'}); toast(k==='rerun' ? `Working out ${r.runs} run${r.runs===1?'':'s'} again.` : k==='rebuild' ? 'Rebuilding the routes.' : 'Reading the map again.'); openMap(M.id); }
     catch(e){ toast(e.message); b.disabled=false; } });
+}
+function renderSugg(){
+  const c=$('#suggCard'), S_=M.suggestions||[];
+  c.hidden = M.status!=='ready' || !S_.length; if (c.hidden) return;
+  $('#suggBody').innerHTML = `<div class="muted" style="margin:6px 0">At a standard running pace. <a class="btn small" href="replay?map=${M.id}">Analyze routes on the map</a></div>` +
+    '<ul class="sugg">' + S_.map(L => `<li><b>${esc(L.label)}</b>` + (L.options.length ? L.options.map((o,i)=>`<div class="${i?'muted':''}">${i?'':'<span class="pill ok">fastest</span> '}${esc(o.route)} · ${fmt(o.time)}${i?` · <b>+${fmt(o.diff)}</b>`:''} · ${o.dist_m} m</div>`).join('') : '<div class="bad">no route</div>') + '</li>').join('') + '</ul>';
 }
 function renderRuns(runs){
   const box=$('#runList'); box.innerHTML='';

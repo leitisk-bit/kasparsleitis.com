@@ -142,7 +142,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
       <section class="card" id="anaCard" hidden>
         <h2>Analyze a leg</h2>
         <select id="anaLeg" aria-label="Leg to analyze"></select>
-        <div class="muted" id="anaInfo">Every sensible route for this leg, timed at the runner's own pace. Press play to race them. Red is always the fastest.</div>
+        <div class="muted" id="anaInfo">Every sensible route for this leg, timed at the runner's pace (or a standard pace when there is no runner). Press play to race them. Red is always the fastest.</div>
         <ol class="opts" id="anaList"></ol>
       </section>
       <section class="card" id="drawCard" hidden>
@@ -229,6 +229,20 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 /* server mode: /replay?run=<id>[,<id>...]&ghost=1 */
 window.IOR_LOAD = async function(){
   const q = new URLSearchParams(location.search); const ids = (q.get('run')||'').split(',').filter(Boolean);
+  if (!ids.length && q.get('map')){
+    // no runner: the map with its route options (Analyze)
+    const m = await (await fetch('api/maps/'+encodeURIComponent(q.get('map')))).json();
+    document.title = m.meta.name + ' · Route options';
+    window.IOR_ANALYZE = { mapId: m.meta.id, px_s: '' };
+    window.IOR_LEGS = (m.meta.suggestions||[]).map(x => ({ label: x.label, t0: 0, t1: 0, route: '' }));
+    window.IOR_AUTO_ANALYZE = true;
+    ['label[for=mapFile]','label[for=gpxFile]','.seg[aria-label=Mode]'].forEach(sel=>{ const e=document.querySelector(sel); if (e) e.hidden=true; });
+    const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
+    const sm=document.querySelector('.brand small'); if (sm) sm.textContent=m.meta.name;
+    const k = m.meta.display_scale || 1;
+    return { mapImage: 'api/maps/'+m.meta.id+'/image', mapKey: 'server:'+m.meta.id, dpm: 300/0.0254*k, scaleDen: m.meta.scale || 1000, follow: false,
+             chip: m.meta.name + ': every sensible route for each leg at a standard pace. Red is the fastest.', data: { runners: [] } };
+  }
   if (!ids.length) return null;
   const runs = [];
   for (const id of ids){ const r = await (await fetch('api/runs/'+encodeURIComponent(id))).json(); if (r.status!=='done') throw new Error(r.name+': '+(r.message||r.status)); runs.push(r); }
@@ -863,12 +877,13 @@ async function boot(){
 /* ---------- Analyze: every route option of one leg, raced side by side ---------- */
 const ANA = { on:false, saved:null, view:null, leg:1 };
 const ACOL = ['#E3262B','#1F6FE0','#F29A07','#0E9F6E','#7B3FE4','#E0457B','#13A3B5','#6B7A0F'];
-function anaMain(){ const rs = ANA.saved || S.runners; return rs.find(r => r.legs && !/fastest|ghost/i.test(r.name)) || rs.find(r => r.legs); }
+function anaMain(){ const rs = ANA.saved || S.runners; return rs.find(r => r.legs && !/fastest|ghost/i.test(r.name)) || rs.find(r => r.legs) || (window.IOR_LEGS && window.IOR_LEGS.length ? { legs: window.IOR_LEGS, pts: [], name: '', virtual: true } : null); }
 function setupAnalyze(){
   if (!(window.IOR_ANALYZE || window.IOR_OPTIONS)) return;
   const m = anaMain(); if (!m) return;
   $('#anaSeg').hidden = false;
   $('#anaLeg').innerHTML = m.legs.map((L,i)=>`<option value="${i+1}">${L.label.replace(/[<&]/g,'')}</option>`).join('');
+  if (window.IOR_AUTO_ANALYZE){ $('#aOff').hidden = true; setAnalyze(true); }
 }
 async function loadOptions(leg){
   if (window.IOR_OPTIONS) return window.IOR_OPTIONS[leg] || [];
@@ -883,7 +898,7 @@ async function analyzeLeg(leg){
   const best = opts[0].time, list = [];
   opts.forEach((o,i) => list.push({ name: i ? `${i+1} · +${fmt(o.time-best)}` : '1 · fastest', color: ACOL[i % ACOL.length], pts: o.pts.map(q=>[q[0], q[1], q[2], q[4]]) }));
   // the runner's own leg, as reconstructed
-  const mine = m.pts.filter(q => q.t >= L.t0 - 0.01 && q.t <= L.t1 + 0.01).map(q => [q.t - L.t0, q.u, q.v, q.jump ? 1 : 0]);
+  const mine = m.virtual ? [] : m.pts.filter(q => q.t >= L.t0 - 0.01 && q.t <= L.t1 + 0.01).map(q => [q.t - L.t0, q.u, q.v, q.jump ? 1 : 0]);
   if (mine.length > 1){ mine[0][3] = 0; list.push({ name: 'As run', color: '#1b1b1b', pts: mine }); }
   S.runners = []; importRoutes({ runners: list }); S.sel = 0;
   setRoute('routeScope', 'all'); setRoute('routeReveal', 'full'); S.tau = 0;
@@ -899,7 +914,7 @@ function setAnalyze(on){
   if (typeof pause === 'function') pause();
   const vs=$('#viewSeg'); if (on && $('#v2d') && $('#v3d').getAttribute('aria-pressed')==='true') $('#v2d').click(); if (vs) vs.style.visibility = on ? 'hidden' : '';
   if (on){ ANA.saved = S.runners; ANA.view = [S.routeScope, S.routeReveal];
-    const m = anaMain(), t = m ? runnerT(m) : 0, cur = m ? m.legs.findIndex(L => t >= L.t0 && t < L.t1) : 0;
+    const m = anaMain(), t = m && !m.virtual ? runnerT(m) : 0, cur = m && !m.virtual ? m.legs.findIndex(L => t >= L.t0 && t < L.t1) : 0;
     $('#anaLeg').value = String(Math.max(1, cur + 1)); analyzeLeg(+$('#anaLeg').value); }
   else { S.runners = ANA.saved || S.runners; ANA.saved = null; S.sel = 0; if (ANA.view){ setRoute('routeScope', ANA.view[0]); setRoute('routeReveal', ANA.view[1]); } S.tau = 0; renderRunners(); updateUI(); requestDraw(); }
   window.dispatchEvent(new Event('ior-runners'));

@@ -18,6 +18,7 @@ def admin_ok():
     return not ADMIN_KEY or request.headers.get('X-Admin-Key') == ADMIN_KEY
 
 NEED_ADMIN = 'This needs the admin password.'
+DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
 @app.get('/api/admin')
@@ -131,13 +132,28 @@ def _build_now(mid):
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             preview.append({'leg': i + 1, 'lines': [], 'error': True}); problems.append(i + 1)
     flights = {n: [N[n][0], round(N[n][1] * k, 1), round(N[n][2] * k, 1)] for n in info['flights']}
+    # route options of every leg at a standard pace: suggestions on the map page, Analyze without runs
+    built = time.time(); sugg = []
+    from oreplay.options import leg_options
+    m_ = store.get_meta(mid) or {}; mpp = (m_.get('scale') or 1000) / (300 / 0.0254)
+    labels = [{'start': 'Start', 'finish': 'Finish'}.get(c['kind']) or (f"{c['n']}-{c['code']}" if c.get('code') else str(c['n'])) for c in feat['controls']]
+    for i in range(len(names) - 1):
+        _job(mid, 'options', f'All route options of leg {i + 1}', i, len(names) - 1, status='building', message=f'Route options: leg {i + 1} of {len(names) - 1}…')
+        try: opts = leg_options((N, E, POLY, info), i + 1, px_s=DEFAULT_PX_S, mpp=mpp)
+        except Exception: traceback.print_exc(); opts = []
+        for o in opts: o['pts'] = [[t, round(x * k, 1), round(y * k, 1), fl, j] for t, x, y, fl, j in o['pts']]
+        with open(os.path.join(store.map_dir(mid), f"options_{int(built)}_{i + 1}_{DEFAULT_PX_S}.json"), 'w') as f_:
+            json.dump({'leg': i + 1, 'options': opts}, f_, separators=(',', ':'))
+        best = opts[0]['time'] if opts else None
+        sugg.append({'leg': i + 1, 'label': f'{i + 1}. {labels[i]} → {labels[i + 1]}', 'count': len(opts),
+                     'options': [{'route': o['route'], 'time': o['time'], 'diff': round(o['time'] - best, 1), 'dist_m': o['dist_m'], 'floors': o['floors']} for o in opts[:4]]})
     try: three_d = three.build(img, feat, N, store.map_dir(mid))
     except Exception: traceback.print_exc(); three_d = None
     store.set_meta(mid, three=three_d)
     fl = sorted(f['floor'] for f in feat.get('floors', []))
     warn = [] if not fl or fl == list(range(fl[0], fl[0] + len(fl))) else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
-    store.set_meta(mid, status='ready', message='', job={'step': 'done', 'finished': time.time()}, legs_preview=preview, problems=problems, warnings=warn,
-                   flights=flights, suggested_pockets=info['suggested_pockets'], built=time.time())
+    store.set_meta(mid, status='ready', message='', job={'step': 'done', 'finished': time.time()}, suggestions=sugg, legs_preview=preview, problems=problems, warnings=warn,
+                   flights=flights, suggested_pockets=info['suggested_pockets'], built=built)
     _requeue_runs(mid)
 
 @app.get('/api/maps/<mid>')
@@ -161,12 +177,12 @@ def api_options(mid):
     """All sensible routes for one leg, fastest first, timed at a pace (the selected runner's, or a default)."""
     m = store.get_meta(mid)
     if not m or m.get('status') != 'ready': return jsonify(error='The map is not ready yet.'), 409
-    try: leg = int(request.args.get('leg', 1)); px_s = float(request.args.get('px_s') or 0.04)
+    try: leg = int(request.args.get('leg', 1)); px_s = float(request.args.get('px_s') or DEFAULT_PX_S)
     except ValueError: return jsonify(error='Bad leg or pace.'), 400
     px_s = min(0.2, max(0.01, px_s))
     feat = store.get_features(mid); n_legs = len(feat['controls']) - 1
     if not 1 <= leg <= n_legs: return jsonify(error=f'This course has {n_legs} legs.'), 400
-    cache = os.path.join(store.map_dir(mid), f"options_{int(m.get('built') or 0)}_{leg}_{round(px_s, 4)}.json")
+    cache = os.path.join(store.map_dir(mid), f"options_{int(m.get('built') or 0)}_{leg}_{px_s if px_s == DEFAULT_PX_S else round(px_s, 4)}.json")
     if os.path.exists(cache):
         return send_file(cache, mimetype='application/json')
     from oreplay.options import leg_options
