@@ -70,7 +70,7 @@ code{font:12.5px var(--f-mono);background:var(--bg);border:1px solid var(--line)
 <body>
 <div class="wrap">
   <header>
-    <a class="brand" href="/serverinfo"><span class="flag" aria-hidden="true"></span><div><h1>Server Info</h1><small id="sub">Home server</small></div></a>
+    <a class="brand" href="/serverinfo/"><span class="flag" aria-hidden="true"></span><div><h1>Server Info</h1><small id="sub">Home server</small></div></a>
     <div class="tabs" id="ranges" role="group" aria-label="Time range"></div>
     <span class="muted" id="updated"></span>
     <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
@@ -78,7 +78,7 @@ code{font:12.5px var(--f-mono);background:var(--bg);border:1px solid var(--line)
 
   <form class="card signin" id="signin" hidden>
     <h2>Admin sign in</h2>
-    <p class="muted" style="margin:0">Same admin password as the Telpu O map library.</p>
+    <p class="muted" style="margin:0">Same admin password as the Telpu O map library (Telpu O replay app).</p>
     <input class="field" type="password" id="keyIn" autocomplete="current-password" aria-label="Admin password" required>
     <button class="btn primary" type="submit">Sign in</button>
     <p class="muted" id="signErr" style="margin:0;color:var(--bad)" hidden>Wrong password.</p>
@@ -108,6 +108,8 @@ code{font:12.5px var(--f-mono);background:var(--bg);border:1px solid var(--line)
 </div>
 <script>
 const $ = s => document.querySelector(s);
+// The page lives on kasparsleitis.com; the data comes from the home server through the Cloudflare tunnel.
+const API = /(^|\.)kasparsleitis\.com$/.test(location.hostname) ? 'https://telpuo.kasparsleitis.com' : '';
 let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
 let RANGE = 900; try { RANGE = +(localStorage.getItem('srv:range') || 900); } catch(e){}
 let timer = null, busy = false;
@@ -120,7 +122,7 @@ const dur = s => { if (s == null) return '–'; s = Math.floor(s); const d = Mat
 async function load(){
   if (busy) return; busy = true;
   try {
-    const r = await fetch('/api/server?range=' + RANGE, {headers: KEY ? {'X-Admin-Key': KEY} : {}, cache: 'no-store'});
+    const r = await fetch(API + '/api/server?range=' + RANGE, {headers: KEY ? {'X-Admin-Key': KEY} : {}, cache: 'no-store'});
     if (r.status === 403){ showSignin(); return; }
     const d = await r.json();
     $('#signin').hidden = true; $('#outBtn').hidden = !KEY;
@@ -134,7 +136,7 @@ function showError(msg){ const b = $('#errBox'); b.innerHTML = `<h2>Problem</h2>
 
 $('#signin').onsubmit = async ev => {
   ev.preventDefault(); KEY = $('#keyIn').value;
-  const r = await fetch('/api/admin', {headers: {'X-Admin-Key': KEY}}).then(r => r.json()).catch(() => ({}));
+  const r = await fetch(API + '/api/admin', {headers: {'X-Admin-Key': KEY}}).then(r => r.json()).catch(() => ({}));
   if (!r.admin || !r.required){ $('#signErr').hidden = false; KEY = ''; return; }
   try { localStorage.setItem('ior:key', KEY); } catch(e){}
   $('#signErr').hidden = true; $('#keyIn').value = ''; start();

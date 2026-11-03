@@ -41,7 +41,7 @@ Updates then use `docker compose --profile public up -d --build`.
 
 ## Server Info page
 
-**https://telpuo.kasparsleitis.com/serverinfo** (also **kasparsleitis.com/ServerInfo**) shows the server's CPU, memory, disk,
+**https://kasparsleitis.com/serverinfo** (page in `site/serverinfo/`, data from this app's `/api/server`) shows the server's CPU, memory, disk,
 load, network, top apps, Docker containers and Uptime Kuma monitors. It needs the admin password (the same `ADMIN_KEY`);
 it never opens without one.
 

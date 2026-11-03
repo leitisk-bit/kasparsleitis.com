@@ -33,8 +33,10 @@ RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP:X-Forwarded-Proto} !https
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
-# /ServerInfo → admin server overview, served by the home server
-RewriteRule ^serverinfo/?$ https://telpuo.kasparsleitis.com/serverinfo [R=302,L,NC]
+# /ServerInfo, /SERVERINFO … → /serverinfo/  (admin server overview; data from the home server)
+RewriteCond %{REQUEST_URI} !^/serverinfo(/|$)
+RewriteRule ^serverinfo(/.*)?$ /serverinfo$1 [R=301,L,NC]
+RewriteRule ^serverinfo$ /serverinfo/ [R=301,L]
 
 # /telpuo, /TelpuO … → /telpuO/
 RewriteCond %{REQUEST_URI} !^/telpuO(/|$)

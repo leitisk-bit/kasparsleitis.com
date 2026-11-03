@@ -38,9 +38,25 @@ def api_admin():
     return jsonify(out)
 
 # ------------------------------------------------------------------ server info (admin only)
+SITE_ORIGINS = {'https://kasparsleitis.com', 'https://www.kasparsleitis.com'}
+
 @app.get('/serverinfo')
 @app.get('/ServerInfo')
-def serverinfo_page(): return send_from_directory(app.static_folder, 'serverinfo.html')
+def serverinfo_page():                # the page itself is on the website
+    from flask import redirect
+    return redirect('https://kasparsleitis.com/serverinfo/', 302)
+
+@app.after_request
+def _site_cors(r):
+    # Let only kasparsleitis.com/serverinfo read these two answers from the browser.
+    o = request.headers.get('Origin', '')
+    if request.path in ('/api/server', '/api/admin') and o in SITE_ORIGINS:
+        r.headers['Access-Control-Allow-Origin'] = o
+        r.headers['Access-Control-Allow-Headers'] = 'X-Admin-Key'
+        r.headers['Access-Control-Allow-Methods'] = 'GET'
+        r.headers['Access-Control-Max-Age'] = '600'
+        r.headers.add('Vary', 'Origin')
+    return r
 
 @app.get('/api/server')
 def api_server():
