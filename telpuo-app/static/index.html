@@ -59,7 +59,7 @@ label.lbl{font-size:12px;color:var(--muted);display:flex;flex-direction:column;g
 .row .acts{display:flex;gap:4px}
 .ic{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 5px;border-radius:4px}
 .ic:hover{color:var(--fg);background:var(--bg)}
-.warn{color:var(--warn)} .bad{color:var(--bad)}
+.warn{color:var(--warn)} .waitnote{font-size:12.5px;margin-top:3px;line-height:1.35} .bad{color:var(--bad)}
 .runs .row{grid-template-columns:auto minmax(0,1fr) auto auto}
 body:not(.is-admin) .admin-only{display:none!important}
 .who{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
@@ -313,7 +313,7 @@ function renderRuns(runs){
   if (!runs.length) box.innerHTML='<div class="muted">No runs yet.</div>';
   for (const r of runs){ const d=document.createElement('div'); d.className='row';
     const st = r.status==='done' ? (r.legs_missing ? `<a class="btn small" href="replay?run=${r.id}" title="${r.legs_missing} leg(s) without a route">Replay ⚠</a>` : `<a class="btn small" href="replay?run=${r.id}">Replay</a>`) : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : `<span class="warn" title="${esc(r.message||'')}">${esc((r.message||'working…').replace('Working out the route: ',''))}</span>`;
-    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'?'':'disabled'} aria-label="Compare"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div></div>${st}${ADMIN?`<button class="ic" title="Delete" data-del="${r.id}">×</button>`:'<span></span>'}`;
+    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'?'':'disabled'} aria-label="Compare"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div>${r.status==='working'?`<div class="warn waitnote">${/turn/i.test(r.message||'') ? 'Waiting for its turn.' : 'Analyzing this run.'} Please wait until it is done; the <b>Replay</b> button appears here.</div>`:''}</div>${st}${ADMIN?`<button class="ic" title="Delete" data-del="${r.id}">×</button>`:'<span></span>'}`;
     box.appendChild(d); }
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ try{ await api('runs/'+b.dataset.del,{method:'DELETE'}); openMap(M.id);}catch(e){toast(e.message);} });
   if (runs.some(r=>r.status==='working')) { stopPoll(); pollT=setTimeout(()=>openMap(M.id), 3000); }
