@@ -13,6 +13,10 @@ jobs:
       - run: |
           git fetch origin debug-maps && git checkout debug-maps || git checkout --orphan debug-maps
           git rm -rq --cached . >/dev/null 2>&1 || true
-          mkdir -p runs && curl -sf --max-time 60 -o "runs/${{ inputs.run }}.json" "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}"
+          mkdir -p runs
+          code=$(curl -s --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}")
+          echo "HTTP $code, $(wc -c < runs/${{ inputs.run }}.json) bytes"; head -c 300 "runs/${{ inputs.run }}.json"; echo
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add runs && git commit -qm "Run ${{ inputs.run }}" && git push -q origin HEAD:debug-maps
+          git add runs
+          git commit -qm "Run ${{ inputs.run }}"
+          git push origin HEAD:debug-maps
