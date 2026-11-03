@@ -47,11 +47,21 @@ def api_new_map():
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(id=mid)
 
+def _job(mid, step, detail='', done=None, total=None, **kw):
+    """Progress of the map's background job, shown on the admin page: step = queued | reading | network | check."""
+    m = store.get_meta(mid) or {}
+    j = m.get('job') or {}
+    if j.get('step') != step: j = {'step': step, 'started': time.time()}
+    j.update(detail=detail, done=done, total=total)
+    store.set_meta(mid, job=j, **kw)
+
 def _analyse(mid):
+    _job(mid, 'queued', 'Waiting for another job on this server to finish', status='queued', message='Waiting for its turn…')
     with WORK: _analyse_now(mid)
 
 def _analyse_now(mid):
     m = store.get_meta(mid)
+    _job(mid, 'reading', 'Floors, stairwell letters, controls in course order, one-way arrows, tape', status='analysing', message='Reading the map…')
     feat, img = analyze.analyze(os.path.join(store.map_dir(mid), 'map.pdf'), m.get('page', 0))
     k = store.save_render(mid, img)
     feat['display_scale'] = k
@@ -63,6 +73,7 @@ def _analyse_now(mid):
     _build_now(mid)
 
 def _build(mid):
+    _job(mid, 'queued', 'Waiting for another job on this server to finish', status='queued', message='Waiting for its turn…')
     with WORK: _build_now(mid)
 
 def _apply_codes(mid, feat):
@@ -95,14 +106,19 @@ def _requeue_runs(mid):
                          on_error=lambda e, rid=r['id']: (lambda x: (x.update(status='error', error=e), store.set_run(rid, x)))(store.get_run(rid)))
 
 def _build_now(mid):
-    store.set_meta(mid, status='building', message='Building the route network…')
     feat = store.get_features(mid); img = store.load_render(mid)
-    N, E, POLY, info = walk.build(img, feat, progress=lambda s: store.set_meta(mid, message='Building the route network: ' + s))
+    nfl = len(feat.get('floors', [])); done_fl = [0]
+    _job(mid, 'network', 'Every corridor on every floor, stairs in their allowed direction', 0, nfl, status='building', message='Building the route network…')
+    def prog(msg):
+        done_fl[0] += 1
+        _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
+    N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
     G = walk.graph(N, E, 0.04, 11.0); k = feat.get('display_scale', 1)
     names = info['controls']; preview, problems = [], []
     for i, (a, b) in enumerate(zip(names, names[1:])):
+        _job(mid, 'check', f'Fastest route of leg {i + 1}', i, len(names) - 1, status='building', message=f'Checking leg {i + 1} of {len(names) - 1}…')
         try:
             p = nx.shortest_path(G, a, b, weight='t')
             line = []
@@ -119,8 +135,8 @@ def _build_now(mid):
     except Exception: traceback.print_exc(); three_d = None
     store.set_meta(mid, three=three_d)
     fl = sorted(f['floor'] for f in feat.get('floors', []))
-    warn = [] if fl == list(range(fl[0], fl[0] + len(fl))) or not fl else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
-    store.set_meta(mid, status='ready', message='', legs_preview=preview, problems=problems, warnings=warn,
+    warn = [] if not fl or fl == list(range(fl[0], fl[0] + len(fl))) else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
+    store.set_meta(mid, status='ready', message='', job={'step': 'done', 'finished': time.time()}, legs_preview=preview, problems=problems, warnings=warn,
                    flights=flights, suggested_pockets=info['suggested_pockets'], built=time.time())
     _requeue_runs(mid)
 
@@ -128,7 +144,7 @@ def _build_now(mid):
 def api_map(mid):
     m = store.get_meta(mid)
     if not m: abort(404)
-    return jsonify(meta=m, features=store.get_features(mid), runs=store.list_runs(mid))
+    return jsonify(meta=m, features=store.get_features(mid), runs=store.list_runs(mid), now=time.time())
 
 @app.get('/api/maps/<mid>/image')
 def api_map_image(mid):
@@ -140,11 +156,26 @@ def api_map_image(mid):
 def api_map_pdf(mid):
     return send_file(os.path.join(store.map_dir(mid), 'map.pdf'), mimetype='application/pdf')
 
+@app.post('/api/maps/<mid>/rebuild')
+def api_rebuild(mid):
+    """Build the route network again from the current map reading (keeps manual fixes)."""
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not store.get_meta(mid): abort(404)
+    store.background(_build, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
+    return jsonify(ok=True)
+
+@app.post('/api/maps/<mid>/rerun')
+def api_rerun(mid):
+    """Work out every saved run on this map again."""
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not store.get_meta(mid): abort(404)
+    _requeue_runs(mid)
+    return jsonify(ok=True, runs=len(store.list_runs(mid)))
+
 @app.post('/api/maps/<mid>/reread')
 def api_reread(mid):
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     if not store.get_meta(mid): abort(404)
-    store.set_meta(mid, status='analysing', message='Reading the map again…')
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(ok=True)
 

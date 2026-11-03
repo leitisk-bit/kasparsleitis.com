@@ -65,6 +65,9 @@ body:not(.is-admin) .admin-only{display:none!important}
 .who{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
 .who:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
 .who .m{font:500 12.5px var(--f-mono)}
+.steps{list-style:none;margin:8px 0;padding:0;display:grid;gap:4px}.steps li{display:grid;grid-template-columns:18px auto minmax(0,1fr);gap:8px;align-items:baseline;font-size:13px}.steps li.wait b{color:var(--muted);font-weight:500}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:sp 0.8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.jobbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .legcheck{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:12.5px}
 .ok{color:var(--ok,#1a7f45)}
 .status{font-size:12.5px;padding:8px 10px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
@@ -225,10 +228,11 @@ async function openLib(){
   $('#noMaps').hidden = maps.length>0;
   for (const m of maps){
     const a=document.createElement('a'); a.className='card mapcard'; a.href='#map-'+m.id;
-    const st = m.status==='ready' ? '<span class="pill ok">ready</span>' : m.status==='error' ? '<span class="pill bad">error</span>' : '<span class="pill work">working</span>';
+    const st = m.status==='ready' ? ((m.problems||[]).length ? `<span class="pill bad">check</span> <span class="muted">${(m.problems||[]).length} leg(s) without a route</span>` : '<span class="pill ok">ready</span>') : m.status==='error' ? '<span class="pill bad">error</span>' : `<span class="pill work">working</span> <span class="muted">${esc(m.message||'')}</span>`;
     a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b><div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
     box.appendChild(a);
   }
+  if (maps.some(m=>m.status!=='ready'&&m.status!=='error')){ stopPoll(); pollT=setTimeout(()=>{ if (!$('#lib').hidden) openLib(); }, 3000); }
 }
 $('#upForm').onsubmit = async e => { e.preventDefault(); const f=$('#upPdf').files[0]; if (!f) return;
   const fd=new FormData(); fd.append('pdf',f); fd.append('name',$('#upName').value||f.name.replace(/\.pdf$/i,'')); fd.append('event',$('#upEvent').value);
@@ -242,34 +246,60 @@ const view={k:1,x:0,y:0};
 function stopPoll(){ clearTimeout(pollT); pollT=null; }
 async function openMap(id){
   $('#lib').hidden=true; $('#mapPage').hidden=false; stopPoll();
-  const j = await api('maps/'+id); M=j.meta; F=j.features; dirty=false; $('#saveCard').hidden=true;
+  const j = await api('maps/'+id); M=j.meta; F=j.features; RUNS=j.runs||[]; CLOCK=(j.now||Date.now()/1000)-Date.now()/1000; dirty=false; $('#saveCard').hidden=true;
   $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
   $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iScale').value=M.scale||1000;
-  if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2500);
+  if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2000);
   renderStatus();
   const v = String(M.display_scale ? (M.built||'r') : 'none');
   if (M.display_scale && (!img || img.dataset.id!==id || img.dataset.v!==v)){ img=new Image(); img.dataset.id=id; img.dataset.v=v; img.src='api/maps/'+id+'/image?'+v; img.onload=()=>{ view.init=false; fit(); draw(); }; }
   if (!F) return;
   renderRuns(j.runs); renderLists(); draw(); loadResults(false);
 }
+let RUNS=[], CLOCK=0;
+const ago = t => { if (!t) return ''; const s=Math.max(0, Math.round(Date.now()/1000+CLOCK-t)); return s<60? s+' s' : Math.floor(s/60)+' min '+(s%60)+' s'; };
 function renderStatus(){
   const s=$('#mStatus');
-  if (M.status==='ready'){
-    const p=M.problems||[], w=M.warnings||[], L=M.legs_preview||[], ok=L.filter(x=>!x.error).length;
-    if (!ADMIN){ s.innerHTML = p.length ? `<span class="pill bad">not ready</span> This map is still being checked. Runs can be added once it's fixed.` : `Add your run below, or open a saved run to replay it.`; return; }
-    const head = p.length ? `<span class="pill bad">check</span> Routes found for ${ok} of ${L.length} legs. Fix the map reading (Map tab: read again; or Controls / Stairs / Dead ends), then save.`
-      : `<span class="pill ok">ready</span> Routes found for all ${L.length} legs. Check the blue fastest route of each leg on the map.`;
-    const warn = w.map(x=>`<div class="bad">⚠ ${esc(x)}</div>`).join('');
-    const list = L.map(x=>`<li>${x.error?'<span class="bad">✗</span>':'<span class="ok">✓</span>'} Leg ${x.leg}${x.error?' · no route':` · ${esc(x.stairs||'same floor')} · ${fmt(x.time||0)}`}</li>`).join('');
-    s.innerHTML = head + warn + (L.length?`<details ${p.length?'open':''}><summary class="muted">Route check per leg</summary><ul class="legcheck">${list}</ul></details>`:'');
-  } else if (M.status==='error') s.innerHTML=`<span class="pill bad">error</span> ${esc(M.message)}`;
-  else s.innerHTML=`<span class="pill work">working</span> ${esc(M.message||'')}`;
+  if (!ADMIN){
+    s.innerHTML = M.status==='ready' ? ((M.problems||[]).length ? `<span class="pill bad">not ready</span> This map is still being checked. Runs can be added once it's fixed.` : `Add your run below, or open a saved run to replay it.`)
+      : M.status==='error' ? `<span class="pill bad">error</span> This map could not be prepared.` : `<span class="pill work">preparing</span> This map is being prepared. It takes a minute or two.`;
+    return; }
+  const J=M.job||{}, st=M.status, working = st!=='ready' && st!=='error';
+  const order=['queued','reading','network','check'], cur=order.indexOf(J.step);
+  const stepState = i => st==='ready' ? 'done' : st==='error' ? (i===Math.max(cur,0) ? 'fail' : i<cur ? 'done' : 'wait') : i<cur ? 'done' : i===cur ? 'run' : 'wait';
+  const L=M.legs_preview||[], ok=L.filter(x=>!x.error).length, p=M.problems||[];
+  const res=M.results, runs=RUNS, rw=runs.filter(r=>r.status==='working'), rf=runs.filter(r=>r.status==='error'), rm=runs.filter(r=>r.status==='done'&&r.legs_missing);
+  const icon = k => ({done:'<span class="ok">✓</span>', run:'<span class="spin" aria-hidden="true"></span>', wait:'<span class="muted">○</span>', fail:'<span class="bad">✗</span>', warn:'<span class="bad">!</span>'})[k];
+  const prog = (i) => stepState(i)==='run' && J.total ? ` · ${J.done||0} of ${J.total}` : '';
+  const rows = [
+    [stepState(1), 'Read the map', stepState(1)==='run' ? `${esc(J.detail||'')} · running ${ago(J.started)}` : st==='ready' ? `Floors ${(M.floors||[]).join(', ')} · ${M.controls||0} controls` : st==='error'&&cur<=1 ? esc(M.message) : ''],
+    [stepState(2), 'Build the route network', stepState(2)==='run' ? `floor ${Math.min((J.done||0)+1, J.total||1)} of ${J.total||'?'} · running ${ago(J.started)}` : ''],
+    [st==='ready' ? (p.length?'fail':'done') : stepState(3), 'Check every leg', stepState(3)==='run' ? `leg ${(J.done||0)+1} of ${J.total||'?'}` : st==='ready' ? (p.length ? `routes found for ${ok} of ${L.length} legs: no route for leg ${p.join(', ')}` : `routes found for all ${L.length} legs`) : ''],
+    [res ? 'done' : 'wait', 'Results with splits', res ? `${esc(res.event||'')} · ${res.runners} runners in ${(res.groups||[]).join(', ')}` : 'not imported yet (Import results, under Runs)'],
+    [!runs.length ? 'wait' : rw.length ? 'run' : (rf.length||rm.length) ? 'warn' : 'done', 'Runs',
+      !runs.length ? 'none yet' : [`${runs.length} saved`, runs.length-rw.length-rf.length ? `${runs.length-rw.length-rf.length} done` : '', rw.length ? `${rw.length} being worked out` : '', rf.length ? `<span class="bad">${rf.length} failed</span>` : '', rm.length ? `<span class="bad">${rm.length} with legs missing</span>` : ''].filter(Boolean).join(' · ')],
+  ];
+  const head = working ? (J.step==='queued' ? `<span class="pill work">waiting</span> Another map or run is being worked on; this one starts after it.` : `<span class="pill work">working</span> Preparing this map in the background. You can leave this page; it carries on.`)
+    : st==='error' ? `<span class="pill bad">error</span> ${esc(M.message||'Something failed.')}`
+    : p.length ? `<span class="pill bad">check</span> The map is read, but some legs have no route. Fix the reading (Controls / Stairs / Dead ends) and save, or read the map again.`
+    : `<span class="pill ok">ready</span> Map prepared. Runners can add their runs.`;
+  const stale = working && M.updated && (Date.now()/1000+CLOCK-M.updated) > 180;
+  const warn = (M.warnings||[]).map(x=>`<div class="bad">⚠ ${esc(x)}</div>`).join('');
+  const legs = L.length ? `<details ${p.length?'open':''}><summary class="muted">Route check per leg</summary><ul class="legcheck">${L.map(x=>`<li>${x.error?'<span class="bad">✗</span>':'<span class="ok">✓</span>'} Leg ${x.leg}${x.error?' · no route':` · ${esc(x.stairs||'same floor')} · ${fmt(x.time||0)}`}</li>`).join('')}</ul></details>` : '';
+  s.innerHTML = `<div>${head}</div>${warn}<ol class="steps">${rows.map(([k,t,d])=>`<li class="${k}">${icon(k)}<b>${t}</b><span class="muted">${d}</span></li>`).join('')}</ol>`
+    + (working ? `<div class="muted">Last activity ${ago(M.updated)} ago${stale?' · <span class="bad">no progress for a while: the job may have stopped. Try “Read the map again”.</span>':''}</div>` : '')
+    + legs
+    + `<div class="jobbtns"><button class="btn small" data-job="reread" ${working?'disabled':''}>Read the map again</button><button class="btn small" data-job="rebuild" ${working?'disabled':''}>Rebuild routes</button><button class="btn small" data-job="rerun" ${working||!runs.length?'disabled':''}>Redo all runs</button></div>`
+    + `<div class="muted">Read again: reads the PDF from scratch (replaces manual fixes). Rebuild: keeps your fixes, builds routes again. Both redo the saved runs afterwards.</div>`;
+  s.querySelectorAll('[data-job]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.job; b.disabled=true;
+    try { const r=await api('maps/'+M.id+'/'+k,{method:'POST'}); toast(k==='rerun' ? `Working out ${r.runs} run${r.runs===1?'':'s'} again.` : k==='rebuild' ? 'Rebuilding the routes.' : 'Reading the map again.'); openMap(M.id); }
+    catch(e){ toast(e.message); b.disabled=false; } });
 }
 function renderRuns(runs){
   const box=$('#runList'); box.innerHTML='';
   if (!runs.length) box.innerHTML='<div class="muted">No runs yet.</div>';
   for (const r of runs){ const d=document.createElement('div'); d.className='row';
-    const st = r.status==='done' ? `<a class="btn small" href="replay?run=${r.id}">Replay</a>` : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : '<span class="warn">working…</span>';
+    const st = r.status==='done' ? (r.legs_missing ? `<a class="btn small" href="replay?run=${r.id}" title="${r.legs_missing} leg(s) without a route">Replay ⚠</a>` : `<a class="btn small" href="replay?run=${r.id}">Replay</a>`) : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : `<span class="warn" title="${esc(r.message||'')}">${esc((r.message||'working…').replace('Working out the route: ',''))}</span>`;
     d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'?'':'disabled'} aria-label="Compare"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div></div>${st}${ADMIN?`<button class="ic" title="Delete" data-del="${r.id}">×</button>`:'<span></span>'}`;
     box.appendChild(d); }
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ try{ await api('runs/'+b.dataset.del,{method:'DELETE'}); openMap(M.id);}catch(e){toast(e.message);} });

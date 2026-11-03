@@ -1,0 +1,19 @@
+# Copies a map PDF from the Telpu O app to the 'debug-maps' branch, so a map reading problem can be looked at.
+name: Telpu O fetch map
+on:
+  workflow_dispatch:
+    inputs:
+      map: { description: 'Map id', required: true }
+permissions: { contents: write }
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          git fetch origin debug-maps && git checkout debug-maps || git checkout --orphan debug-maps
+          git rm -rq --cached . >/dev/null 2>&1 || true
+          mkdir -p maps && curl -sf --max-time 120 -o "maps/${{ inputs.map }}.pdf" "https://telpuo.kasparsleitis.com/api/maps/${{ inputs.map }}/pdf"
+          curl -sf --max-time 60 -o "maps/${{ inputs.map }}.json" "https://telpuo.kasparsleitis.com/api/maps/${{ inputs.map }}"
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add maps && git commit -qm "Map ${{ inputs.map }}" && git push -q origin HEAD:debug-maps

@@ -35,7 +35,8 @@ def list_maps():
 def get_meta(mid): return _r(os.path.join(map_dir(mid), 'meta.json'))
 def set_meta(mid, **kw):
     with _lock:
-        m = get_meta(mid) or {}; m.update(kw); _w(os.path.join(map_dir(mid), 'meta.json'), m); return m
+        m = get_meta(mid) or {}; m.update(kw); m['updated'] = time.time()      # heartbeat for the progress view
+        _w(os.path.join(map_dir(mid), 'meta.json'), m); return m
 def get_features(mid): return _r(os.path.join(map_dir(mid), 'features.json'))
 def set_features(mid, f): _w(os.path.join(map_dir(mid), 'features.json'), f)
 
@@ -63,12 +64,14 @@ def list_runs(mid):
         if not fn.endswith('.json'): continue
         r = _r(os.path.join(RUNS, fn))
         if r and r.get('map') == mid:
-            out.append({k: r.get(k) for k in ('id', 'name', 'created', 'total', 'event', 'status', 'error', 'group', 'club', 'place')})
+            o = {k: r.get(k) for k in ('id', 'name', 'created', 'total', 'event', 'status', 'error', 'group', 'club', 'place', 'message', 'updated')}
+            o['legs_missing'] = sum(1 for L in r.get('legs') or [] if L.get('route') == 'not found')
+            out.append(o)
     out.sort(key=lambda r: r.get('created') or 0, reverse=True)
     return out
 
 def get_run(rid): return _r(os.path.join(RUNS, os.path.basename(rid) + '.json'))
-def set_run(rid, r): _w(os.path.join(RUNS, os.path.basename(rid) + '.json'), r)
+def set_run(rid, r): r['updated'] = time.time(); _w(os.path.join(RUNS, os.path.basename(rid) + '.json'), r)
 def delete_run(rid):
     for p in [os.path.join(RUNS, os.path.basename(rid) + '.json')] + [os.path.join(TRACKS, f) for f in os.listdir(TRACKS) if f.startswith(os.path.basename(rid) + '.')]:
         try: os.remove(p)
