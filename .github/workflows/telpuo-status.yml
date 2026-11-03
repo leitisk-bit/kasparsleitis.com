@@ -8,7 +8,7 @@ jobs:
       - run: |
           B=https://telpuo.kasparsleitis.com
           curl -s --max-time 30 $B/api/maps > maps.json
-          echo "app version: $(curl -s --max-time 30 $B/ | grep -c verTag) (1+ = has the version label)"; echo "api admin: $(curl -s --max-time 30 $B/api/admin)"
+          echo "app version: $(curl -s --max-time 30 $B/ | grep -c verTag) (1+ = has the version label)"; echo "headers: $(curl -sI --max-time 30 $B/ | tr -d '\r' | grep -iE 'cache|cf-cache|age:|etag|last-mod' | tr '\n' ' ')"; echo "api admin: $(curl -s --max-time 30 $B/api/admin)"
           python3 - <<'PY'
           import json, urllib.request
           B = 'https://telpuo.kasparsleitis.com'
