@@ -7,6 +7,7 @@
 #   improve   try other model settings; keep only if better; re-test; predict
 #   backtest  re-run the walk-forward test of the active version
 #   backfill  fetch whole seasons (input: seasons)
+#   subs      first substitution timing: 1st half / half-time / 2nd half (analysis only)
 #   betsson   fetch Betsson (= Betsafe) prices now from The Odds API and re-measure the Bet365 difference
 name: Football
 on:
@@ -16,7 +17,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -53,6 +54,9 @@ jobs:
                   except Exception:
                       if i == 3: raise
                   time.sleep(10)
+          if ACTION == "subs":
+              print(json.dumps(call("/admin/subs", timeout=120), indent=1, ensure_ascii=False))
+              sys.exit(0)
           if ACTION != "status":
               st = call("/admin/status")
               if st.get("running"):

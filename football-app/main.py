@@ -635,6 +635,13 @@ def admin_report():
     }
 
 
+@r.get("/api/admin/subs")
+def admin_subs():
+    """First substitution timing (1st half / half-time / 2nd half), see subs_analysis.py."""
+    import subs_analysis
+    return subs_analysis.analyse(con())
+
+
 @r.post("/api/admin/sync")
 async def admin_sync(request: Request):
     body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
