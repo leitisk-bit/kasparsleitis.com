@@ -200,7 +200,8 @@ def analyze(pdf_path, page=0):
         else: groups_.append(list(pts))
     for g in groups_:
         fit = _fit_circle(g)
-        if fit and 15 < fit[2] < 60 and not any(math.hypot(fit[0] - c[0], fit[1] - c[1]) < 8 for c in circles):
+        # skip a fit that lands on a control already found (pieces of its own outline)
+        if fit and 15 < fit[2] < 60 and not any(math.hypot(fit[0] - c[0], fit[1] - c[1]) < max(8, 0.8 * c[2]) for c in circles):
             circles.append(fit)
     # finish = two concentric circles
     used, ctrls, finish = set(), [], None
@@ -262,7 +263,7 @@ def analyze(pdf_path, page=0):
         cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
         if in_ignore(cx, cy): continue
         crop = img[box[1]:box[3], box[0]:box[2]].astype(int)
-        if (abs(crop - [255, 235, 194]).sum(-1) < 40).sum() < 2000: continue
+        if (abs(crop - [255, 235, 194]).sum(-1) < 40).sum() < 800: continue   # small top floors have only a stairwell landing
         if (crop.sum(-1) < 120).sum() < 2000: continue          # needs walls
         fl = floor_of_point(cx, cy)
         if fl is not None: floors[fl].append(box)

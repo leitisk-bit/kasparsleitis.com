@@ -212,6 +212,35 @@ def build(img, features, progress=None):
                 if p is None: ok = False; break
                 N[nm] = (fl, *p)
             if ok: add(f'{fl}_ow{i}_in', f'{fl}_ow{i}_out', math.hypot(ow['exit'][0] - ow['entry'][0], ow['exit'][1] - ow['entry'][1]), 0)
+            if ok:
+                # side openings along the lane (a doorway or a gap between benches): you may join the
+                # lane from the side and leave it to the side, but only moving in the arrows' direction
+                ein, eout = N[f'{fl}_ow{i}_in'], N[f'{fl}_ow{i}_out']
+                horiz = abs(ow['exit'][0] - ow['entry'][0]) >= abs(ow['exit'][1] - ow['entry'][1])
+                sides = []
+                if horiz:
+                    for yy in (b - 3, d + 2):
+                        if 0 <= yy - y0 < Wm.shape[0]: sides.append(('h', yy, Wm[yy - y0, max(0, a - x0):max(0, c - x0)], a))
+                else:
+                    for xx in (a - 3, c + 2):
+                        if 0 <= xx - x0 < Wm.shape[1]: sides.append(('v', xx, Wm[max(0, b - y0):max(0, d - y0), xx - x0], b))
+                k_ = 0
+                for kind, fixed, row, start in sides:
+                    run = None
+                    for j, v in enumerate(list(row) + [False]):
+                        if v and run is None: run = j
+                        if not v and run is not None:
+                            if j - run >= 10:
+                                mid = start + (run + j) // 2
+                                px_, py_ = (mid, fixed) if kind == 'h' else (fixed, mid)
+                                nm = f'{fl}_ow{i}_s{k_}'; k_ += 1
+                                N[nm] = (fl, int(px_), int(py_))
+                                along = (lambda q: q[1]) if kind == 'h' else (lambda q: q[2])
+                                pos = px_ if kind == 'h' else py_
+                                d_in = abs(pos - along(ein)) + abs(fixed - (ein[2] if kind == 'h' else ein[1]))
+                                d_out = abs(along(eout) - pos) + abs(fixed - (eout[2] if kind == 'h' else eout[1]))
+                                add(f'{fl}_ow{i}_in', nm, d_in, 0); add(nm, f'{fl}_ow{i}_out', d_out, 0)
+                            run = None
         cost = np.where(Wm, 1.0, np.inf)
         nodes = [n for n, v in N.items() if v[0] == fl and n not in pocket_ctrl]
         for s in nodes:
