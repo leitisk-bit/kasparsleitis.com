@@ -237,10 +237,43 @@ def api_three(mid):
     t = m['three']; feat = store.get_features(mid)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'],
                    tex=[dict(x, img=f"api/maps/{mid}/tex/{x['floor']}.webp?{int(m.get('built') or 0)}") for x in t['tex']],
-                   controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}), title=m.get('name', ''))
+                   controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}), title=m.get('name', ''),
+                   stairs=_stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}))
 
-@app.get('/api/maps/<mid>/tex/<int:floor>.webp')
+_STAIRS = {}
+def _stairs3d(mid, built, off):
+    """Stairwells for the 3D view: one piece per letter between two floors it links, at the stairwell's
+    place on each floor (lined up like the floor textures)."""
+    key = (mid, built)
+    if key in _STAIRS: return _STAIRS[key]
+    out = []
+    try:
+        N, E, POLY, info = store.load_graph(mid)
+        pos = {}
+        for n, (fl, x, y) in N.items():
+            p = n.split('_')
+            if len(p) == 3 and p[2] in ('up', 'dn'): pos.setdefault((_fnum(p[0]), p[1]), []).append((x, y))
+        seen = set()
+        for a, b, px, fl, _ in E:
+            if not fl: continue
+            fa, L = _fnum(a.split('_')[0]), a.split('_')[1]; fb = _fnum(b.split('_')[0])
+            k = (L, min(fa, fb), max(fa, fb))
+            if k in seen: continue
+            seen.add(k)
+            ends = []
+            for f in (k[1], k[2]):
+                pts = pos.get((f, L)) or []
+                if not pts: break
+                o = off.get(f) or [0, 0]
+                ends.append([round(sum(q[0] for q in pts) / len(pts) - o[0], 1), round(sum(q[1] for q in pts) / len(pts) - o[1], 1)])
+            if len(ends) == 2: out.append({'letter': L, 'f1': k[1], 'f2': k[2], 'a': ends[0], 'b': ends[1]})
+    except Exception: traceback.print_exc()
+    _STAIRS[key] = out
+    return out
+
+@app.get('/api/maps/<mid>/tex/<floor>.webp')
 def api_tex(mid, floor):
+    if not re.fullmatch(r'-?\d+(\.\d+)?', floor): abort(404)
     p = os.path.join(store.map_dir(mid), f'tex{floor}.webp')
     if not os.path.exists(p): abort(404)
     return send_file(p, mimetype='image/webp', max_age=86400)

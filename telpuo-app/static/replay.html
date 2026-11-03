@@ -237,7 +237,7 @@ async function load3d(mapId, runs, ids, q, k){
     if (runs.length && !runs.every(r=>r.pts3d && r.pts3d.length)) return;
     runs.forEach(r => { const main=r.runners.find(x=>!x.ghost); r3.push({ name:main.name, color:main.color, ghost:false, pts:al(r.pts3d) });
       if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g) r3.push({ name:g.name, color:g.color, ghost:true, pts:al(r.ghost3d||[]) }); } });
-    window.R3D = { mpp:T.mpp, floorH:T.floorH, tex:T.tex, controls:T.controls, title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
+    window.R3D = { mpp:T.mpp, floorH:T.floorH, tex:T.tex, controls:T.controls, stairs:T.stairs||[], title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
     const v=document.getElementById('viewSeg'); if (v) v.hidden=false;
   } catch(e){ console.warn('3D view unavailable', e); }
 }
@@ -1032,6 +1032,39 @@ async function start(){
     }
     return pts;
   }
+  // stairwells between floors: a see-through shaft with flights of steps inside, and its letter
+  const stairGrp = new THREE.Group(); scene.add(stairGrp);
+  const shaftMat = new THREE.MeshBasicMaterial({ color:0x8a6fd1, transparent:true, opacity:0.10, depthWrite:false, side:THREE.DoubleSide });
+  const edgeMat = new THREE.LineBasicMaterial({ color:0x6b4fc0, transparent:true, opacity:0.45 });
+  const stepUp = new THREE.MeshLambertMaterial({ color:0xE3262B, transparent:true, opacity:0.45, depthWrite:false });
+  const stepDn = new THREE.MeshLambertMaterial({ color:0x2F7FE0, transparent:true, opacity:0.45, depthWrite:false });
+  const stairLabels = {};
+  function buildStairs(){
+    stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); });
+    (D.stairs || []).forEach(st => {
+      const x = (st.a[0] + st.b[0]) / 2 * M - cx, z = (st.a[1] + st.b[1]) / 2 * M - cz;
+      const y0 = yOf(st.f1), y1 = yOf(st.f2), h = y1 - y0; if (h <= 0) return;
+      const W = 3.2, Dp = 3.2;
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(W, h, Dp), shaftMat); shaft.position.set(x, y0 + h / 2, z);
+      shaft.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(shaft);
+      const ed = new THREE.LineSegments(new THREE.EdgesGeometry(shaft.geometry), edgeMat); ed.position.copy(shaft.position); stairGrp.add(ed);
+      // two flights per floor: up along one side, back along the other, with a landing half way
+      const n = 9, run = Dp - 0.9;
+      for (const half of [0, 1]){
+        for (let i = 0; i < n; i++){
+          const t = (half * n + i + 1) / (2 * n);
+          const step = new THREE.Mesh(new THREE.BoxGeometry(W / 2 - 0.15, 0.12, run / n + 0.05), half ? stepDn : stepUp);
+          const along = -run / 2 + (half ? (n - 1 - i) : i) * run / n + run / n / 2;
+          step.position.set(x + (half ? W / 4 : -W / 4), y0 + h * t, z + along);
+          stairGrp.add(step);
+        }
+        const land = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 0.12, 0.8), stepUp); land.position.set(x, y0 + h / 2, z + run / 2 + 0.4); if (!half) stairGrp.add(land);
+      }
+      const lk = st.letter + ':' + st.f1;
+      const lab = textSprite(st.letter); lab.scale.multiplyScalar(0.8); lab.position.set(x, y0 + h / 2 + 1.2, z - Dp / 2 - 0.3); lab.renderOrder = 6; lab.userData = { f1:st.f1, f2:st.f2 };
+      stairGrp.add(lab);
+    });
+  }
   const FAT = [];
   let R = [], ME = null;
   // a little running person instead of a dot: legs and arms swing with the distance run
@@ -1089,6 +1122,7 @@ async function start(){
     plates.forEach(m => m.position.set(m.userData.cx, yOf(m.userData.floor), m.userData.cz));
     flabels.forEach(s => s.position.set(minX - 7, yOf(s.userData.floor) + 3, 0));
     ctrlObjs.forEach(g => g.position.set(g.userData.x, yOf(g.userData.floor) + 0.15, g.userData.z));
+    buildStairs();
     layoutRunners();
   }
   function idxAt(r, tt){ let lo = 0, hi = r.P.length - 1; if (tt <= r.P[0].t) return 0; if (tt >= r.P[hi].t) return hi;
