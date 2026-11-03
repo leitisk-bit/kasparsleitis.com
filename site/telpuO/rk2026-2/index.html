@@ -997,8 +997,11 @@ async function start(){
     ctrlObjs.forEach(g => g.position.set(g.userData.x, yOf(g.userData.floor) + 0.15, g.userData.z));
     R.forEach(r => { const a = new Float32Array(r.P.length*3);
       r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = (p.fz - 1)*H0*gapK + 0.5; a[i*3+2] = p.z; });
-      r.A = a; r.legI0 = -1; r.g1.setPositions(a); r.g2.setPositions(a); });
+      r.A = a; r.legI0 = -1; setLine(r.g1, a); setLine(r.g2, a); });
   }
+  // three.js remembers how many segments a line had the first time it was drawn and never draws more:
+  // forget that whenever the line gets new points (otherwise a longer leg is cut off part way)
+  function setLine(g, a){ g.setPositions(a); delete g._maxInstanceCount; }
   function idxAt(r, tt){ let lo = 0, hi = r.P.length - 1; if (tt <= r.P[0].t) return 0; if (tt >= r.P[hi].t) return hi;
     while (hi - lo > 1){ const m = (lo + hi) >> 1; if (r.P[m].t <= tt) lo = m; else hi = m; } return lo; }
   function posAt(r, tt){
@@ -1020,7 +1023,7 @@ async function start(){
       let i0 = 0, i1 = r.P.length - 1;
       if (legScope && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); i1 = Math.min(r.P.length - 1, idxAt(r, L.t1) + 1); }
       const key = i0 + ':' + i1;
-      if (key !== r.legI0 && r.A){ r.g2.setPositions(r.A.subarray(i0*3, (i1+1)*3)); r.g1.setPositions(r.A.subarray(i0*3, (i1+1)*3)); r.legI0 = key; }
+      if (key !== r.legI0 && r.A){ setLine(r.g2, r.A.subarray(i0*3, (i1+1)*3)); setLine(r.g1, r.A.subarray(i0*3, (i1+1)*3)); r.legI0 = key; }
       r.full.visible = showAll; r.full.material.opacity = 0.45;
       r.g2.instanceCount = Math.max(0, Math.min(p.i, i1) - i0);
     });
