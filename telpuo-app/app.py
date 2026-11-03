@@ -156,6 +156,27 @@ def api_map_image(mid):
 def api_map_pdf(mid):
     return send_file(os.path.join(store.map_dir(mid), 'map.pdf'), mimetype='application/pdf')
 
+@app.get('/api/maps/<mid>/options')
+def api_options(mid):
+    """All sensible routes for one leg, fastest first, timed at a pace (the selected runner's, or a default)."""
+    m = store.get_meta(mid)
+    if not m or m.get('status') != 'ready': return jsonify(error='The map is not ready yet.'), 409
+    try: leg = int(request.args.get('leg', 1)); px_s = float(request.args.get('px_s') or 0.04)
+    except ValueError: return jsonify(error='Bad leg or pace.'), 400
+    px_s = min(0.2, max(0.01, px_s))
+    feat = store.get_features(mid); n_legs = len(feat['controls']) - 1
+    if not 1 <= leg <= n_legs: return jsonify(error=f'This course has {n_legs} legs.'), 400
+    cache = os.path.join(store.map_dir(mid), f"options_{int(m.get('built') or 0)}_{leg}_{round(px_s, 4)}.json")
+    if os.path.exists(cache):
+        return send_file(cache, mimetype='application/json')
+    from oreplay.options import leg_options
+    k = feat.get('display_scale', 1)
+    opts = leg_options(store.load_graph(mid), leg, px_s=px_s, mpp=(m.get('scale') or 1000) / (300 / 0.0254))
+    for o in opts: o['pts'] = [[t, round(x * k, 1), round(y * k, 1), fl, j] for t, x, y, fl, j in o['pts']]
+    out = {'leg': leg, 'options': opts}
+    with open(cache, 'w') as f: json.dump(out, f, separators=(',', ':'))
+    return jsonify(out)
+
 @app.post('/api/maps/<mid>/rebuild')
 def api_rebuild(mid):
     """Build the route network again from the current map reading (keeps manual fixes)."""

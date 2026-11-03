@@ -90,6 +90,13 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 .tctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .tctl .btn{height:30px;padding:0 8px;font-size:12px}
 .routeopts{display:flex;flex-wrap:wrap;gap:6px}.routeopts .seg button{height:28px;padding:0 10px;font-size:12px}
+.opts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.opts li{display:grid;grid-template-columns:auto 14px minmax(0,1fr) auto;gap:4px 8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px}
+.opts .sw{width:14px;height:14px;border-radius:3px}
+.opts .rt{font-weight:600;min-width:0}
+.opts .tm{font:600 12.5px var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.opts .sub{grid-column:3/5;color:var(--muted);font-size:12px}
+.opts .tag{font:600 10.5px var(--f-body);text-transform:uppercase;letter-spacing:.04em;border-radius:4px;padding:1px 5px;margin-left:4px;background:var(--line)}
 .speed{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
 .speed .btn{border:0;border-radius:0;height:30px;min-width:32px;font-size:16px;font-weight:600}
 .speed .spd{min-width:52px;text-align:center;font:600 13px var(--f-mono);font-variant-numeric:tabular-nums;border-inline:1px solid var(--line);line-height:30px;padding:0 4px}
@@ -115,6 +122,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
       <div class="seg" role="group" aria-label="Mode">
         <button id="mView" aria-pressed="true">Replay</button><button id="mDraw" aria-pressed="false">Draw route</button><button id="mAlign" aria-pressed="false" hidden>Align GPS</button>
       </div>
+      <div class="seg" role="group" aria-label="Analyze" id="anaSeg" hidden><button id="aOff" aria-pressed="true">Replay</button><button id="aOn" aria-pressed="false">Analyze</button></div>
       <div class="seg" role="group" aria-label="View" id="viewSeg" hidden><button id="v2d" aria-pressed="true">Map</button><button id="v3d" aria-pressed="false">3D</button></div>
     </div>
   </header>
@@ -131,6 +139,12 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
     </div>
 
     <aside>
+      <section class="card" id="anaCard" hidden>
+        <h2>Analyze a leg</h2>
+        <select id="anaLeg" aria-label="Leg to analyze"></select>
+        <div class="muted" id="anaInfo">Every sensible route for this leg, timed at the runner's own pace. Press play to race them. Red is always the fastest.</div>
+        <ol class="opts" id="anaList"></ol>
+      </section>
       <section class="card" id="drawCard" hidden>
         <h2>Draw a run</h2>
         <label class="muted" for="dName">Runner / run name</label>
@@ -223,6 +237,7 @@ window.IOR_LOAD = async function(){
   const runners=[]; runs.forEach((r,i)=>{ const main=r.runners.find(x=>!x.ghost); main.color=COLORS[runners.length%COLORS.length]; runners.push(main);
     if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g){ g.color=ids.length===1?'#1F6FE0':'#9aa0a6'; runners.push(g);} } });
   document.title = m.meta.name + ' · Replay';
+  window.IOR_ANALYZE = { mapId: m.meta.id, px_s: runs[0].px_s };
   // viewing saved runs from the server: the local file tools are not needed here
   ['label[for=mapFile]','label[for=gpxFile]','.seg[aria-label=Mode]'].forEach(sel=>{ const e=document.querySelector(sel); if (e) e.hidden=true; });
   const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
@@ -841,10 +856,58 @@ async function boot(){
       const x=document.createElement('button'); x.className='x'; x.type='button'; x.title='Hide'; x.setAttribute('aria-label','Hide this note'); x.textContent='\u00d7';
       x.onclick=()=>{ ch.hidden=true; };
       ch.appendChild(x); ch.hidden=false; }
-    resize(); fitView(); computeT(); updateUI(); if (P.follow) setFollow(true); return;
+    resize(); fitView(); computeT(); updateUI(); if (P.follow) setFollow(true); setupAnalyze(); return;
   }
   makeSample(); renderRunners(); resize(); fitView(); computeT(); updateUI();
 }
+/* ---------- Analyze: every route option of one leg, raced side by side ---------- */
+const ANA = { on:false, saved:null, view:null, leg:1 };
+const ACOL = ['#E3262B','#1F6FE0','#F29A07','#0E9F6E','#7B3FE4','#E0457B','#13A3B5','#6B7A0F'];
+function anaMain(){ const rs = ANA.saved || S.runners; return rs.find(r => r.legs && !/fastest|ghost/i.test(r.name)) || rs.find(r => r.legs); }
+function setupAnalyze(){
+  if (!(window.IOR_ANALYZE || window.IOR_OPTIONS)) return;
+  const m = anaMain(); if (!m) return;
+  $('#anaSeg').hidden = false;
+  $('#anaLeg').innerHTML = m.legs.map((L,i)=>`<option value="${i+1}">${L.label.replace(/[<&]/g,'')}</option>`).join('');
+}
+async function loadOptions(leg){
+  if (window.IOR_OPTIONS) return window.IOR_OPTIONS[leg] || [];
+  const a = window.IOR_ANALYZE, r = await fetch(`api/maps/${encodeURIComponent(a.mapId)}/options?leg=${leg}&px_s=${a.px_s||''}`), j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText); return j.options;
+}
+async function analyzeLeg(leg){
+  ANA.leg = leg; const m = anaMain(), L = m.legs[leg-1];
+  $('#anaList').innerHTML = '<li class="muted">Finding every route…</li>';
+  let opts; try { opts = await loadOptions(leg); } catch(e){ $('#anaList').innerHTML = `<li class="bad">${e.message}</li>`; return; }
+  if (!opts.length){ $('#anaList').innerHTML = '<li class="muted">No route found for this leg.</li>'; return; }
+  const best = opts[0].time, list = [];
+  opts.forEach((o,i) => list.push({ name: i ? `${i+1} · +${fmt(o.time-best)}` : '1 · fastest', color: ACOL[i % ACOL.length], pts: o.pts.map(q=>[q[0], q[1], q[2], q[4]]) }));
+  // the runner's own leg, as reconstructed
+  const mine = m.pts.filter(q => q.t >= L.t0 - 0.01 && q.t <= L.t1 + 0.01).map(q => [q.t - L.t0, q.u, q.v, q.jump ? 1 : 0]);
+  if (mine.length > 1){ mine[0][3] = 0; list.push({ name: 'As run', color: '#1b1b1b', pts: mine }); }
+  S.runners = []; importRoutes({ runners: list }); S.sel = 0;
+  setRoute('routeScope', 'all'); setRoute('routeReveal', 'full'); S.tau = 0;
+  const rows = opts.map((o,i) => `<li><input type="checkbox" checked data-r="${i}" aria-label="Show"><span class="sw" style="background:${ACOL[i % ACOL.length]}"></span><span class="rt">${i+1}. ${o.route}${i===0?'<span class="tag">fastest</span>':''}${o.route===L.route?'<span class="tag">chosen</span>':''}</span><span class="tm">${fmt(o.time)}${i?` <span class="muted">+${fmt(o.time-best)}</span>`:''}</span><span class="sub">${o.dist_m} m · ${o.floors} floor${o.floors===1?'':'s'} of stairs</span></li>`);
+  if (mine.length > 1) rows.push(`<li><input type="checkbox" checked data-r="${opts.length}" aria-label="Show"><span class="sw" style="background:#1b1b1b"></span><span class="rt">${m.name.replace(/[<&]/g,'')}: as run</span><span class="tm">${fmt(L.t1-L.t0)} <span class="muted">${L.t1-L.t0>=best?'+':'−'}${fmt(Math.abs(L.t1-L.t0-best))}</span></span><span class="sub">${L.route||''}</span></li>`);
+  $('#anaList').innerHTML = rows.join('');
+  $('#anaList').querySelectorAll('[data-r]').forEach(c => c.onchange = () => { const r = S.runners[+c.dataset.r]; if (r){ r.visible = c.checked; renderRunners(); requestDraw(); } });
+  renderRunners(); updateUI(); requestDraw();
+}
+function setAnalyze(on){
+  if (on === ANA.on) return;
+  ANA.on = on; $('#aOn').setAttribute('aria-pressed', on); $('#aOff').setAttribute('aria-pressed', !on); $('#anaCard').hidden = !on;
+  if (typeof pause === 'function') pause();
+  const vs=$('#viewSeg'); if (on && $('#v2d') && $('#v3d').getAttribute('aria-pressed')==='true') $('#v2d').click(); if (vs) vs.style.visibility = on ? 'hidden' : '';
+  if (on){ ANA.saved = S.runners; ANA.view = [S.routeScope, S.routeReveal];
+    const m = anaMain(), t = m ? runnerT(m) : 0, cur = m ? m.legs.findIndex(L => t >= L.t0 && t < L.t1) : 0;
+    $('#anaLeg').value = String(Math.max(1, cur + 1)); analyzeLeg(+$('#anaLeg').value); }
+  else { S.runners = ANA.saved || S.runners; ANA.saved = null; S.sel = 0; if (ANA.view){ setRoute('routeScope', ANA.view[0]); setRoute('routeReveal', ANA.view[1]); } S.tau = 0; renderRunners(); updateUI(); requestDraw(); }
+  window.dispatchEvent(new Event('ior-runners'));
+}
+$('#aOn').onclick = () => setAnalyze(true); $('#aOff').onclick = () => setAnalyze(false);
+$('#anaLeg').onchange = e => analyzeLeg(+e.target.value);
+window.IOR_SETUP_ANALYZE = setupAnalyze;
+
 boot();
 requestAnimationFrame(()=>{ resize(); fitView(); });
 if (!window.pdfjsLib) console.warn('pdf.js not loaded; PDF maps unavailable');
