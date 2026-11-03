@@ -303,7 +303,7 @@ views.confidence = () => {
 views.bet = () => {
   ST.bconf ??= '0.6'; ST.bodds ??= '1.5';
   return pickTab({tab:'bet_on', title:'Bet on',
-    intro:`<p>Bets where the model is sure enough and a bookmaker pays more than the model's fair price: match result, double chance, goals, Asian handicap, and corners / shots / shots on target / offsides over-under. Prices are the best of the bookmakers collected (opening and latest price are both saved). Every pick is scored after the match, so the record shows whether these really pay.</p>
+    intro:`<p>Bets where the model is sure enough and a bookmaker pays more than the model's fair price: match result, double chance, goals, Asian handicap, and corners / shots / shots on target / offsides over-under. Prices are Betsson's, the same as Betsafe's (opening and latest price are both saved). Every pick is scored after the match, so the record shows whether these really pay.</p>
       <p class="muted small">Odds collection started with this version, so the record builds up from now. The market usually knows something the model doesn't: treat the model's edge as an upper bound until the record shows otherwise.</p>`,
     controls: () => seg('Model at least', ST.bconf, [['0.55','55%'],['0.6','60%'],['0.7','70%'],['0.8','80%']], v => { ST.bconf = v; save(); __reload(); }) +
       seg('Odds at least', ST.bodds, [['1.3','1.30'],['1.5','1.50'],['1.8','1.80'],['2.2','2.20']], v => { ST.bodds = v; save(); __reload(); }),

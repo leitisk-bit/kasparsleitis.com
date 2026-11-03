@@ -10,10 +10,9 @@ from datetime import datetime, timezone
 
 from config import COMPETITIONS
 
-# Keep the database small: only these bookmakers (empty = all). Names as API-Football writes them.
-BOOKMAKERS = [b.strip().lower() for b in os.environ.get(
-    "ODDS_BOOKMAKERS", "Pinnacle,Bet365,Betsafe,Unibet,1xBet,Marathonbet,Betfair,William Hill,Bwin,10Bet,Betano"
-).split(",") if b.strip()]
+# Only the bookmaker that is bet with: Betsson's prices are Betsafe's (same platform), as in the tennis app.
+# Names as API-Football writes them; comma-separated, empty = all.
+BOOKMAKERS = [b.strip().lower() for b in os.environ.get("ODDS_BOOKMAKERS", "Betsson,Betsafe").split(",") if b.strip()]
 
 STAT_WORDS = [
     (re.compile(r"shots?\s*on\s*(target|goal)", re.I), "shots_on_goal"),

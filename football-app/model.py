@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 
 import db
+from odds import BOOKMAKERS as BOOKS
 
 STATS = ["goals", "corners", "total_shots", "shots_on_goal", "offsides", "subs"]
 PICK_STATS = ["corners", "total_shots", "shots_on_goal", "offsides", "subs"]
@@ -637,7 +638,8 @@ def predict(con, data=None):
     for r in rows:
         pred = predict_match(fits, r["league_id"], r["home_id"], r["away_id"])
         odds_rows = [dict(o) for o in con.execute(
-            "SELECT bookmaker, market, scope, side, line, price FROM odds WHERE match_id=?", (r["id"],))]
+            "SELECT bookmaker, market, scope, side, line, price FROM odds WHERE match_id=?", (r["id"],))
+            if not BOOKS or o["bookmaker"].lower() in BOOKS]
         con.execute("INSERT OR REPLACE INTO predictions(match_id,version,kind,made_at,data) VALUES (?,?,?,?,?)",
                     (r["id"], v, "live", made, json.dumps(pred, separators=(",", ":"))))
         con.execute("DELETE FROM picks WHERE kind='live' AND version=? AND match_id=?", (v, r["id"]))
