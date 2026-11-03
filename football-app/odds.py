@@ -24,6 +24,7 @@ STAT_WORDS = [
 ]
 OU = re.compile(r"^(over|under)\s*([0-9]+(?:\.[0-9]+)?)$", re.I)
 AH = re.compile(r"^(home|away)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", re.I)
+EH = re.compile(r"^(home|draw|away)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", re.I)
 
 
 def classify(bet_name: str, value: str):
@@ -39,13 +40,33 @@ def classify(bet_name: str, value: str):
     if n == "asian handicap":
         m = AH.match(v)
         return ("ah", "total", m.group(1).lower(), float(m.group(2))) if m else None
-    if any(w in n for w in ("half", "1st", "2nd", "first", "second", "minute", "exact", "odd/even",
-                            "race", "most", "player", "handicap", "1x2", "asian")) or re.search(r"\bteam to\b", n):
-        return None
+    half = any(w in n for w in ("half", "1st", "2nd", "first", "second", "minute", "race", "odd/even"))
+    stat = next((mk for rx, mk in STAT_WORDS if rx.search(n)), None)
+    # which team gets more corners / shots / shots on target: 1x2, double chance, Asian and European handicap.
+    # The model prices these from home minus away. Lines in a European handicap apply to the home team.
+    if stat and stat != "goals" and not half and "player" not in n:
+        vl = v.lower()
+        if "1x2" in n:
+            return (stat, "1x2", vl, 0.0) if vl in ("home", "draw", "away") else None
+        if "double chance" in n:
+            side = {"home/draw": "1X", "draw/away": "X2", "home/away": "12"}.get(vl)
+            return (stat, "dc", side, 0.0) if side else None
+        if "asian handicap" in n:
+            m = AH.match(v)
+            return (stat, "ah", m.group(1).lower(), float(m.group(2))) if m else None
+        if "european handicap" in n:
+            m = EH.match(v)
+            return (stat, "eh", m.group(1).lower(), float(m.group(2))) if m else None
     m = OU.match(v)
+    # "Home/Away Player Shots Total" with plain lines (Over 16.5, no player name) is the team's total
+    team_total = "player" in n and stat in ("total_shots", "shots_on_goal") and m is not None \
+        and re.search(r"\b(home|away)\b", n)
+    if half or (not team_total and (any(w in n for w in ("exact", "most", "player", "handicap", "1x2", "asian"))
+                                    or re.search(r"\bteam to\b", n))):
+        return None
     if not m:
         return None
-    market = next((mk for rx, mk in STAT_WORDS if rx.search(n)), None)
+    market = stat
     if not market:
         return None
     scope = "home" if re.search(r"\bhome\b", n) else "away" if re.search(r"\baway\b", n) else "total"

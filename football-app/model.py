@@ -247,6 +247,50 @@ def margin_pmf(pred):
     return out
 
 
+def diff_pmf(pred, stat):
+    """P(home count - away count = d) as dict, from the two teams' distributions."""
+    if stat == "goals":
+        return margin_pmf(pred)
+    ph, pa = _arr(pred[stat]["ph"]), _arr(pred[stat]["pa"])
+    c = np.convolve(ph, pa[::-1])                          # index i  <->  d = i - (len(pa) - 1)
+    off = len(pa) - 1
+    return {i - off: float(v) for i, v in enumerate(c) if v > 1e-9}
+
+
+def _handicap(d, side, line):
+    """Asian handicap on a difference d (home - away): chance to win, with a tie (stake back) left out.
+    Quarter lines are not priced."""
+    if abs(line * 4 - round(line * 4)) > 1e-9:            # not a handicap line at all
+        return None
+    frac = abs(line - math.floor(line))
+    if abs(frac - 0.25) < 1e-9 or abs(frac - 0.75) < 1e-9:
+        return None
+    sgn = 1 if side == "home" else -1
+    win = sum(v for k, v in d.items() if sgn * k + line > 1e-9)
+    push = sum(v for k, v in d.items() if abs(sgn * k + line) <= 1e-9)
+    return win / (1 - push) if push < 0.999 else None
+
+
+def contest_prob(d, scope, side, line):
+    """Which team gets more (corners, shots ...): 1x2, double chance, Asian (ah) or European (eh) handicap."""
+    if scope == "1x2":
+        return {"home": sum(v for k, v in d.items() if k > 0), "draw": d.get(0, 0.0),
+                "away": sum(v for k, v in d.items() if k < 0)}.get(side)
+    if scope == "dc":
+        h = sum(v for k, v in d.items() if k > 0); x = d.get(0, 0.0); a = sum(v for k, v in d.items() if k < 0)
+        return {"1X": h + x, "X2": x + a, "12": h + a}.get(side)
+    if scope == "ah":
+        return _handicap(d, side, line)
+    if scope == "eh":                                       # European handicap: line added to the home team
+        return {"home": sum(v for k, v in d.items() if k + line > 1e-9),
+                "draw": sum(v for k, v in d.items() if abs(k + line) <= 1e-9),
+                "away": sum(v for k, v in d.items() if k + line < -1e-9)}.get(side)
+    return None
+
+
+CONTEST = ("1x2", "dc", "ah", "eh")
+
+
 def prob(pred, market, scope, side, line):
     """Model probability of one selection (None if the model can't price it)."""
     try:
@@ -254,12 +298,10 @@ def prob(pred, market, scope, side, line):
             g = pred["goals"]; return {"home": g["p1"], "draw": g["px"], "away": g["p2"]}[side]
         if market == "dc":
             g = pred["goals"]; return {"1X": g["p1"] + g["px"], "X2": g["px"] + g["p2"], "12": g["p1"] + g["p2"]}[side]
-        if market == "ah":                                 # side wins by more than -line (half lines only)
-            if abs(line * 2 - round(line * 2)) > 1e-9 or abs(line - round(line)) < 1e-9:
-                return None
-            d = margin_pmf(pred)
-            if side == "home": return sum(v for k, v in d.items() if k + line > 0)
-            return sum(v for k, v in d.items() if -k + line > 0)
+        if market == "ah":                                 # goals Asian handicap
+            return _handicap(margin_pmf(pred), side, line)
+        if market in STATS and scope in CONTEST:
+            return contest_prob(diff_pmf(pred, market), scope, side, line)
         if market in STATS:
             if abs(line - round(line)) < 1e-9:            # whole lines can push: not priced
                 return None
@@ -335,16 +377,35 @@ def make_picks(pred, odds_rows=None):
 
 def market_prob(odds_rows, o):
     """The bookmaker's own chance for the selection, with its margin taken out (two- or three-way market)."""
+    ah = o["market"] == "ah" or o["scope"] == "ah"           # Asian handicap: Home -1 pairs with Away +1
     same = [x for x in odds_rows if x["bookmaker"] == o["bookmaker"] and x["market"] == o["market"]
-            and x["scope"] == o["scope"] and x["line"] == o["line"]]
+            and x["scope"] == o["scope"]
+            and (x["line"] == o["line"] if not ah or x["side"] == o["side"] else x["line"] == -o["line"])]
     sides = {x["side"]: x["price"] for x in same}
-    need = {"1x2": 3, "dc": 3}.get(o["market"], 2)
+    need = 3 if o["market"] in ("1x2", "dc") or o["scope"] in ("1x2", "dc", "eh") else 2
     if len(sides) < need or any(v <= 1 for v in sides.values()):
         return None
     inv = {k: 1 / v for k, v in sides.items()}
-    if o["market"] == "dc":
+    if o["market"] == "dc" or o["scope"] == "dc":
         return None                     # double chance prices overlap; no clean de-margining
     return round(inv[o["side"]] / sum(inv.values()), 5)
+
+
+def _settle_contest(d, scope, side, line):
+    """d = home - away for the statistic (or goals)."""
+    res = "home" if d > 0 else "away" if d < 0 else "draw"
+    if scope == "1x2":
+        return "won" if side == res else "lost"
+    if scope == "dc":
+        return "won" if {"home": "1", "draw": "X", "away": "2"}[res] in side else "lost"
+    if scope == "ah":
+        x = (d if side == "home" else -d) + line
+        return "void" if abs(x) < 1e-9 else "won" if x > 0 else "lost"
+    if scope == "eh":
+        x = d + line
+        r = "home" if x > 0 else "away" if x < 0 else "draw"
+        return "won" if side == r else "lost"
+    return None
 
 
 def settle_value(m, st_h, st_a, market, scope, side, line):
@@ -361,14 +422,15 @@ def settle_value(m, st_h, st_a, market, scope, side, line):
             res = "1" if h > a else "2" if a > h else "X"
             return "won" if res in side else "lost"
         if market == "ah":
-            d = (h - a) if side == "home" else (a - h)
-            return "won" if d + line > 0 else "lost"
+            return _settle_contest(h - a, "ah", side, line)
         v = {"home": h, "away": a}.get(scope, h + a)
     else:
         if m["status"] != "FT":
             return "void"               # extra time changes the counts: not comparable with 90-minute lines
         if st_h is None or st_a is None or st_h[market] is None or st_a[market] is None:
             return None
+        if scope in CONTEST:
+            return _settle_contest(st_h[market] - st_a[market], scope, side, line)
         v = {"home": st_h[market], "away": st_a[market]}.get(scope, st_h[market] + st_a[market])
     if abs(v - line) < 1e-9:
         return "void"
