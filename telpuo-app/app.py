@@ -484,14 +484,18 @@ def _reconstruct_now(rid, mid, legs, obs):
     def half(raw, out):
         for t, x, y, fl in raw:
             if abs(t * 2 - round(t * 2)) < 1e-6 and (not out or t > out[-1][0]): out.append([round(t, 1), round(x, 1), round(y, 1), fl])
-    cum = res['cum']
+    cum = res['cum']; gap = False
     for L in res['legs']:
         i = L['leg'] - 1
         label = f"{L['leg']}. {codes[i]} → {codes[i + 1]}"
         if 'error' in L:
-            legs_out.append({'label': label, 't0': cum[i], 't1': cum[i + 1], 'split': L['T'], 'route': 'not found', 'note': L['error']}); continue
+            legs_out.append({'label': label, 't0': cum[i], 't1': cum[i + 1], 'split': L['T'], 'route': 'not found', 'note': L['error']})
+            gap = True; continue
         a, b = conv(L['pts']), conv(L['ghost'])
-        if pts: a, b = a[1:], b[1:]
+        if pts and not gap: a, b = a[1:], b[1:]
+        if gap and a: a[0][3] = 1
+        if gap and b: b[0][3] = 1          # after a leg with no route: no straight line across the map
+        gap = False
         pts += a; gp += b
         half(L['pts'], p3); half(L['ghost'], g3)
         alts = '; '.join(f"{x['route']} ({round(x['p'] * 100)}%)" for x in L['alts'][1:3])

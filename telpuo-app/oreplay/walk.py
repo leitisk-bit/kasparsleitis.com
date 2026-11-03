@@ -308,11 +308,12 @@ def graph(N, E, px_s, floor_s):
         t = px * px_s + fl * floor_s
         if G.has_edge(a, b) and G[a][b]['t'] <= t: continue
         G.add_edge(a, b, px=px, fl=fl, t=t)
-    drop = []
-    for a, b, d in G.edges(data=True):
-        if d['fl']: continue
-        for c in G.successors(a):
+    # a direct stretch that only repeats a way through a third node is left out (fewer look-alike routes).
+    # Removed one at a time, each time checking the way round is still there: two short stretches next
+    # to each other (a stairwell's two flights) must not each be dropped in favour of the other.
+    for a, b, d in list(G.edges(data=True)):
+        if d['fl'] or not G.has_edge(a, b): continue
+        for c in list(G.successors(a)):
             if c in (a, b) or not G.has_edge(c, b) or G[a][c]['fl'] or G[c][b]['fl']: continue
-            if G[a][c]['t'] + G[c][b]['t'] <= d['t'] * 1.03 + 0.3: drop.append((a, b)); break
-    G.remove_edges_from(drop)
+            if G[a][c]['t'] + G[c][b]['t'] <= d['t'] * 1.03 + 0.3: G.remove_edge(a, b); break
     return G
