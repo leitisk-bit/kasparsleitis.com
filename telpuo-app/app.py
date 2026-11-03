@@ -21,8 +21,17 @@ NEED_ADMIN = 'This needs the admin password.'
 DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
+STARTED = time.time()
+def _version():
+    try:
+        with open(os.path.join(HERE, 'VERSION')) as f: return json.load(f)
+    except Exception: return {'commit': 'dev', 'date': '', 'change': ''}
+
 @app.get('/api/admin')
-def api_admin(): return jsonify(admin=admin_ok(), required=bool(ADMIN_KEY))
+def api_admin():
+    out = dict(admin=admin_ok(), required=bool(ADMIN_KEY))
+    if out['admin']: out.update(version=_version(), started=STARTED, now=time.time())
+    return jsonify(out)
 
 # ------------------------------------------------------------------ pages
 @app.get('/')

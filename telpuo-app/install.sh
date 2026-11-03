@@ -16,7 +16,7 @@ SRC="$(cd "$(dirname "$0")" && pwd)"
 apt-get update
 apt-get install -y python3-venv python3-pip poppler-utils fonts-dejavu-core fonts-liberation
 mkdir -p "$DEST"
-cp -r "$SRC"/app.py "$SRC"/oreplay "$SRC"/static "$SRC"/requirements.txt "$DEST"/
+cp -r "$SRC"/app.py "$SRC"/VERSION "$SRC"/oreplay "$SRC"/static "$SRC"/requirements.txt "$DEST"/
 mkdir -p "$DEST"/data
 id -u oreplay >/dev/null 2>&1 || useradd --system --home "$DEST" --shell /usr/sbin/nologin oreplay
 chown -R oreplay:oreplay "$DEST"

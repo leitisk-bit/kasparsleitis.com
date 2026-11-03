@@ -1,0 +1,26 @@
+# Stamps telpuo-app/VERSION with the latest app change, so the admin page can show which version runs.
+name: Telpu O version stamp
+on:
+  push:
+    branches: [main]
+    paths: ['telpuo-app/**', '!telpuo-app/VERSION']
+permissions: { contents: write }
+concurrency: { group: version-stamp, cancel-in-progress: false }
+jobs:
+  stamp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 20 }
+      - run: |
+          git pull -q origin main
+          c=$(git log -1 --format=%H -- telpuo-app ':!telpuo-app/VERSION')
+          python3 - "$c" <<'PY'
+          import json, subprocess, sys
+          c = sys.argv[1]
+          fmt = lambda f: subprocess.check_output(['git', 'log', '-1', f'--format={f}', c], text=True).strip()
+          json.dump({'commit': c[:7], 'date': fmt('%cI'), 'change': fmt('%s')}, open('telpuo-app/VERSION', 'w'), ensure_ascii=False)
+          PY
+          cat telpuo-app/VERSION
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add telpuo-app/VERSION && (git diff --cached --quiet || (git commit -qm "Version stamp" && git push -q origin HEAD:main))

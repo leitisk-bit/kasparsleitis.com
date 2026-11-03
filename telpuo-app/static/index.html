@@ -81,7 +81,7 @@ body:not(.is-admin) .admin-only{display:none!important}
 <div class="wrap">
   <header>
     <a class="brand" href="#"><div class="flag" aria-hidden="true"></div><div><h1>Indoor O Replay</h1><small>Telpu orientēšanās · map library</small></div></a>
-    <div style="display:flex;gap:8px;align-items:center"><span class="muted admin-only" id="adminTag">Admin</span><button class="btn small" id="keyBtn" type="button">Admin sign in</button></div>
+    <div style="display:flex;gap:4px 8px;align-items:center;flex-wrap:wrap;justify-content:flex-end"><span class="muted admin-only" id="adminTag">Admin</span><span class="muted admin-only" id="verTag"></span><button class="btn small" id="keyBtn" type="button">Admin sign in</button></div>
   </header>
 
   <!-- library -->
@@ -465,7 +465,11 @@ $('#reread').onclick=async()=>{ try { await api('maps/'+M.id+'/reread',{method:'
 $('#delMap').onclick=async()=>{ if ($('#delMap').dataset.armed!=='1'){ $('#delMap').dataset.armed='1'; $('#delMap').textContent='Click again to delete for good'; return; }
   try { await api('maps/'+M.id,{method:'DELETE'}); location.hash=''; } catch(e){ toast(e.message); } };
 let ADMIN=false;
-async function checkAdmin(){ try { const r=await api('admin'); ADMIN=!!r.admin && (r.required ? !!KEY : true); if (r.required===false) ADMIN=true; } catch(e){ ADMIN=false; }
+async function checkAdmin(){ let r={}; try { r=await api('admin'); ADMIN=!!r.admin && (r.required ? !!KEY : true); if (r.required===false) ADMIN=true; } catch(e){ ADMIN=false; }
+  if (ADMIN && r.version){ const v=r.version, d=v.date ? new Date(v.date) : null, st=new Date(r.started*1000);
+    const f = x => x.toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    $('#verTag').textContent = (d ? `App updated ${f(d)}` : 'App version: development') + ` · running since ${f(st)}`;
+    $('#verTag').title = v.commit ? `Version ${v.commit}: ${v.change}` : ''; }
   document.body.classList.toggle('is-admin', ADMIN); $('#keyBtn').textContent = ADMIN ? 'Sign out' : 'Admin sign in'; $('#keyBtn').hidden = ADMIN && !KEY;
   if ($('#showLegs')) $('#showLegs').checked = ADMIN; }
 function askKey(){ if (!ADMIN) $('#keyBtn').click(); }
