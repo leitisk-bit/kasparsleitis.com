@@ -7,6 +7,7 @@
 #   improve   try other model settings; keep only if better; re-test; predict
 #   backtest  re-run the walk-forward test of the active version
 #   backfill  fetch whole seasons (input: seasons)
+#   betsson   fetch Betsson (= Betsafe) prices now from The Odds API and re-measure the Bet365 difference
 name: Football
 on:
   workflow_dispatch:
@@ -15,7 +16,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill]
+        options: [status, update, run, improve, backtest, backfill, betsson]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -82,6 +83,10 @@ jobs:
           for o in rep["odds"]["by_market"]: print(f"   {o['market']:<14}{o['scope']:<7}{o['matches']:>5} {o['books']:>3} {o['prices']:>7}  {o['last']}")
           print("\nBOOKMAKERS kept:", ", ".join(f"{b['bookmaker']} ({b['matches']} matches)" for b in rep["odds"].get("by_bookmaker", [])) or "none")
           print("BOOKMAKERS offered by the feed:", ", ".join(f"{b['name']} ({b['fixtures']})" for b in rep["odds"].get("books_offered", [])) or "not recorded yet")
+          bands = {-1: "all prices", 0: "1.00–1.50", 1: "1.50–2.20", 2: "2.20–4.00", 3: "4.00+"}
+          print(f"\nBETSAFE vs BET365  ({rep['odds'].get('betsson_prices', 0)} Betsson prices stored) — Betsson price / Bet365 price:")
+          for r in rep["odds"].get("betsson_vs_bet365", []):
+              print(f"   {r['family']:<8} {bands.get(r['band'], r['band']):<11} n={r['n']:<5} median {r['median']:.3f}  mean {r['mean']:.3f}  range {r['low']}–{r['high']}")
           print("\nMODEL")
           for r in rep["model"]["runs"]:
               print(f"   {r['version']} {'ACTIVE' if r['active'] else '      '} {r['created_at']} {r['kind']} — {r['notes']}")

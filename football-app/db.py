@@ -67,6 +67,9 @@ CREATE TABLE IF NOT EXISTS odds (
     PRIMARY KEY (match_id, bookmaker, market, scope, side, line)
 );
 -- bet names from the odds feed we don't understand yet (to extend the classifier later)
+-- Betsson (= Betsafe) price / Bet365 price for the same selection: family 1x2 | two_way, band = price range (-1 = all)
+CREATE TABLE IF NOT EXISTS price_ratio (family TEXT, band INTEGER, n INTEGER, median REAL, mean REAL, low REAL, high REAL,
+    computed_at TEXT, PRIMARY KEY (family, band));
 -- every bookmaker the odds feed returned (kept or not): which ones exist for these leagues
 CREATE TABLE IF NOT EXISTS odds_books (name TEXT PRIMARY KEY, fixtures INTEGER DEFAULT 0, last_seen TEXT);
 CREATE TABLE IF NOT EXISTS odds_unknown (name TEXT PRIMARY KEY, seen INTEGER DEFAULT 0, example TEXT);
@@ -123,6 +126,10 @@ def _migrate(con) -> None:
         # 90-minute score (goals markets are settled on it; 'home_goals' includes extra time)
         con.execute("ALTER TABLE matches ADD COLUMN ft_home INTEGER")
         con.execute("ALTER TABLE matches ADD COLUMN ft_away INTEGER")
+    pcols = {r[1] for r in con.execute("PRAGMA table_info(picks)")}
+    if pcols and "book_price" not in pcols:
+        # Bet on: 'price' is the (estimated) Betsafe price, 'book_price' what the source bookmaker showed
+        con.execute("ALTER TABLE picks ADD COLUMN book_price REAL")
     # fill the 90-minute score from the stored raw responses where it is still missing
     import json, zlib
     rows = con.execute(

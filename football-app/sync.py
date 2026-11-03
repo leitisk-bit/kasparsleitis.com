@@ -93,6 +93,11 @@ def run(kind: str, seasons=None, limit=None):
                 refresh_odds(con, client, current_season())
             except Exception as e:  # noqa — odds are optional; never block the data update
                 print("  odds failed:", e, flush=True)
+            try:
+                import betsson                   # Betsson (= Betsafe) prices, about once a week
+                betsson.fetch(con)
+            except Exception as e:  # noqa
+                print("  Betsson check failed:", e, flush=True)
         _log_end(con, log_id, client, total)
         print(f"Done. {total} matches with details. API calls: {client.calls}, quota left: {client.quota_left}")
         print("Running predictions", flush=True)

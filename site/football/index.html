@@ -303,14 +303,14 @@ views.confidence = () => {
 views.bet = () => {
   ST.bconf ??= '0.6'; ST.bodds ??= '1.5';
   return pickTab({tab:'bet_on', title:'Bet on',
-    intro:`<p>Bets where the model is sure enough and a bookmaker pays more than the model's fair price: match result, double chance, goals, Asian handicap, and corners / shots / shots on target / offsides over-under. Prices are Betsson's, the same as Betsafe's (opening and latest price are both saved). Every pick is scored after the match, so the record shows whether these really pay.</p>
+    intro:`<p>Bets where the model is sure enough and a bookmaker pays more than the model's fair price: match result, double chance, goals, Asian handicap, and corners / shots / shots on target / offsides over-under. The price is Betsafe's: Betsson's real price where The Odds API has it (same platform), otherwise Bet365's price adjusted by the measured Betsson / Bet365 difference ("est.", Bet365's own price shown small). Value and the record use that Betsafe price; check it on Betsafe before betting. Every pick is scored after the match, so the record shows whether these really pay.</p>
       <p class="muted small">Odds collection started with this version, so the record builds up from now. The market usually knows something the model doesn't: treat the model's edge as an upper bound until the record shows otherwise.</p>`,
     controls: () => seg('Model at least', ST.bconf, [['0.55','55%'],['0.6','60%'],['0.7','70%'],['0.8','80%']], v => { ST.bconf = v; save(); __reload(); }) +
       seg('Odds at least', ST.bodds, [['1.3','1.30'],['1.5','1.50'],['1.8','1.80'],['2.2','2.20']], v => { ST.bodds = v; save(); __reload(); }),
     filter: p => p.prob >= +ST.bconf && p.price >= +ST.bodds,
     history: h => { const l = h.live || {}; return l.all ? `<div class="note"><b>Live record:</b> ${recordLine(l.all, 'all picks')}${Object.entries(l.by_market || {}).map(([k,o]) => recordLine(o, LABEL[k] || k)).join('')}</div>` : ''; },
     head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Market</th><th>Price</th><th>Value per 10 €</th><th>Result</th>`,
-    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}${p.book_price && Math.abs(p.book_price - p.price) > 0.005 ? ` · Bet365 ${p.book_price.toFixed(2)}` : ''}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
 };
 
 views.sure = () => {

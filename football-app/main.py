@@ -614,6 +614,8 @@ def admin_report():
             "by_market": q("""SELECT market, scope, COUNT(DISTINCT match_id) matches, COUNT(DISTINCT bookmaker) books,
                               COUNT(*) prices, MAX(last_seen) last FROM odds GROUP BY market, scope ORDER BY matches DESC"""),
             "unknown_top": q("SELECT name, seen, example FROM odds_unknown ORDER BY seen DESC LIMIT 20"),
+            "betsson_vs_bet365": q("SELECT family, band, n, median, mean, low, high, computed_at FROM price_ratio ORDER BY family, band"),
+            "betsson_prices": one("SELECT COUNT(*) FROM odds WHERE bookmaker='Betsson'"),
             "books_offered": q("SELECT name, fixtures, last_seen FROM odds_books ORDER BY fixtures DESC"),
             "by_bookmaker": q("SELECT bookmaker, COUNT(DISTINCT match_id) matches, COUNT(DISTINCT market||scope) markets, "
                               "COUNT(*) prices FROM odds GROUP BY bookmaker ORDER BY matches DESC"),
@@ -642,6 +644,8 @@ async def admin_sync(request: Request):
     kind = body.get("kind", "update")
     if kind in ("predict", "improve", "backtest", "run"):
         cmd = [sys.executable, str(BASE_DIR / "model.py"), kind]
+    elif kind == "betsson":
+        cmd = [sys.executable, str(BASE_DIR / "betsson.py"), "fetch", "--force"]
     else:
         cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
         if kind == "backfill":

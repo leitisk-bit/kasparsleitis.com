@@ -93,3 +93,10 @@ binomial (binomial for substitutions). Everything is saved in the database:
 .venv/bin/python model.py report    # scores of every version
 ```
 The first `run` with enough data tunes and back-tests automatically (a few minutes).
+
+## Betsafe prices
+API-Football has no Betsson/Betsafe, so Bet365 is collected (it has corners, shots and offsides). About once a week
+`betsson.py` fetches Betsson's prices (= Betsafe, same platform) for result and goals from The Odds API, using the
+tennis app's `ODDS_API_KEY` (2 credits per competition, ~16 a week; stops when fewer than `ODDS_API_RESERVE`=150 are
+left). It measures Betsson ÷ Bet365 per market and price range (`price_ratio`), and Bet on uses Betsson's real price
+where it has one, else Bet365's price × that ratio ("Betsafe est."). The record is scored at that Betsafe price.

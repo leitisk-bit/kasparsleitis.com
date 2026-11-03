@@ -315,8 +315,9 @@ def prob(pred, market, scope, side, line):
 
 # ---------------------------------------------------------------- picks
 
-def make_picks(pred, odds_rows=None):
-    """Picks for the tabs from one prediction. odds_rows: list of dicts from the odds table."""
+def make_picks(pred, odds_rows=None, rat=None):
+    """Picks for the tabs from one prediction. odds_rows: list of dicts from the odds table.
+    rat: measured Betsson/Bet365 price ratios (betsson.ratios) to estimate the Betsafe price."""
     picks = []
     g = pred.get("goals")
     if g:
@@ -357,19 +358,24 @@ def make_picks(pred, odds_rows=None):
                 for l, p in unders:
                     if min(hi) <= l <= hi_line and ok(p):
                         picks.append(dict(tab="sure", market=s, scope=scope, side="under", line=l, prob=p))
-    # Bet on: model sure enough and a bookmaker pays more than the model's fair price
+    # Bet on: model sure enough and Betsafe pays more than the model's fair price. Betsafe's price: Betsson's
+    # (same platform) where The Odds API has it, else Bet365's price adjusted by the measured Betsson/Bet365 ratio.
     if odds_rows:
-        best = {}
-        for o in odds_rows:
-            key = (o["market"], o["scope"], o["side"], o["line"])
-            if key not in best or o["price"] > best[key]["price"]:
-                best[key] = o
-        for (market, scope, side, line), o in best.items():
+        from betsson import BOOK, REF, betsafe_price
+        real = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == BOOK}
+        ref = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == REF}
+        for key in set(real) | set(ref):
+            market, scope, side, line = key
+            if key in real:
+                o = real[key]; price, book_price, label = o["price"], ref.get(key, {}).get("price"), "Betsafe"
+            else:
+                o = ref[key]; book_price = o["price"]
+                price = betsafe_price(rat or {}, market, book_price); label = "Betsafe est."
             p = prob(pred, market, scope, side, line)
-            if p is None or p < BET_MIN_P or o["price"] < BET_MIN_PRICE or p * o["price"] - 1 < BET_MIN_EV:
+            if p is None or p < BET_MIN_P or price < BET_MIN_PRICE or p * price - 1 < BET_MIN_EV:
                 continue
             picks.append(dict(tab="bet_on", market=market, scope=scope, side=side, line=line, prob=p,
-                              price=o["price"], bookmaker=o["bookmaker"],
+                              price=price, book_price=book_price, bookmaker=label,
                               market_prob=market_prob(odds_rows, o)))
     for p in picks:
         p["prob"] = round(float(p["prob"]), 5)
@@ -635,19 +641,22 @@ def predict(con, data=None):
                        "AND date_utc > ? AND date_utc < ?",
                        (now.isoformat(), (now + timedelta(days=14)).isoformat())).fetchall()
     made = now_iso()
+    from betsson import ratios
+    rat = ratios(con)
     for r in rows:
         pred = predict_match(fits, r["league_id"], r["home_id"], r["away_id"])
         odds_rows = [dict(o) for o in con.execute(
             "SELECT bookmaker, market, scope, side, line, price FROM odds WHERE match_id=?", (r["id"],))
-            if not BOOKS or o["bookmaker"].lower() in BOOKS]
+            if not BOOKS or o["bookmaker"].lower() in BOOKS or o["bookmaker"] == "Betsson"]
         con.execute("INSERT OR REPLACE INTO predictions(match_id,version,kind,made_at,data) VALUES (?,?,?,?,?)",
                     (r["id"], v, "live", made, json.dumps(pred, separators=(",", ":"))))
         con.execute("DELETE FROM picks WHERE kind='live' AND version=? AND match_id=?", (v, r["id"]))
         con.executemany(
-            "INSERT OR IGNORE INTO picks(kind,version,match_id,made_at,tab,market,scope,side,line,prob,price,bookmaker,market_prob) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR IGNORE INTO picks(kind,version,match_id,made_at,tab,market,scope,side,line,prob,price,bookmaker,market_prob,book_price) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [("live", v, r["id"], made, p["tab"], p["market"], p["scope"], p["side"], p["line"], p["prob"],
-              p.get("price"), p.get("bookmaker"), p.get("market_prob")) for p in make_picks(pred, odds_rows)])
+              p.get("price"), p.get("bookmaker"), p.get("market_prob"), p.get("book_price"))
+             for p in make_picks(pred, odds_rows, rat)])
     con.commit()
     log(f"Predicted {len(rows)} upcoming matches with {v}")
     return len(rows)
