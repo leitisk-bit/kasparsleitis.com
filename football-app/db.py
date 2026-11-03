@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS odds (
     PRIMARY KEY (match_id, bookmaker, market, scope, side, line)
 );
 -- bet names from the odds feed we don't understand yet (to extend the classifier later)
+-- every bookmaker the odds feed returned (kept or not): which ones exist for these leagues
+CREATE TABLE IF NOT EXISTS odds_books (name TEXT PRIMARY KEY, fixtures INTEGER DEFAULT 0, last_seen TEXT);
 CREATE TABLE IF NOT EXISTS odds_unknown (name TEXT PRIMARY KEY, seen INTEGER DEFAULT 0, example TEXT);
 
 -- every model version: its settings and how well it did

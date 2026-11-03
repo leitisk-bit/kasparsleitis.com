@@ -614,6 +614,7 @@ def admin_report():
             "by_market": q("""SELECT market, scope, COUNT(DISTINCT match_id) matches, COUNT(DISTINCT bookmaker) books,
                               COUNT(*) prices, MAX(last_seen) last FROM odds GROUP BY market, scope ORDER BY matches DESC"""),
             "unknown_top": q("SELECT name, seen, example FROM odds_unknown ORDER BY seen DESC LIMIT 20"),
+            "books_offered": q("SELECT name, fixtures, last_seen FROM odds_books ORDER BY fixtures DESC"),
             "by_bookmaker": q("SELECT bookmaker, COUNT(DISTINCT match_id) matches, COUNT(DISTINCT market||scope) markets, "
                               "COUNT(*) prices FROM odds GROUP BY bookmaker ORDER BY matches DESC"),
         },

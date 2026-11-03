@@ -81,6 +81,8 @@ def store_fixture_odds(con, item, now):
     n = 0
     for bk in item.get("bookmakers") or []:
         name = bk.get("name") or str(bk.get("id"))
+        con.execute("INSERT INTO odds_books(name, fixtures, last_seen) VALUES (?,1,?) "
+                    "ON CONFLICT(name) DO UPDATE SET fixtures=fixtures+1, last_seen=excluded.last_seen", (name, now))
         if BOOKMAKERS and name.lower() not in BOOKMAKERS:
             continue
         for bet in bk.get("bets") or []:

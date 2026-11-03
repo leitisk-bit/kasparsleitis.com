@@ -80,6 +80,8 @@ jobs:
           for s in d["by_season"]: print(f"   {s['season']}: {s['matches']} matches, {s['with_stats']} with stats")
           print("\nODDS  market/scope: matches · books · prices · last seen")
           for o in rep["odds"]["by_market"]: print(f"   {o['market']:<14}{o['scope']:<7}{o['matches']:>5} {o['books']:>3} {o['prices']:>7}  {o['last']}")
+          print("\nBOOKMAKERS kept:", ", ".join(f"{b['bookmaker']} ({b['matches']} matches)" for b in rep["odds"].get("by_bookmaker", [])) or "none")
+          print("BOOKMAKERS offered by the feed:", ", ".join(f"{b['name']} ({b['fixtures']})" for b in rep["odds"].get("books_offered", [])) or "not recorded yet")
           print("\nMODEL")
           for r in rep["model"]["runs"]:
               print(f"   {r['version']} {'ACTIVE' if r['active'] else '      '} {r['created_at']} {r['kind']} — {r['notes']}")
