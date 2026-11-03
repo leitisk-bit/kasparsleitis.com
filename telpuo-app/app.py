@@ -18,6 +18,7 @@ def admin_ok():
     return not ADMIN_KEY or request.headers.get('X-Admin-Key') == ADMIN_KEY
 
 NEED_ADMIN = 'This needs the admin password.'
+OPT_VER = 2               # bump when route options are worked out differently (old saved ones are ignored)
 DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
@@ -154,7 +155,7 @@ def _build_now(mid):
         try: opts = leg_options((N, E, POLY, info), i + 1, px_s=DEFAULT_PX_S, mpp=mpp)
         except Exception: traceback.print_exc(); opts = []
         for o in opts: o['pts'] = [[t, round(x * k, 1), round(y * k, 1), fl, j] for t, x, y, fl, j in o['pts']]
-        with open(os.path.join(store.map_dir(mid), f"options_{int(built)}_{i + 1}_{DEFAULT_PX_S}.json"), 'w') as f_:
+        with open(os.path.join(store.map_dir(mid), f"options{OPT_VER}_{int(built)}_{i + 1}_{DEFAULT_PX_S}.json"), 'w') as f_:
             json.dump({'leg': i + 1, 'options': opts}, f_, separators=(',', ':'))
         best = opts[0]['time'] if opts else None
         sugg.append({'leg': i + 1, 'label': f'{i + 1}. {labels[i]} → {labels[i + 1]}', 'count': len(opts),
@@ -195,7 +196,7 @@ def api_options(mid):
     px_s = min(0.2, max(0.01, px_s))
     feat = store.get_features(mid); n_legs = len(feat['controls']) - 1
     if not 1 <= leg <= n_legs: return jsonify(error=f'This course has {n_legs} legs.'), 400
-    cache = os.path.join(store.map_dir(mid), f"options_{int(m.get('built') or 0)}_{leg}_{px_s if px_s == DEFAULT_PX_S else round(px_s, 4)}.json")
+    cache = os.path.join(store.map_dir(mid), f"options{OPT_VER}_{int(m.get('built') or 0)}_{leg}_{px_s if px_s == DEFAULT_PX_S else round(px_s, 4)}.json")
     if os.path.exists(cache):
         return send_file(cache, mimetype='application/json')
     from oreplay.options import leg_options

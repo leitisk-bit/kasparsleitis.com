@@ -169,6 +169,7 @@ class Recon:
         return out
 
     def samples(self, p, ele_of):
+        ele_of = ele_of or (lambda f: 0.0)       # no watch altitude: time alone decides
         ele, where = [], []
         for i, (u, v) in enumerate(zip(p, p[1:])):
             dt = self.G[u][v]['t']; n = max(1, int(round(dt)))

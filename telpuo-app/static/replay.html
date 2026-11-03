@@ -227,6 +227,20 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
 
 <script>
 /* server mode: /replay?run=<id>[,<id>...]&ghost=1 */
+async function load3d(mapId, runs, ids, q, k){
+  try {
+    const T = await (await fetch('api/maps/'+encodeURIComponent(mapId)+'/three')).json();
+    if (!T || !T.tex) return;
+    const off = f => T.offsets[f] || T.offsets[String(f)] || [0,0];
+    const al = pts => pts.map(p => [p[0], p[1]-off(p[3])[0], p[2]-off(p[3])[1], p[3]]);
+    const r3 = [];
+    if (runs.length && !runs.every(r=>r.pts3d && r.pts3d.length)) return;
+    runs.forEach(r => { const main=r.runners.find(x=>!x.ghost); r3.push({ name:main.name, color:main.color, ghost:false, pts:al(r.pts3d) });
+      if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g) r3.push({ name:g.name, color:g.color, ghost:true, pts:al(r.ghost3d||[]) }); } });
+    window.R3D = { mpp:T.mpp, floorH:T.floorH, tex:T.tex, controls:T.controls, title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
+    const v=document.getElementById('viewSeg'); if (v) v.hidden=false;
+  } catch(e){ console.warn('3D view unavailable', e); }
+}
 window.IOR_LOAD = async function(){
   const q = new URLSearchParams(location.search); const ids = (q.get('run')||'').split(',').filter(Boolean);
   if (!ids.length && q.get('map')){
@@ -239,6 +253,7 @@ window.IOR_LOAD = async function(){
     ['label[for=mapFile]','label[for=gpxFile]','.seg[aria-label=Mode]'].forEach(sel=>{ const e=document.querySelector(sel); if (e) e.hidden=true; });
     const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
     const sm=document.querySelector('.brand small'); if (sm) sm.textContent=m.meta.name;
+    await load3d(m.meta.id, [], [], q, m.meta.display_scale);
     const k = m.meta.display_scale || 1;
     return { mapImage: 'api/maps/'+m.meta.id+'/image', mapKey: 'server:'+m.meta.id, dpm: 300/0.0254*k, scaleDen: m.meta.scale || 1000, follow: false,
              chip: m.meta.name + ': every sensible route for each leg at a standard pace. Red is the fastest.', data: { runners: [] } };
@@ -256,17 +271,7 @@ window.IOR_LOAD = async function(){
   ['label[for=mapFile]','label[for=gpxFile]','.seg[aria-label=Mode]'].forEach(sel=>{ const e=document.querySelector(sel); if (e) e.hidden=true; });
   const br=document.querySelector('a.brand'); if (br) br.href='./#map-'+m.meta.id;
   const sm=document.querySelector('.brand small'); if (sm) sm.textContent=m.meta.name;
-  try {
-    const T = await (await fetch('api/maps/'+encodeURIComponent(m.meta.id)+'/three')).json();
-    if (T && T.tex && runs.every(r=>r.pts3d && r.pts3d.length)){
-      const off = f => T.offsets[f] || T.offsets[String(f)] || [0,0];
-      const al = pts => pts.map(p => [p[0], p[1]-off(p[3])[0], p[2]-off(p[3])[1], p[3]]);
-      const r3 = []; runs.forEach(r => { const main=r.runners.find(x=>!x.ghost); r3.push({ name:main.name, color:main.color, ghost:false, pts:al(r.pts3d) });
-        if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g) r3.push({ name:g.name, color:g.color, ghost:true, pts:al(r.ghost3d||[]) }); } });
-      window.R3D = { mpp:T.mpp, floorH:T.floorH, tex:T.tex, controls:T.controls, title:T.title, runner:runs[0].name, runners:r3 };
-      const v=document.getElementById('viewSeg'); if (v) v.hidden=false;
-    }
-  } catch(e){ console.warn('3D view unavailable', e); }
+  await load3d(m.meta.id, runs, ids, q, m.meta.display_scale);
   const k = m.meta.display_scale || 1;
   return { mapImage: 'api/maps/'+m.meta.id+'/image', mapKey: 'server:'+m.meta.id, dpm: 300/0.0254*k, scaleDen: m.meta.scale || 1000, follow: true,
            chip: m.meta.name + (m.meta.event? ' · '+m.meta.event:'') + '. Red = '+runs[0].name+'; blue = fastest option found for each leg. Routes are reconstructed from splits'+(runs.some(r=>r.has_track)?' and watch altitude':'')+'.',
@@ -901,18 +906,25 @@ async function analyzeLeg(leg){
   const mine = m.virtual ? [] : m.pts.filter(q => q.t >= L.t0 - 0.01 && q.t <= L.t1 + 0.01).map(q => [q.t - L.t0, q.u, q.v, q.jump ? 1 : 0]);
   if (mine.length > 1){ mine[0][3] = 0; list.push({ name: 'As run', color: '#1b1b1b', pts: mine }); }
   S.runners = []; importRoutes({ runners: list }); S.sel = 0;
+  if (window.R3D && window.R3D.align){
+    const a3 = opts.map((o,i) => ({ name: list[i].name, color: list[i].color, ghost: false, pts: window.R3D.align(o.pts.map(q => [q[0], q[1] / window.R3D.k, q[2] / window.R3D.k, q[3]])) }));
+    const me3 = (window.R3D.runners.find(r => !r.ghost) || {}).pts || [];
+    if (mine.length > 1 && me3.length){ const p = me3.filter(q => q[0] >= L.t0 - 0.01 && q[0] <= L.t1 + 0.01).map(q => [q[0] - L.t0, q[1], q[2], q[3]]); if (p.length > 1) a3.push({ name: 'As run', color: '#1b1b1b', ghost: false, pts: p }); }
+    window.R3D_ANA = a3;
+  }
   setRoute('routeScope', 'all'); setRoute('routeReveal', 'full'); S.tau = 0;
-  const rows = opts.map((o,i) => `<li><input type="checkbox" checked data-r="${i}" aria-label="Show"><span class="sw" style="background:${ACOL[i % ACOL.length]}"></span><span class="rt">${i+1}. ${o.route}${i===0?'<span class="tag">fastest</span>':''}${o.route===L.route?'<span class="tag">chosen</span>':''}</span><span class="tm">${fmt(o.time)}${i?` <span class="muted">+${fmt(o.time-best)}</span>`:''}</span><span class="sub">${o.dist_m} m · ${o.floors} floor${o.floors===1?'':'s'} of stairs</span></li>`);
+  const rows = opts.map((o,i) => `<li><input type="checkbox" checked data-r="${i}" aria-label="Show"><span class="sw" style="background:${ACOL[i % ACOL.length]}"></span><span class="rt">${i+1}. ${o.route}${i===0?'<span class="tag">fastest</span>':''}${i===opts.findIndex(x=>x.route===L.route)?'<span class="tag">chosen</span>':''}</span><span class="tm">${fmt(o.time)}${i?` <span class="muted">+${fmt(o.time-best)}</span>`:''}</span><span class="sub">${o.dist_m} m · ${o.floors} floor${o.floors===1?'':'s'} of stairs</span></li>`);
   if (mine.length > 1) rows.push(`<li><input type="checkbox" checked data-r="${opts.length}" aria-label="Show"><span class="sw" style="background:#1b1b1b"></span><span class="rt">${m.name.replace(/[<&]/g,'')}: as run</span><span class="tm">${fmt(L.t1-L.t0)} <span class="muted">${L.t1-L.t0>=best?'+':'−'}${fmt(Math.abs(L.t1-L.t0-best))}</span></span><span class="sub">${L.route||''}</span></li>`);
   $('#anaList').innerHTML = rows.join('');
   $('#anaList').querySelectorAll('[data-r]').forEach(c => c.onchange = () => { const r = S.runners[+c.dataset.r]; if (r){ r.visible = c.checked; renderRunners(); requestDraw(); } });
   renderRunners(); updateUI(); requestDraw();
+  window.dispatchEvent(new Event('ior-runners'));
 }
 function setAnalyze(on){
   if (on === ANA.on) return;
   ANA.on = on; $('#aOn').setAttribute('aria-pressed', on); $('#aOff').setAttribute('aria-pressed', !on); $('#anaCard').hidden = !on;
   if (typeof pause === 'function') pause();
-  const vs=$('#viewSeg'); if (on && $('#v2d') && $('#v3d').getAttribute('aria-pressed')==='true') $('#v2d').click(); if (vs) vs.style.visibility = on ? 'hidden' : '';
+  window.IOR_ANA_ON = on; if (on) window.R3D_ANA = [];
   if (on){ ANA.saved = S.runners; ANA.view = [S.routeScope, S.routeReveal];
     const m = anaMain(), t = m && !m.virtual ? runnerT(m) : 0, cur = m && !m.virtual ? m.legs.findIndex(L => t >= L.t0 && t < L.t1) : 0;
     $('#anaLeg').value = String(Math.max(1, cur + 1)); analyzeLeg(+$('#anaLeg').value); }
@@ -1021,25 +1033,33 @@ async function start(){
     return pts;
   }
   const FAT = [];
-  const R = D.runners.map((r, ri) => {
-    const P = prep(r), color = new THREE.Color(r.color || (r.ghost ? '#1F6FE0' : '#E3262B'));
-    const g1 = new LineGeometry(), g2 = new LineGeometry();
-    const mk = (g, w, op) => { const m = new LineMaterial({ color, linewidth:w, transparent:true, opacity:op, depthTest:false }); FAT.push(m); const l = new Line2(g, m); l.renderOrder = 7; return l; };
-    const full = mk(g1, 1.5, 0.12), done = mk(g2, r.ghost ? 3 : 4, r.ghost ? 0.8 : 1);
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(r.ghost ? 1.0 : 1.3, 20, 14), new THREE.MeshBasicMaterial({ color, depthTest:false })); dot.renderOrder = 9;
-    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 6), new THREE.MeshBasicMaterial({ color, depthTest:false, transparent:true, opacity:.8 })); pin.renderOrder = 8;
-    const grp = new THREE.Group(); grp.add(full, done, dot, pin); scene.add(grp);
-    return { ri, ghost:r.ghost, P, g1, g2, full, grp, dot, pin, A:null, legI0:-1 };
-  });
-  const ME = R.find(r => !r.ghost) || R[0];
-  if (!ME.P.length) throw new Error('this run has no route points');
+  let R = [], ME = null;
+  const current = () => (window.IOR_ANA_ON ? (window.R3D_ANA || []) : D.runners);
+  function setRunners(list){
+    R.forEach(r => { scene.remove(r.grp); [r.full, r.done].forEach(l => { l.geometry.dispose(); const k = FAT.indexOf(l.material); if (k >= 0) FAT.splice(k, 1); l.material.dispose(); }); });
+    R = list.map((r, ri) => [r, ri]).filter(([r]) => r.pts && r.pts.length).map(([r, ri]) => {
+      const P = prep(r), color = new THREE.Color(r.color || (r.ghost ? '#1F6FE0' : '#E3262B'));
+      const g1 = new LineGeometry(), g2 = new LineGeometry();
+      const mk = (g, w, op) => { const m = new LineMaterial({ color, linewidth:w, transparent:true, opacity:op, depthTest:false }); FAT.push(m); const l = new Line2(g, m); l.renderOrder = 7; return l; };
+      const full = mk(g1, 1.5, 0.12), done = mk(g2, r.ghost ? 3 : 4, r.ghost ? 0.8 : 1);
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(r.ghost ? 1.0 : 1.3, 20, 14), new THREE.MeshBasicMaterial({ color, depthTest:false })); dot.renderOrder = 9;
+      const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 6), new THREE.MeshBasicMaterial({ color, depthTest:false, transparent:true, opacity:.8 })); pin.renderOrder = 8;
+      const grp = new THREE.Group(); grp.add(full, done, dot, pin); scene.add(grp);
+      return { ri, ghost:r.ghost, P, g1, g2, full, done, grp, dot, pin, A:null, legI0:-1 };
+    });
+    ME = R.find(r => !r.ghost) || R[0] || null;
+    layoutRunners(); resize();
+  }
+  function layoutRunners(){
+    R.forEach(r => { const a = new Float32Array(r.P.length*3);
+      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = (p.fz - 1)*H0*gapK + 0.5; a[i*3+2] = p.z; });
+      r.A = a; r.legI0 = -1; r.g1.setPositions(a); r.g2.setPositions(a); });
+  }
   function layout(){
     plates.forEach(m => m.position.set(m.userData.cx, yOf(m.userData.floor), m.userData.cz));
     flabels.forEach(s => s.position.set(minX - 7, yOf(s.userData.floor) + 3, 0));
     ctrlObjs.forEach(g => g.position.set(g.userData.x, yOf(g.userData.floor) + 0.15, g.userData.z));
-    R.forEach(r => { const a = new Float32Array(r.P.length*3);
-      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = (p.fz - 1)*H0*gapK + 0.5; a[i*3+2] = p.z; });
-      r.A = a; r.legI0 = -1; r.g1.setPositions(a); r.g2.setPositions(a); });
+    layoutRunners();
   }
   function idxAt(r, tt){ let lo = 0, hi = r.P.length - 1; if (tt <= r.P[0].t) return 0; if (tt >= r.P[hi].t) return hi;
     while (hi - lo > 1){ const m = (lo + hi) >> 1; if (r.P[m].t <= tt) lo = m; else hi = m; } return lo; }
@@ -1066,12 +1086,12 @@ async function start(){
       r.full.visible = showAll; r.full.material.opacity = 0.45;
       r.g2.instanceCount = Math.max(0, Math.min(p.i, i1) - i0);
     });
-    const me = ME.cur, curF = Math.round(me.fz), fade = $('#o3Fade').checked;
+    const me = ME && ME.cur, curF = me ? Math.round(me.fz) : (floors.includes(1) ? 1 : floors[0]), fade = $('#o3Fade').checked;
     plates.forEach(m => { const on = !fade || m.userData.floor === curF; m.material.opacity = on ? 1 : 0.22; m.material.alphaTest = on ? 0.4 : 0.05; m.material.depthWrite = on; });
     flabels.forEach(sp => sp.material.opacity = (!fade || sp.userData.floor === curF) ? 1 : 0.35);
     ctrlObjs.forEach(g => g.children.forEach(c => c.material.opacity = (!fade || g.userData.floor === curF) ? 1 : 0.3));
     $('#fl3').textContent = 'Floor ' + curF;
-    if (follow){ tgt.set(me.x, me.y, me.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.08); controls.target.add(d); camera.position.add(d); }
+    if (follow && me){ tgt.set(me.x, me.y, me.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.08); controls.target.add(d); camera.position.add(d); }
   }
   function frame(kind){
     const bb = new THREE.Box3(); plates.forEach(m => bb.expandByObject(m));
@@ -1081,7 +1101,7 @@ async function start(){
     else if (kind === 'side') camera.position.set(c.x, c.y + s.y*0.1, c.z + R0*1.25);
     else camera.position.set(c.x - R0*0.55, c.y + R0*0.75, c.z + R0*0.95);
   }
-  function closeView(){ const me = ME.cur; controls.target.set(me.x, me.y, me.z); camera.position.set(me.x - 45, me.y + 60, me.z + 70); }
+  function closeView(){ const me = ME && ME.cur; if (!me){ frame('all'); return; } controls.target.set(me.x, me.y, me.z); camera.position.set(me.x - 45, me.y + 60, me.z + 70); }
   const setFollow = on => { follow = on; $('#c3Follow').setAttribute('aria-pressed', on); };
   $('#c3Follow').onclick = () => { setFollow(!follow); if (follow) closeView(); };
   $('#c3Top').onclick = () => { setFollow(false); frame('top'); };
@@ -1093,7 +1113,8 @@ async function start(){
   new MutationObserver(setBg).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
   function resize(){ const w = box.clientWidth, h = box.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); FAT.forEach(m => m.resolution.set(w, h)); camera.aspect = w/h; camera.updateProjectionMatrix(); }
   new ResizeObserver(resize).observe(box);
-  setBg(); layout(); resize(); update(); closeView();
+  window.addEventListener('ior-runners', () => { const had = !!ME; setRunners(current()); update(); if (!had && ME && follow) closeView(); });
+  setRunners(current()); setBg(); layout(); resize(); update(); closeView();
   (function loop(){ if (active){ update(); controls.update(); renderer.render(scene, camera); } requestAnimationFrame(loop); })();
 }
 </script>

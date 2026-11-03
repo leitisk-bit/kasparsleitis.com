@@ -2,6 +2,8 @@
 for the Analyze view (all options raced side by side)."""
 import itertools, math
 import networkx as nx
+import numpy as np
+from scipy.spatial import cKDTree
 from . import walk
 from .recon import Recon
 
@@ -40,32 +42,74 @@ def _points(G, N, POLY, p, step=0.5):
     return out
 
 
+def _trace(G, N, POLY, p, step=8.0):
+    """Points along the route about every `step` map pixels: (x, y, floor, distance so far)."""
+    out, acc = [], 0.0
+    for u, v in zip(p, p[1:]):
+        if G[u][v]['fl']: continue
+        poly = POLY.get((u, v)) or [N[u][1:], N[v][1:]]
+        for a, b in zip(poly, poly[1:]):
+            d = math.hypot(b[0] - a[0], b[1] - a[1]); n = max(1, int(d / step))
+            for k in range(n):
+                f = k / n; out.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, N[u][0], acc + d * f))
+            acc += d
+    return out
+
+
+def _doubles_back(tr, near=14.0, gap=80.0, share=0.06):
+    """Does the route run back along a stretch it already ran (to the end of a hall and back)?"""
+    if len(tr) < 10: return False
+    by = {}
+    for i, q in enumerate(tr): by.setdefault(q[2], []).append(i)
+    back = 0
+    for idx in by.values():
+        P = np.array([[tr[i][0], tr[i][1]] for i in idx]); D = np.array([tr[i][3] for i in idx])
+        tree = cKDTree(P)
+        for j, nb in enumerate(tree.query_ball_point(P, near)):
+            if any(D[j] - D[m] > gap for m in nb): back += 1
+    return back > share * len(tr)
+
+
+def _same_as(tr, kept, near=22.0, share=0.75):
+    """Is the route mostly the same corridors as one already listed?"""
+    if not tr: return False
+    for trk in kept:
+        hit = 0
+        for fl in {q[2] for q in tr}:
+            A = [(q[0], q[1]) for q in trk if q[2] == fl]
+            if not A: continue
+            B = np.array([(q[0], q[1]) for q in tr if q[2] == fl])
+            d, _ = cKDTree(np.array(A)).query(B)
+            hit += int((d < near).sum())
+        if hit >= share * len(tr): return True
+    return False
+
+
 def leg_options(graph, leg, px_s=0.04, floor_s=11.0, mpp=0.0847, limit=600, max_opts=8):
+    """Distinct, sensible ways to run one leg, fastest first. A way is left out when it runs back along
+    a stretch it already ran, or when it mostly follows a faster way already listed (another line
+    through the same corridors is not another route)."""
     N, E, POLY, info = graph
     G = walk.graph(N, E, px_s, floor_s)
     names = info['controls']
     a, b = names[leg - 1], names[leg]
-    best, groups = None, {}
+    best, kept = None, []
     try:
         for p in itertools.islice(nx.shortest_simple_paths(G, a, b, weight='t'), limit):
             t = sum(G[u][v]['t'] for u, v in zip(p, p[1:]))
             if best is None: best = t
-            if t > best * 1.8 + 60: break
-            k = _key(G, N, p)
-            if k not in groups: groups[k] = (t, p)
+            if t > best * 1.5 + 30: break             # half as slow again: nobody would choose it
+            tr = _trace(G, N, POLY, p)
+            if kept and (_doubles_back(tr) or _same_as(tr, [k[2] for k in kept])): continue
+            kept.append((t, p, tr))
+            if len(kept) >= max_opts: break
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         return []
-    opts = sorted(groups.values(), key=lambda x: x[0])
-    # same-floor variants: keep only those that differ in time by at least 5 %
-    out, kept_flat = [], []
-    for t, p in opts:
+    out = []
+    for t, p, _ in kept:
         k = _key(G, N, p)
-        if k.startswith('no stairs|'):
-            if any(abs(t - t2) < 0.05 * t2 for t2 in kept_flat): continue
-            kept_flat.append(t)
         px = sum(G[u][v]['px'] for u, v in zip(p, p[1:]) if not G[u][v]['fl'])
         floors = sum(G[u][v]['fl'] for u, v in zip(p, p[1:]))
         out.append({'route': k.split('|')[0], 'time': round(t, 1), 'dist_m': round(px * mpp), 'floors': int(floors),
                     'pts': _points(G, N, POLY, p)})
-        if len(out) >= max_opts: break
     return out
