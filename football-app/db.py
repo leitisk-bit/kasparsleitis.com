@@ -149,3 +149,24 @@ def init_db() -> None:
         )
     con.commit()
     con.close()
+
+
+class JobLock:
+    """One data/model job at a time (timer, page button and GitHub workflow can all start one).
+    with JobLock() as ok: if not ok -> another job is running."""
+    def __init__(self):
+        self.path = DB_PATH.parent / ".job.lock"
+        self.f = None
+
+    def __enter__(self):
+        import fcntl
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.f = open(self.path, "w")
+        try:
+            fcntl.flock(self.f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+
+    def __exit__(self, *a):
+        self.f.close()

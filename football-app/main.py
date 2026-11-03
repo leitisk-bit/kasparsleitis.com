@@ -579,8 +579,55 @@ def admin_status():
     logs = [dict(x) for x in c.execute("SELECT * FROM sync_log ORDER BY id DESC LIMIT 10")]
     p = _sync["proc"]
     running = p is not None and p.poll() is None
+    with db.JobLock() as free:                       # also sees jobs started by the timer or the command line
+        other = not free
     tail = LOG.read_text()[-3000:] if LOG.exists() else ""
-    return {"coverage": cov, "log": logs, "running": running, "output": tail}
+    return {"coverage": cov, "log": logs, "running": running or other, "started_here": running, "output": tail}
+
+
+@r.get("/api/admin/report")
+def admin_report():
+    """Everything at a glance, for the GitHub 'Football' workflow (and anyone checking from outside)."""
+    c = con()
+    q = lambda sql, *a: [dict(x) for x in c.execute(sql, a)]
+    one = lambda sql, *a: c.execute(sql, a).fetchone()[0]
+    now = datetime.now(timezone.utc).isoformat()
+    runs = []
+    for x in q("SELECT version, created_at, kind, active, notes, params, metrics FROM model_runs ORDER BY id DESC LIMIT 6"):
+        m = _json.loads(x.pop("metrics") or "{}")
+        x["params"] = _json.loads(x["params"] or "{}")
+        for k in ("tuning", "backtest"):
+            if k in m:
+                x[k] = {s: {kk: v for kk, v in r.items() if kk in ("n", "log_score", "skill", "mae", "accuracy", "log_loss", "brier")}
+                        for s, r in m[k].items()}
+        runs.append(x)
+    return {
+        "now": now,
+        "data": {
+            "matches_with_stats": one("SELECT COUNT(*) FROM matches WHERE details_fetched=1"),
+            "finished_without_stats": one("SELECT COUNT(*) FROM matches WHERE status IN ('FT','AET','PEN') AND details_fetched=0"),
+            "latest_with_stats": one("SELECT MAX(date_utc) FROM matches WHERE details_fetched=1"),
+            "upcoming_7d": one("SELECT COUNT(*) FROM matches WHERE status IN ('NS','TBD') AND date_utc BETWEEN ? AND datetime(?, '+7 days')", now, now),
+            "by_season": q("SELECT season, COUNT(*) matches, SUM(details_fetched=1) with_stats FROM matches GROUP BY season ORDER BY season"),
+        },
+        "odds": {
+            "by_market": q("""SELECT market, scope, COUNT(DISTINCT match_id) matches, COUNT(DISTINCT bookmaker) books,
+                              COUNT(*) prices, MAX(last_seen) last FROM odds GROUP BY market, scope ORDER BY matches DESC"""),
+            "unknown_top": q("SELECT name, seen, example FROM odds_unknown ORDER BY seen DESC LIMIT 20"),
+        },
+        "model": {"runs": runs},
+        "picks_live": q("""SELECT tab, COUNT(*) picks, SUM(result IS NOT NULL) settled, SUM(result='won') won, SUM(result='lost') lost,
+                           ROUND(AVG(CASE WHEN result IN ('won','lost') THEN prob END),4) said,
+                           ROUND(SUM(CASE WHEN price IS NOT NULL AND result='won' THEN price-1
+                                          WHEN price IS NOT NULL AND result='lost' THEN -1 ELSE 0 END),2) profit_units
+                           FROM picks WHERE kind='live' GROUP BY tab"""),
+        "picks_backtest": q("""SELECT tab, COUNT(*) picks, SUM(result='won') won, ROUND(AVG(prob),4) said,
+                               ROUND(AVG(result='won'),4) hit FROM picks
+                               WHERE kind='backtest' AND version=(SELECT version FROM model_runs WHERE active=1)
+                               AND result IN ('won','lost') GROUP BY tab"""),
+        "sync_log": q("SELECT started_at, finished_at, kind, calls, matches, quota_left, message FROM sync_log ORDER BY id DESC LIMIT 8"),
+        "deployed": (BASE_DIR / ".deployed").read_text().strip()[:12] if (BASE_DIR / ".deployed").exists() else None,
+    }
 
 
 @r.post("/api/admin/sync")

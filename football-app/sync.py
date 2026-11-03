@@ -135,10 +135,15 @@ if __name__ == "__main__":
     if a.cmd == "init":
         db.init_db()
         print("Database ready")
-    elif a.cmd == "backfill":
-        run("backfill", parse_seasons(a.seasons), a.limit)
-    elif a.cmd == "update":
-        run("update", None, a.limit)
+    elif a.cmd in ("backfill", "update"):
+        with db.JobLock() as ok:
+            if not ok:
+                print("Another data or model job is running — not starting a second one.")
+                sys.exit(0)
+            if a.cmd == "backfill":
+                run("backfill", parse_seasons(a.seasons), a.limit)
+            else:
+                run("update", None, a.limit)
     else:
         status()
     sys.exit(0)

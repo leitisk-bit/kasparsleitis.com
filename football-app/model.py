@@ -703,6 +703,10 @@ if __name__ == "__main__":
     db.init_db()
     con = db.connect()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
+    lock = db.JobLock()
+    if cmd != "report" and not lock.__enter__():
+        print("Another data or model job is running — not starting a second one.")
+        sys.exit(0)
     if cmd == "improve":
         if improve(con):
             backtest(con)
