@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sound Machine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c; --ink: #f3ece2; --dim: #a39a8e; --faint: #4a443d; --line: #2a2622;
+    --accent: #e8a54b; --ok: #7cc49a; --bad: #e46a5e;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); font-family: 'DM Sans', system-ui, sans-serif; overflow: hidden; }
+  body { cursor: none; }
+  body.mouse { cursor: default; }
+
+  #bg { position: fixed; inset: -10%; background-size: cover; background-position: center; filter: blur(80px) saturate(1.3) brightness(.35); opacity: 0; transition: opacity 2s, background-image 2s; }
+  #bg.on { opacity: 1; }
+  #grain { position: fixed; inset: 0; background: radial-gradient(ellipse at 30% 40%, transparent 0%, rgba(15,14,12,.7) 70%); pointer-events: none; }
+
+  .wrap { position: relative; height: 100%; display: grid; grid-template-rows: auto 1fr auto; padding: clamp(20px, 4vh, 48px) clamp(20px, 5vw, 72px); gap: 3vh; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 12px var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .clock { text-align: right; }
+  .clock .t { font-family: 'IBM Plex Mono', monospace; font-size: clamp(32px, 5vw, 64px); font-weight: 400; letter-spacing: -.02em; line-height: 1; }
+  .clock .d { color: var(--dim); font-size: 14px; margin-top: 6px; letter-spacing: .06em; }
+
+  main { display: grid; grid-template-columns: auto 1fr; gap: clamp(24px, 5vw, 80px); align-items: center; min-height: 0; }
+  .art { width: min(42vh, 36vw); aspect-ratio: 1; border-radius: 6px; background: #1b1916 center/cover; box-shadow: 0 30px 80px rgba(0,0,0,.6); position: relative; overflow: hidden; }
+  .art.empty::after { content: ''; position: absolute; inset: 30%; border-radius: 50%; border: 1px solid var(--faint); box-shadow: 0 0 0 20px #1b1916, 0 0 0 21px var(--faint); }
+  .meta { min-width: 0; }
+  .mode { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin-bottom: 2.5vh; }
+  .mode i { width: 28px; height: 2px; background: currentColor; display: inline-block; }
+  .title { font-family: 'Fraunces', serif; font-weight: 300; font-size: clamp(36px, 6.5vw, 104px); line-height: .98; letter-spacing: -.025em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .artist { font-size: clamp(16px, 1.8vw, 26px); color: var(--dim); margin-top: 2vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prog { margin-top: 4vh; display: flex; align-items: center; gap: 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--dim); max-width: 640px; }
+  .bar { flex: 1; height: 2px; background: var(--line); position: relative; }
+  .bar b { position: absolute; inset: 0 auto 0 0; background: var(--ink); width: 0; }
+
+  footer { display: grid; gap: 14px; }
+  .next { display: flex; justify-content: space-between; font-size: 14px; color: var(--dim); gap: 20px; }
+  .next strong { color: var(--ink); font-weight: 500; }
+  .ribbon { position: relative; height: 34px; border-top: 1px solid var(--line); }
+  .ribbon .blk { position: absolute; top: 8px; height: 10px; border-radius: 2px; opacity: .85; }
+  .ribbon .lbl { position: absolute; top: 22px; font-size: 10px; color: var(--dim); white-space: nowrap; letter-spacing: .04em; }
+  .ribbon .now { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink); }
+  .ribbon .now::before { content: ''; position: absolute; top: -4px; left: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+  .ribbon .tick { position: absolute; top: -1px; height: 5px; width: 1px; background: var(--faint); }
+
+  .ctl { position: fixed; right: 24px; bottom: 90px; display: flex; gap: 8px; opacity: 0; transition: opacity .3s; }
+  body.mouse .ctl { opacity: 1; }
+  .ctl button { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--faint); background: rgba(15,14,12,.6); color: var(--ink); font-size: 16px; cursor: pointer; }
+  .ctl button:hover { border-color: var(--ink); }
+
+  .err { position: fixed; left: 50%; transform: translateX(-50%); top: 16px; background: rgba(228,106,94,.15); border: 1px solid var(--bad); color: #ffd9d4; padding: 8px 16px; border-radius: 6px; font-size: 13px; display: none; max-width: 90vw; }
+  .err.on { display: block; }
+
+  #start { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 10; cursor: default; }
+  #start button { background: none; border: 0; color: var(--ink); cursor: pointer; display: grid; justify-items: center; gap: 24px; font: inherit; }
+  #start .ring { width: 160px; height: 160px; border-radius: 50%; border: 1px solid var(--accent); display: grid; place-items: center; animation: pulse 2.4s ease-in-out infinite; }
+  #start .ring::after { content: ''; border-left: 34px solid var(--accent); border-top: 22px solid transparent; border-bottom: 22px solid transparent; margin-left: 10px; }
+  #start .h { font-family: 'Fraunces', serif; font-size: 34px; font-weight: 300; }
+  #start .s { color: var(--dim); font-size: 14px; max-width: 360px; text-align: center; line-height: 1.5; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 18px rgba(232,165,75,.08); } }
+
+  @media (max-width: 700px), (max-aspect-ratio: 1/1) {
+    main { grid-template-columns: 1fr; justify-items: start; }
+    .art { width: min(40vh, 60vw); }
+  }
+</style>
+</head>
+<body>
+<div id="bg"></div><div id="grain"></div>
+<div class="err" id="err"></div>
+
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot" id="dot"></span><span id="devname">Sound Machine</span></div>
+    <div class="clock"><div class="t" id="clock">--:--</div><div class="d" id="date"></div></div>
+  </header>
+  <main>
+    <div class="art empty" id="art"></div>
+    <div class="meta">
+      <div class="mode" id="mode"><i></i><span id="modeText">Starting…</span></div>
+      <div class="title" id="title">Silence</div>
+      <div class="artist" id="artist">&nbsp;</div>
+      <div class="prog"><span id="pos">0:00</span><div class="bar"><b id="bar"></b></div><span id="dur">0:00</span></div>
+    </div>
+  </main>
+  <footer>
+    <div class="next"><span id="nextText"></span><span id="status"></span></div>
+    <div class="ribbon" id="ribbon"></div>
+  </footer>
+</div>
+
+<div class="ctl">
+  <button id="bPrev" title="Previous">⏮</button>
+  <button id="bPlay" title="Play / pause">⏯</button>
+  <button id="bNext" title="Next">⏭</button>
+</div>
+
+<div id="start">
+  <button id="startBtn">
+    <span class="ring"></span>
+    <span class="h">Start the sound machine</span>
+    <span class="s">Click once so the browser allows audio. After that, music starts and stops on its own following the schedule.</span>
+  </button>
+</div>
+
+<script src="shared.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  let KEY = qs.get('key');
+  try { if (KEY) localStorage.setItem('sm_key', KEY); else KEY = localStorage.getItem('sm_key'); } catch (e) {}
+  const AUTOSTART = qs.get('autostart') === '1';
+
+  let cfg = null, player = null, deviceId = null, sdkReady = false, started = false;
+  let token = null, tokenExp = 0;
+  let appliedKey = null, applying = false, fading = false;
+  let baseVol = 0.6, lastError = '', modeLabel = 'Starting…', modeColor = '#e8a54b';
+  let st = null, stAt = 0; // last SDK state + time received
+
+  const showErr = msg => { lastError = msg || ''; $('err').textContent = msg; $('err').classList.toggle('on', !!msg); };
+
+  /* ---------- server API ---------- */
+  async function api(action, body) {
+    const r = await fetch('api.php?action=' + action, {
+      method: body ? 'POST' : 'GET',
+      headers: Object.assign({ 'X-Player-Key': KEY || '' }, body ? { 'Content-Type': 'application/json', 'X-SM': '1' } : {}),
+      body: body ? JSON.stringify(body) : undefined, cache: 'no-store'
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Server error ' + r.status);
+    return j;
+  }
+  async function getToken(force) {
+    if (!force && token && tokenExp * 1000 > Date.now() + 120000) return token;
+    const j = await api('token'); token = j.access_token; tokenExp = j.expires_at; return token;
+  }
+  /* ---------- Spotify Web API (from the browser) ---------- */
+  async function sp(method, path, body) {
+    for (let i = 0; i < 2; i++) {
+      const t = await getToken(i > 0);
+      const r = await fetch('https://api.spotify.com/v1' + path, {
+        method, headers: Object.assign({ Authorization: 'Bearer ' + t }, body ? { 'Content-Type': 'application/json' } : {}),
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (r.status === 401 && i === 0) continue;
+      if (r.ok || r.status === 204) return;
+      let m = ''; try { m = (await r.json()).error.message; } catch (e) {}
+      throw new Error(m || 'Spotify error ' + r.status);
+    }
+  }
+
+  /* ---------- volume fades ---------- */
+  async function fade(to, ms) {
+    if (!player) return;
+    fading = true;
+    try {
+      const from = await player.getVolume(), steps = Math.max(1, Math.round(ms / 100));
+      for (let i = 1; i <= steps; i++) { await player.setVolume(from + (to - from) * (i / steps)); await SM.sleep(100); }
+    } finally { fading = false; }
+  }
+
+  /* ---------- what should be playing right now? ---------- */
+  function desired() {
+    const nowS = Date.now() / 1000, z = SM.zonedNow(cfg.timezone);
+    const o = cfg.override;
+    if (o && o.until > nowS) {
+      return o.action === 'stop'
+        ? { key: `ov:${o.id}:${cfg.nonce}`, type: 'stop', label: 'Paused from admin', color: '#a39a8e' }
+        : { key: `ov:${o.id}:${cfg.nonce}`, type: 'play', uri: o.uri, shuffle: o.shuffle, tracks: o.tracks, volume: o.volume, label: o.name + ' · manual', color: '#e8a54b' };
+    }
+    const s = SM.activeSlot(cfg.slots, z.dow, z.min);
+    if (s) return { key: `s:${s.id}:${s.uri}:${s.start}-${s.end}:${s.volume}:${z.date}:${cfg.nonce}`, type: 'play', uri: s.uri, shuffle: s.shuffle, tracks: s.tracks, volume: s.volume, label: s.name, color: s.color };
+    return { key: `idle:${cfg.nonce}`, type: 'stop', label: 'Off schedule', color: '#a39a8e' };
+  }
+
+  async function apply(d) {
+    const state = await player.getCurrentState();
+    const paused = !state || state.paused;
+    const ctx = state && state.context && state.context.uri;
+
+    if (d.type === 'stop') {
+      if (!paused) {
+        const v = await player.getVolume(); if (v > 0.02) baseVol = v;
+        await fade(0, 3000); await player.pause(); await player.setVolume(baseVol);
+      }
+      return;
+    }
+    const target = d.volume != null ? d.volume / 100 : baseVol;
+    if (ctx === d.uri && !paused) { // already playing the right thing
+      if (d.volume != null) await fade(target, 1500);
+      return;
+    }
+    if (!paused) { const v = await player.getVolume(); if (v > 0.02) baseVol = v; await fade(0, 2500); }
+    else await player.setVolume(0);
+
+    const body = { context_uri: d.uri };
+    if (d.shuffle && d.tracks > 1 && d.uri.startsWith('spotify:playlist:')) body.offset = { position: Math.floor(Math.random() * d.tracks) };
+    try { await sp('PUT', `/me/player/play?device_id=${deviceId}`, body); }
+    catch (e) { if (!body.offset) throw e; delete body.offset; await sp('PUT', `/me/player/play?device_id=${deviceId}`, body); }
+    sp('PUT', `/me/player/shuffle?state=${d.shuffle ? 'true' : 'false'}&device_id=${deviceId}`).catch(() => {});
+    await SM.sleep(700);
+    await fade(target, 3500);
+    if (d.volume == null) baseVol = target;
+  }
+
+  async function tick() {
+    try { cfg = await api('config'); }
+    catch (e) { showErr('Server: ' + e.message); setDot('bad'); return; }
+    if (!cfg.connected) { showErr('Spotify is not connected — open the admin page → Setup → Connect Spotify'); setDot('bad'); return; }
+    renderSchedule();
+    if (!deviceId || applying) return;
+    const d = desired();
+    modeLabel = d.label; modeColor = d.color || '#e8a54b';
+    if (d.key === appliedKey) return;
+    applying = true;
+    try { await apply(d); appliedKey = d.key; showErr(''); }
+    catch (e) { showErr('Could not apply schedule: ' + e.message + ' (retrying)'); }
+    finally { applying = false; render(); }
+  }
+
+  function heartbeat() {
+    if (!KEY) return;
+    api('heartbeat', { deviceId, mode: modeLabel, error: lastError }).catch(() => {});
+  }
+
+  /* ---------- Spotify Web Playback SDK ---------- */
+  function initPlayer() {
+    if (player || !sdkReady || !cfg) return;
+    player = new Spotify.Player({
+      name: cfg.deviceName || 'Sound Machine',
+      getOAuthToken: cb => getToken(true).then(cb).catch(e => showErr(e.message)),
+      volume: baseVol,
+    });
+    player.addListener('ready', ({ device_id }) => { deviceId = device_id; appliedKey = null; setDot('ok'); heartbeat(); tick(); });
+    player.addListener('not_ready', () => { deviceId = null; setDot('bad'); showErr('Spotify player went offline — reconnecting…'); setTimeout(() => player.connect(), 3000); });
+    player.addListener('player_state_changed', s => { st = s; stAt = performance.now(); render(); });
+    player.addListener('initialization_error', ({ message }) => showErr('This browser cannot play Spotify: ' + message));
+    player.addListener('authentication_error', ({ message }) => { showErr('Spotify login problem: ' + message); token = null; });
+    player.addListener('account_error', () => showErr('Spotify Premium is required for web playback.'));
+    player.addListener('playback_error', ({ message }) => showErr('Playback error: ' + message));
+    player.connect();
+  }
+  window.onSpotifyWebPlaybackSDKReady = () => { sdkReady = true; if (started) initPlayer(); };
+
+  async function preload() {
+    if (!KEY) { showErr('Missing player key — open this page as player.html?key=YOUR_PLAYER_KEY'); return; }
+    try { cfg = await api('config'); $('devname').textContent = cfg.deviceName; renderSchedule(); if (started) initPlayer(); }
+    catch (e) { showErr('Server: ' + e.message); setTimeout(preload, 10000); }
+  }
+  function start() {
+    if (started) return;
+    started = true;
+    $('start').style.display = 'none';
+    if (window.Spotify && window.Spotify.Player) sdkReady = true;
+    initPlayer();
+    // must run synchronously inside the click so the browser unlocks audio
+    if (player && player.activateElement) player.activateElement();
+    if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(() => {});
+  }
+  $('startBtn').addEventListener('click', start);
+  preload();
+
+  /* ---------- rendering ---------- */
+  function setDot(c) { $('dot').className = 'dot ' + c; }
+
+  function render() {
+    const tr = st && st.track_window && st.track_window.current_track;
+    const playing = st && !st.paused;
+    $('modeText').textContent = playing || modeLabel !== 'Off schedule' ? modeLabel : 'Off schedule';
+    $('mode').style.color = modeColor;
+    if (tr && playing) {
+      $('title').textContent = tr.name;
+      $('artist').textContent = tr.artists.map(a => a.name).join(', ');
+      const img = (tr.album.images.slice().sort((a, b) => (b.width || 0) - (a.width || 0))[0] || {}).url;
+      if (img) { $('art').style.backgroundImage = `url("${img}")`; $('art').classList.remove('empty'); $('bg').style.backgroundImage = `url("${img}")`; $('bg').classList.add('on'); }
+    } else {
+      $('title').textContent = tr && st.paused ? 'Paused' : 'Silence';
+      $('artist').textContent = tr && st.paused ? tr.name + ' — ' + tr.artists.map(a => a.name).join(', ') : ' ';
+      $('art').classList.add('empty'); $('art').style.backgroundImage = ''; $('bg').classList.remove('on');
+    }
+    $('status').textContent = deviceId ? '' : (started ? 'Connecting to Spotify…' : '');
+  }
+
+  function renderProgress() {
+    if (!st || !st.track_window.current_track) { $('bar').style.width = '0'; $('pos').textContent = $('dur').textContent = '0:00'; return; }
+    const pos = Math.min(st.duration, st.position + (st.paused ? 0 : performance.now() - stAt));
+    $('bar').style.width = (100 * pos / st.duration) + '%';
+    $('pos').textContent = SM.mmss(pos); $('dur').textContent = SM.mmss(st.duration);
+  }
+
+  function renderSchedule() {
+    if (!cfg) return;
+    const z = SM.zonedNow(cfg.timezone);
+    // ribbon: today's slots between 06:00 and 22:00 (stretches if slots fall outside)
+    const today = (cfg.slots || []).filter(s => s.enabled !== false && s.days.includes(z.dow));
+    let a = 6 * 60, b = 22 * 60;
+    today.forEach(s => { a = Math.min(a, SM.hm(s.start)); b = Math.max(b, SM.hm(s.end)); });
+    a = Math.min(a, z.min); b = Math.max(b, z.min + 1);
+    const x = m => ((m - a) / (b - a) * 100).toFixed(3) + '%';
+    let h = '';
+    for (let t = Math.ceil(a / 60) * 60; t <= b; t += 60) h += `<span class="tick" style="left:${x(t)}"></span>`;
+    today.forEach(s => {
+      h += `<span class="blk" style="left:${x(SM.hm(s.start))};width:calc(${x(SM.hm(s.end))} - ${x(SM.hm(s.start))});background:${s.color}"></span>`;
+      h += `<span class="lbl" style="left:${x(SM.hm(s.start))}">${SM.esc(s.start)} ${SM.esc(s.name)}</span>`;
+    });
+    h += `<span class="now" style="left:${x(z.min + z.sec / 60)}"></span>`;
+    $('ribbon').innerHTML = h;
+
+    const nc = SM.nextChange(cfg.slots, z.dow, z.min);
+    const o = cfg.override && cfg.override.until > Date.now() / 1000 ? cfg.override : null;
+    let txt = '';
+    if (o) txt = `Manual until <strong>${SM.esc(new Intl.DateTimeFormat('en-GB', { timeZone: cfg.timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(o.until * 1000))}</strong>, then back to schedule`;
+    else if (nc) {
+      const when = (nc.inDays === 0 ? '' : nc.inDays === 1 ? 'tomorrow ' : SM.DAYS[nc.dow] + ' ') + SM.fmt(nc.min);
+      txt = nc.slot ? `Next: <strong>${SM.esc(nc.slot.name)}</strong> at ${when}` : `Music stops at <strong>${when}</strong>`;
+    } else txt = (cfg.slots || []).length ? '' : 'No schedule yet — add modes on the admin page';
+    $('nextText').innerHTML = txt;
+  }
+
+  function renderClock() {
+    const tz = (cfg && cfg.timezone) || undefined;
+    const now = new Date();
+    $('clock').textContent = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now);
+    $('date').textContent = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' }).format(now);
+  }
+
+  /* ---------- local controls (mouse) ---------- */
+  let mouseT;
+  document.addEventListener('mousemove', () => { document.body.classList.add('mouse'); clearTimeout(mouseT); mouseT = setTimeout(() => document.body.classList.remove('mouse'), 2500); });
+  $('bPlay').onclick = () => player && player.togglePlay();
+  $('bNext').onclick = () => player && player.nextTrack();
+  $('bPrev').onclick = () => player && player.previousTrack();
+
+  /* ---------- loops ---------- */
+  setInterval(renderClock, 1000); renderClock();
+  setInterval(renderProgress, 500);
+  setInterval(() => { if (started) tick(); }, 10000);
+  setInterval(() => { if (started) heartbeat(); }, 15000);
+  setInterval(() => { if (cfg) renderSchedule(); }, 30000);
+  // Unattended kiosk: refresh the page once a night to keep things fresh
+  setInterval(() => {
+    if (!AUTOSTART || !cfg) return;
+    const z = SM.zonedNow(cfg.timezone);
+    if (z.hhmm === '04:00' && !(st && !st.paused)) location.reload();
+  }, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') navigator.wakeLock && navigator.wakeLock.request('screen').catch(() => {}); });
+
+  if (AUTOSTART) start(); // needs Chrome started with --autoplay-policy=no-user-gesture-required
+})();
+</script>
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+</body>
+</html>

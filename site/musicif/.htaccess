@@ -1,0 +1,12 @@
+Options -Indexes
+DirectoryIndex admin.html
+<FilesMatch "\.(json|lock|tmp|md)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</FilesMatch>
+<Files "config.sample.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</Files>

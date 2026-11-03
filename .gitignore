@@ -1,0 +1,3 @@
+site/musicif/config.php
+site/musicif/data/*.json
+site/musicif/data/*.lock

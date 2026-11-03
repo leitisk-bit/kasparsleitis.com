@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f0e0c">
+<title>Sound Machine Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0e0c; --panel: #171513; --panel2: #1f1c19; --ink: #f3ece2; --dim: #a39a8e; --faint: #4a443d; --line: #2a2622;
+    --accent: #e8a54b; --ok: #7cc49a; --bad: #e46a5e; --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 'DM Sans', system-ui, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  .hidden { display: none !important; }
+
+  .top { position: sticky; top: 0; z-index: 5; background: rgba(15,14,12,.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .top .in { max-width: 920px; margin: 0 auto; padding: 14px 16px 0; }
+  .brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand h1 { font: 300 24px 'Fraunces', serif; margin: 0; letter-spacing: -.01em; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 10px var(--ok); } .dot.bad { background: var(--bad); }
+  nav { display: flex; gap: 4px; margin-top: 10px; }
+  nav button { background: none; border: 0; padding: 10px 14px; color: var(--dim); cursor: pointer; border-bottom: 2px solid transparent; }
+  nav button.on { color: var(--ink); border-color: var(--accent); }
+
+  main { max-width: 920px; margin: 0 auto; padding: 18px 16px 120px; display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; }
+  .card h2 { font: 500 12px 'DM Sans', system-ui, sans-serif; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin: 0 0 14px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 0; }
+  .muted { color: var(--dim); font-size: 13px; }
+
+  .btn { border: 1px solid var(--faint); background: var(--panel2); border-radius: 8px; padding: 10px 16px; cursor: pointer; min-height: 42px; }
+  .btn:hover { border-color: var(--dim); }
+  .btn.pri { background: var(--accent); border-color: var(--accent); color: #1a1208; font-weight: 700; }
+  .btn.ghost { background: none; }
+  .btn.danger { color: var(--bad); border-color: rgba(228,106,94,.4); background: none; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .np { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: center; }
+  .np .art { width: 120px; height: 120px; border-radius: 6px; background: var(--panel2) center/cover; }
+  .np .mode { font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+  .np .t { font: 300 26px/1.1 'Fraunces', serif; margin: 6px 0 4px; overflow-wrap: anywhere; }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; margin-top: 12px; overflow: hidden; }
+  .bar b { display: block; height: 100%; background: var(--ink); width: 0; }
+  .transport { display: flex; justify-content: center; gap: 14px; margin-top: 18px; }
+  .round { width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--faint); background: var(--panel2); cursor: pointer; font-size: 18px; display: grid; place-items: center; }
+  .round.big { width: 68px; height: 68px; background: var(--ink); color: var(--bg); border: 0; font-size: 22px; }
+  .vol { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+
+  .banner { border: 1px solid var(--accent); background: rgba(232,165,75,.08); border-radius: var(--r); padding: 12px 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .errbox { border: 1px solid var(--bad); background: rgba(228,106,94,.1); color: #ffd9d4; border-radius: var(--r); padding: 10px 14px; font-size: 14px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--faint); background: none; border-radius: 99px; padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--dim); }
+  .chip.on { border-color: var(--accent); color: var(--ink); background: rgba(232,165,75,.12); }
+
+  .pick { display: flex; align-items: center; gap: 12px; border: 1px dashed var(--faint); border-radius: 8px; padding: 8px; cursor: pointer; background: none; width: 100%; text-align: left; min-height: 58px; }
+  .pick img, .pick .ph { width: 42px; height: 42px; border-radius: 4px; object-fit: cover; background: var(--panel2); flex: none; }
+  .pick:hover { border-color: var(--dim); }
+
+  /* week overview */
+  .week { display: grid; gap: 6px; }
+  .wrow { display: grid; grid-template-columns: 36px 1fr; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+  .wtrack { position: relative; height: 18px; background: var(--panel2); border-radius: 3px; }
+  .wtrack span { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: .85; }
+  .wtrack .nowl { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: 1; }
+  .wscale { display: grid; grid-template-columns: 36px 1fr; gap: 8px; font: 10px 'IBM Plex Mono'; color: var(--faint); }
+  .wscale div { display: flex; justify-content: space-between; }
+
+  .slot { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--accent)); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; }
+  .slot.off { opacity: .55; }
+  .slot .name { background: none; border: 0; border-bottom: 1px solid var(--line); font: 300 22px 'Fraunces', serif; padding: 2px 0; width: 100%; }
+  .slot .name:focus { outline: none; border-color: var(--accent); }
+  .field { display: grid; gap: 6px; }
+  .field > label { font-size: 12px; color: var(--dim); letter-spacing: .06em; }
+  input[type=time], input[type=text], input[type=password], input[type=search] { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-height: 42px; }
+  input[type=time] { font-family: 'IBM Plex Mono'; color-scheme: dark; }
+  input[type=color] { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 4px; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: var(--dim); }
+  .toggle input { accent-color: var(--accent); width: 18px; height: 18px; }
+  .icon { background: none; border: 1px solid var(--line); border-radius: 8px; width: 38px; height: 38px; cursor: pointer; color: var(--dim); }
+
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(23,21,19,.96); border-top: 1px solid var(--accent); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); z-index: 6; }
+  .savebar .in { max-width: 920px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
+
+  dialog { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(560px, 94vw); max-height: 86vh; }
+  dialog::backdrop { background: rgba(0,0,0,.65); }
+  .dlg { display: grid; grid-template-rows: auto auto 1fr auto; max-height: 86vh; }
+  .dlg header { padding: 16px 18px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .dlg header h3 { margin: 0; font: 300 22px 'Fraunces', serif; }
+  .dlg .search { padding: 0 18px 10px; display: grid; gap: 8px; }
+  .plist { overflow: auto; padding: 0 10px; }
+  .pitem { display: flex; gap: 12px; align-items: center; width: 100%; background: none; border: 0; border-radius: 8px; padding: 8px; cursor: pointer; text-align: left; }
+  .pitem:hover { background: var(--panel2); }
+  .pitem img, .pitem .ph { width: 46px; height: 46px; border-radius: 4px; object-fit: cover; background: var(--panel2); flex: none; }
+  .dlg footer { padding: 12px 18px; border-top: 1px solid var(--line); }
+
+  .login { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+  .login form { width: min(360px, 100%); display: grid; gap: 14px; }
+  .login h1 { font: 300 40px 'Fraunces', serif; margin: 0 0 8px; }
+  code, .mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .copy { display: flex; gap: 8px; } .copy input { flex: 1; font-family: 'IBM Plex Mono'; font-size: 12px; }
+  ol.tips { margin: 8px 0 0; padding-left: 20px; color: var(--dim); font-size: 14px; } ol.tips li { margin: 6px 0; }
+  .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 99px; font-size: 14px; z-index: 20; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 90vw; }
+  .toast.on { opacity: 1; }
+  .toast.bad { background: var(--bad); color: #fff; }
+
+  @media (max-width: 560px) {
+    .np { grid-template-columns: 84px 1fr; } .np .art { width: 84px; height: 84px; } .np .t { font-size: 21px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login hidden" id="loginView">
+  <form id="loginForm">
+    <h1>Sound Machine</h1>
+    <input type="password" id="pw" placeholder="Admin password" autocomplete="current-password" required>
+    <button class="btn pri">Log in</button>
+    <div class="muted" id="loginErr"></div>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="appView" class="hidden">
+  <div class="top"><div class="in">
+    <div class="brand">
+      <h1>Sound Machine</h1>
+      <span class="pill"><span class="dot" id="pDot"></span><span id="pText">…</span></span>
+    </div>
+    <nav>
+      <button data-tab="now" class="on">Now</button>
+      <button data-tab="schedule">Schedule</button>
+      <button data-tab="setup">Setup</button>
+    </nav>
+  </div></div>
+
+  <!-- NOW -->
+  <main data-view="now">
+    <div class="errbox hidden" id="nowErr"></div>
+    <div class="banner hidden" id="ovBanner">
+      <span id="ovText"></span>
+      <button class="btn" id="resumeBtn">Back to schedule</button>
+    </div>
+
+    <section class="card">
+      <h2>Now playing</h2>
+      <div class="np">
+        <div class="art" id="npArt"></div>
+        <div class="grow">
+          <div class="mode" id="npMode">—</div>
+          <div class="t" id="npTitle">Nothing playing</div>
+          <div class="muted" id="npArtist"></div>
+          <div class="bar"><b id="npBar"></b></div>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="round" id="cPrev" title="Previous">⏮</button>
+        <button class="round big" id="cPlay" title="Play / pause">▶</button>
+        <button class="round" id="cNext" title="Next">⏭</button>
+      </div>
+      <div class="vol"><span class="muted">🔈</span><input type="range" id="cVol" min="0" max="100" value="50"><span class="mono" id="cVolV">50</span></div>
+      <div class="row" style="margin-top:12px;justify-content:space-between">
+        <label class="toggle"><input type="checkbox" id="cShuffle"> Shuffle</label>
+        <span class="muted" id="npDevice"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Change music now</h2>
+      <div class="grid" style="display:grid;gap:14px">
+        <button class="pick" id="ovPick"><span class="ph"></span><span class="muted">Choose a playlist…</span></button>
+        <div class="field"><label>For how long</label>
+          <div class="chips" id="ovDur">
+            <button class="chip" data-v="30m">30 min</button>
+            <button class="chip" data-v="1h">1 hour</button>
+            <button class="chip" data-v="2h">2 hours</button>
+            <button class="chip on" data-v="next">Until next schedule change</button>
+            <button class="chip" data-v="day">Rest of today</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="btn pri grow" id="ovPlay">Play now</button>
+          <button class="btn danger" id="ovStop">Stop music</button>
+        </div>
+        <div class="muted">The player switches with a smooth fade within ~10 seconds, then returns to the schedule automatically.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>This week</h2>
+      <div class="week" id="weekNow"></div>
+      <div class="muted" style="margin-top:10px" id="nextInfo"></div>
+    </section>
+  </main>
+
+  <!-- SCHEDULE -->
+  <main data-view="schedule" class="hidden">
+    <section class="card">
+      <h2>Week overview</h2>
+      <div class="week" id="weekEdit"></div>
+      <div class="muted" style="margin-top:10px">Modes higher in the list win when times overlap. Times are in <span id="tzName"></span>.</div>
+    </section>
+    <div id="slots" style="display:grid;gap:14px"></div>
+    <button class="btn" id="addSlot">+ Add mode</button>
+  </main>
+
+  <!-- SETUP -->
+  <main data-view="setup" class="hidden">
+    <section class="card">
+      <h2>Spotify account</h2>
+      <div id="spStatus" class="muted">…</div>
+      <div class="row" style="margin-top:14px">
+        <a class="btn pri" href="connect.php" id="spConnect" style="text-decoration:none">Connect Spotify</a>
+      </div>
+      <div class="muted" style="margin-top:12px">Needs Spotify Premium. Spotify asks you to log in again about every 6 months — this page will warn you.</div>
+    </section>
+
+    <section class="card">
+      <h2>Player PC</h2>
+      <div class="field"><label>Open this link on the PC that plays the music</label>
+        <div class="copy"><input type="text" id="plUrl" readonly><button class="btn" id="plCopy">Copy</button></div>
+      </div>
+      <div class="muted" style="margin-top:10px" id="plSeen"></div>
+      <ol class="tips">
+        <li>Use Chrome or Edge, click <b>Start</b> once, keep the tab open (not minimized).</li>
+        <li>Fully unattended: make a desktop shortcut that runs<br><code>chrome --kiosk --autoplay-policy=no-user-gesture-required "PLAYER_LINK&amp;autostart=1"</code><br>and put it in Windows Startup (<code>shell:startup</code>).</li>
+        <li>Turn off PC sleep; screen sleep is fine.</li>
+      </ol>
+      <div class="row" style="margin-top:14px"><button class="btn" id="plTransfer">Move playback to player PC</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Session</h2>
+      <button class="btn ghost" id="logout">Log out</button>
+    </section>
+  </main>
+
+  <div class="savebar hidden" id="saveBar"><div class="in">
+    <span class="grow">Unsaved schedule changes</span>
+    <button class="btn ghost" id="discard">Discard</button>
+    <button class="btn pri" id="save">Save schedule</button>
+  </div></div>
+</div>
+
+<!-- playlist picker -->
+<dialog id="picker"><div class="dlg">
+  <header><h3>Choose playlist</h3><button class="icon" id="pkClose">✕</button></header>
+  <div class="search">
+    <input type="search" id="pkFilter" placeholder="Filter your playlists">
+  </div>
+  <div class="plist" id="pkList"><div class="muted" style="padding:10px">Loading…</div></div>
+  <footer>
+    <div class="row"><input type="text" id="pkLink" class="grow" placeholder="…or paste a Spotify playlist / album link"><button class="btn" id="pkUse">Use link</button></div>
+  </footer>
+</div></dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="shared.js"></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = SM.esc;
+  let status = null, slots = [], savedSlots = '[]', playlists = null, tab = 'now';
+  let ovChoice = null, ovDuration = 'next', volTimer = null, volDragging = false;
+  const COLORS = ['#e8a54b', '#7cc49a', '#6aa5e4', '#d982b5', '#e46a5e', '#b7a6f2', '#d9cf6a'];
+
+  /* ---------- helpers ---------- */
+  async function api(action, body, params = '') {
+    const r = await fetch('api.php?action=' + action + params, {
+      method: body ? 'POST' : 'GET', cache: 'no-store',
+      headers: body ? { 'Content-Type': 'application/json', 'X-SM': '1' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401 && action !== 'login') { showLogin(); throw new Error('Not logged in'); }
+    if (!r.ok) throw new Error(j.error || 'Error ' + r.status);
+    return j;
+  }
+  let toastT;
+  function toast(msg, bad) { const t = $('toast'); t.textContent = msg; t.className = 'toast on' + (bad ? ' bad' : ''); clearTimeout(toastT); toastT = setTimeout(() => t.className = 'toast', 3200); }
+  const fmtTime = (ts, opts = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }) => new Intl.DateTimeFormat('en-GB', Object.assign({ timeZone: status?.timezone }, opts)).format(ts * 1000);
+  const ago = ts => { const s = Math.round(Date.now() / 1000 - ts); return s < 60 ? s + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; };
+
+  /* ---------- auth ---------- */
+  function showLogin() { $('loginView').classList.remove('hidden'); $('appView').classList.add('hidden'); }
+  function showApp() { $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden'); }
+  $('loginForm').onsubmit = async e => {
+    e.preventDefault(); $('loginErr').textContent = '';
+    try { await api('login', { password: $('pw').value }); $('pw').value = ''; boot(); }
+    catch (err) { $('loginErr').textContent = err.message; }
+  };
+  $('logout').onclick = async () => { await api('logout').catch(() => {}); showLogin(); };
+
+  /* ---------- tabs ---------- */
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    document.querySelectorAll('main[data-view]').forEach(m => m.classList.toggle('hidden', m.dataset.view !== t));
+    history.replaceState(null, '', '#' + t);
+    if (t === 'now') refresh();
+  }
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+
+  /* ---------- status / now ---------- */
+  async function refresh(lite) {
+    try { status = await api('status', null, lite ? '&lite=1' : ''); renderStatus(); }
+    catch (e) { if (e.message !== 'Not logged in') $('pText').textContent = 'Server unreachable'; }
+  }
+
+  function renderStatus() {
+    const s = status, p = s.playback, pl = s.player;
+    $('pDot').className = 'dot ' + (pl.online ? 'ok' : 'bad');
+    $('pText').textContent = pl.online ? 'Player online' : (pl.lastSeen ? 'Player offline · ' + ago(pl.lastSeen) : 'Player not started');
+
+    const errs = [];
+    if (!s.connected) errs.push('Spotify is not connected. Go to <a href="#setup" data-go="setup">Setup</a> and connect.');
+    if (s.spotifyError) errs.push(esc(s.spotifyError));
+    if (pl.online && pl.error) errs.push('Player: ' + esc(pl.error));
+    $('nowErr').innerHTML = errs.join('<br>'); $('nowErr').classList.toggle('hidden', !errs.length);
+
+    // override banner
+    const o = s.override;
+    $('ovBanner').classList.toggle('hidden', !o);
+    if (o) $('ovText').innerHTML = (o.action === 'stop' ? '<b>Music stopped</b>' : `Playing <b>${esc(o.name)}</b>`) + ` until ${fmtTime(o.until)}`;
+
+    if (!s.playback) { /* lite or nothing */ }
+    if (p !== undefined && s.playback !== undefined) {
+      $('npMode').textContent = o ? (o.action === 'stop' ? 'Stopped from admin' : 'Manual') : (s.activeSlot ? s.activeSlot.name : (pl.mode || 'Off schedule'));
+      if (p && p.track) {
+        $('npTitle').textContent = p.track; $('npArtist').textContent = p.artists;
+        $('npArt').style.backgroundImage = p.image ? `url("${p.image}")` : '';
+        $('npBar').style.width = (p.duration ? 100 * p.progress / p.duration : 0) + '%';
+        $('npDevice').textContent = p.device ? '🔊 ' + p.device : '';
+      } else {
+        $('npTitle').textContent = 'Nothing playing'; $('npArtist').textContent = ''; $('npArt').style.backgroundImage = ''; $('npBar').style.width = '0'; $('npDevice').textContent = '';
+      }
+      $('cPlay').textContent = p && p.isPlaying ? '⏸' : '▶';
+      if (p && p.volume != null && !volDragging) { $('cVol').value = p.volume; $('cVolV').textContent = p.volume; }
+      if (p) $('cShuffle').checked = p.shuffle;
+    }
+
+    // next info
+    const nc = s.nextChange;
+    $('nextInfo').innerHTML = s.activeSlot
+      ? `Now: <b>${esc(s.activeSlot.name)}</b>` + (nc.at ? ` · until ${fmtTime(nc.at)}` + (nc.slot ? `, then ${esc(nc.slot.name)}` : '') : '')
+      : (nc.at ? (nc.slot ? `Next: <b>${esc(nc.slot.name)}</b> ${fmtTime(nc.at, { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}` : '') : 'No modes scheduled yet.');
+
+    // setup tab
+    $('tzName').textContent = s.timezone;
+    $('plUrl').value = s.playerUrl;
+    $('plSeen').textContent = pl.lastSeen ? `Last heard from the player ${ago(pl.lastSeen)}.` : 'The player page has not connected yet.';
+    if (s.connected) {
+      const days = s.connectedAt ? Math.floor((Date.now() / 1000 - s.connectedAt) / 86400) : 0;
+      $('spStatus').innerHTML = `<span class="dot ok" style="display:inline-block"></span> Connected as <b>${esc(s.spotifyUser || 'Spotify user')}</b>` +
+        (s.connectedAt ? ` · since ${fmtTime(s.connectedAt, { day: 'numeric', month: 'short', year: 'numeric' })}` : '') +
+        (days > 165 ? `<div class="errbox" style="margin-top:10px">Spotify login expires about 6 months after connecting — reconnect now to avoid music stopping.</div>` : '');
+      $('spConnect').textContent = 'Reconnect Spotify';
+    } else {
+      $('spStatus').textContent = 'Not connected.'; $('spConnect').textContent = 'Connect Spotify';
+    }
+    renderWeek($('weekNow'), slots);
+  }
+
+  document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) { e.preventDefault(); setTab(g.dataset.go); } });
+
+  async function control(cmd, value) {
+    try { await api('control', { cmd, value }); setTimeout(refresh, 600); }
+    catch (e) { toast(e.message, true); }
+  }
+  $('cPlay').onclick = () => control(status?.playback?.isPlaying ? 'pause' : 'play');
+  $('cNext').onclick = () => control('next');
+  $('cPrev').onclick = () => control('previous');
+  $('cShuffle').onchange = e => control('shuffle', e.target.checked);
+  $('cVol').oninput = e => {
+    volDragging = true; $('cVolV').textContent = e.target.value;
+    clearTimeout(volTimer); volTimer = setTimeout(() => { control('volume', +e.target.value); volDragging = false; }, 350);
+  };
+  $('plTransfer').onclick = () => control('transfer');
+  $('plCopy').onclick = () => { $('plUrl').select(); navigator.clipboard?.writeText($('plUrl').value); toast('Link copied'); };
+
+  /* ---------- override ---------- */
+  $('ovDur').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; ovDuration = c.dataset.v; [...$('ovDur').children].forEach(x => x.classList.toggle('on', x === c)); };
+  $('ovPick').onclick = async () => { const p = await pickPlaylist(); if (p) { ovChoice = p; renderPick($('ovPick'), p); } };
+  $('ovPlay').onclick = async () => {
+    if (!ovChoice) { toast('Choose a playlist first', true); return; }
+    try { await api('override', Object.assign({ mode: 'play', duration: ovDuration, shuffle: true }, ovChoice)); toast('Switching music…'); refresh(); setTimeout(refresh, 8000); setTimeout(refresh, 14000); }
+    catch (e) { toast(e.message, true); }
+  };
+  $('ovStop').onclick = async () => {
+    try { await api('override', { mode: 'stop', duration: ovDuration }); toast('Stopping music…'); refresh(); setTimeout(refresh, 8000); }
+    catch (e) { toast(e.message, true); }
+  };
+  $('resumeBtn').onclick = async () => {
+    try { await api('override', { mode: 'clear' }); toast('Back to schedule'); refresh(); setTimeout(refresh, 8000); }
+    catch (e) { toast(e.message, true); }
+  };
+
+  /* ---------- playlist picker ---------- */
+  let pickResolve = null;
+  function renderPick(el, p) {
+    el.innerHTML = (p.image ? `<img src="${esc(p.image)}" alt="">` : '<span class="ph"></span>') +
+      `<span class="grow"><b>${esc(p.name)}</b><br><span class="muted">${p.tracks ? p.tracks + ' tracks' : esc(p.uri)}</span></span>`;
+  }
+  function renderPickList() {
+    const f = $('pkFilter').value.trim().toLowerCase();
+    const list = (playlists || []).filter(p => !f || p.name.toLowerCase().includes(f));
+    $('pkList').innerHTML = list.length ? list.map((p, i) =>
+      `<button class="pitem" data-i="${playlists.indexOf(p)}">${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : '<span class="ph"></span>'}
+       <span class="grow"><b>${esc(p.name)}</b><br><span class="muted">${p.tracks} tracks · ${esc(p.owner)}</span></span></button>`).join('')
+      : `<div class="muted" style="padding:10px">${playlists ? 'No playlists match.' : 'Loading…'}</div>`;
+  }
+  async function pickPlaylist() {
+    $('pkFilter').value = ''; $('pkLink').value = '';
+    $('picker').showModal();
+    renderPickList();
+    if (!playlists) {
+      try { playlists = (await api('playlists')).playlists; }
+      catch (e) { $('pkList').innerHTML = `<div class="errbox" style="margin:10px">${esc(e.message)}</div>`; }
+      if (playlists) renderPickList();
+    }
+    return new Promise(r => pickResolve = r);
+  }
+  function closePicker(v) { $('picker').close(); if (pickResolve) { pickResolve(v || null); pickResolve = null; } }
+  $('pkFilter').oninput = renderPickList;
+  $('pkList').onclick = e => { const b = e.target.closest('.pitem'); if (b) { const p = playlists[+b.dataset.i]; closePicker({ uri: p.uri, name: p.name, image: p.image, tracks: p.tracks }); } };
+  $('pkClose').onclick = () => closePicker(null);
+  $('picker').addEventListener('cancel', () => closePicker(null));
+  $('pkUse').onclick = async () => {
+    try { const j = await api('resolve', null, '&q=' + encodeURIComponent($('pkLink').value)); if (j.warning) toast('Saved link, but: ' + j.warning, true); closePicker({ uri: j.uri, name: j.name, image: j.image, tracks: j.tracks }); }
+    catch (e) { toast(e.message, true); }
+  };
+
+  /* ---------- week overview ---------- */
+  function renderWeek(el, list) {
+    const z = status ? SM.zonedNow(status.timezone) : null;
+    let h = '';
+    for (let d = 1; d <= 7; d++) {
+      h += `<div class="wrow"><span>${SM.DAYS[d]}</span><div class="wtrack">`;
+      // draw lower priority first so higher priority ends up on top
+      list.slice().reverse().forEach(s => {
+        if (s.enabled === false || !s.days.includes(d) || SM.hm(s.start) >= SM.hm(s.end)) return;
+        const a = SM.hm(s.start) / 14.4, b = SM.hm(s.end) / 14.4;
+        h += `<span title="${esc(s.name)} ${esc(s.start)}–${esc(s.end)}" style="left:${a}%;width:${b - a}%;background:${esc(s.color)}"></span>`;
+      });
+      if (z && z.dow === d) h += `<span class="nowl" style="left:${z.min / 14.4}%"></span>`;
+      h += '</div></div>';
+    }
+    h += '<div class="wscale"><span></span><div><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div>';
+    el.innerHTML = h;
+  }
+
+  /* ---------- schedule editor ---------- */
+  const dirty = () => JSON.stringify(slots) !== savedSlots;
+  function markDirty() { $('saveBar').classList.toggle('hidden', !dirty()); renderWeek($('weekEdit'), slots); }
+
+  function renderSlots() {
+    $('slots').innerHTML = slots.map((s, i) => `
+      <div class="slot ${s.enabled === false ? 'off' : ''}" style="--c:${esc(s.color)}" data-i="${i}">
+        <div class="row">
+          <input class="name grow" data-k="name" value="${esc(s.name)}" placeholder="Mode name, e.g. Morning">
+          <input type="color" data-k="color" value="${esc(s.color)}" title="Colour">
+        </div>
+        <div class="chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<button class="chip ${s.days.includes(d) ? 'on' : ''}" data-day="${d}">${SM.DAYS[d]}</button>`).join('')}</div>
+        <div class="row">
+          <div class="field"><label>Start</label><input type="time" data-k="start" value="${esc(s.start)}"></div>
+          <div class="field"><label>End</label><input type="time" data-k="end" value="${esc(s.end === '24:00' ? '23:59' : s.end)}"></div>
+        </div>
+        <div class="field"><label>Playlist</label><button class="pick" data-act="pick"></button></div>
+        <div class="row">
+          <label class="toggle"><input type="checkbox" data-k="shuffle" ${s.shuffle ? 'checked' : ''}> Shuffle</label>
+          <label class="toggle"><input type="checkbox" data-k="setvol" ${s.volume != null ? 'checked' : ''}> Set volume</label>
+          <input type="range" min="0" max="100" data-k="volume" value="${s.volume ?? 60}" class="${s.volume == null ? 'hidden' : ''}" style="max-width:160px">
+          <span class="mono ${s.volume == null ? 'hidden' : ''}" data-volv>${s.volume ?? ''}</span>
+        </div>
+        <div class="row" style="justify-content:space-between">
+          <label class="toggle"><input type="checkbox" data-k="enabled" ${s.enabled !== false ? 'checked' : ''}> Active</label>
+          <div class="row">
+            <button class="icon" data-act="up" title="Higher priority" ${i === 0 ? 'disabled' : ''}>↑</button>
+            <button class="icon" data-act="down" title="Lower priority" ${i === slots.length - 1 ? 'disabled' : ''}>↓</button>
+            <button class="btn danger" data-act="del">Delete</button>
+          </div>
+        </div>
+      </div>`).join('') || '<div class="card muted">No modes yet. Add one — e.g. “Workday”, Mon–Fri 08:00–18:30.</div>';
+    slots.forEach((s, i) => {
+      const el = $('slots').querySelector(`[data-i="${i}"] [data-act=pick]`);
+      if (s.uri) renderPick(el, { name: s.playlistName || s.uri, image: s.image, tracks: s.tracks, uri: s.uri });
+      else el.innerHTML = '<span class="ph"></span><span class="muted">Choose a playlist…</span>';
+    });
+    markDirty();
+  }
+
+  $('slots').addEventListener('input', e => {
+    const card = e.target.closest('.slot'); if (!card) return;
+    const s = slots[+card.dataset.i], k = e.target.dataset.k;
+    if (k === 'name' || k === 'start' || k === 'end') s[k] = e.target.value;
+    if (k === 'end' && e.target.value === '23:59') s.end = '24:00';
+    if (k === 'color') { s.color = e.target.value; card.style.setProperty('--c', s.color); }
+    if (k === 'volume') { s.volume = +e.target.value; card.querySelector('[data-volv]').textContent = s.volume; }
+    markDirty();
+  });
+  $('slots').addEventListener('change', e => {
+    const card = e.target.closest('.slot'); if (!card) return;
+    const s = slots[+card.dataset.i], k = e.target.dataset.k;
+    if (k === 'shuffle') s.shuffle = e.target.checked;
+    if (k === 'enabled') { s.enabled = e.target.checked; card.classList.toggle('off', !s.enabled); }
+    if (k === 'setvol') { s.volume = e.target.checked ? 60 : null; renderSlots(); return; }
+    markDirty();
+  });
+  $('slots').addEventListener('click', async e => {
+    const card = e.target.closest('.slot'); if (!card) return;
+    const i = +card.dataset.i, s = slots[i];
+    if (e.target.dataset.day) {
+      const d = +e.target.dataset.day;
+      s.days = s.days.includes(d) ? s.days.filter(x => x !== d) : [...s.days, d].sort();
+      e.target.classList.toggle('on'); markDirty(); return;
+    }
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'pick') { const p = await pickPlaylist(); if (p) { Object.assign(s, { uri: p.uri, playlistName: p.name, image: p.image, tracks: p.tracks }); renderSlots(); } }
+    if (act === 'up' && i > 0) { [slots[i - 1], slots[i]] = [slots[i], slots[i - 1]]; renderSlots(); }
+    if (act === 'down' && i < slots.length - 1) { [slots[i + 1], slots[i]] = [slots[i], slots[i + 1]]; renderSlots(); }
+    if (act === 'del' && confirm(`Delete “${s.name || 'this mode'}”?`)) { slots.splice(i, 1); renderSlots(); }
+  });
+  $('addSlot').onclick = () => {
+    slots.push({ id: '', name: slots.length ? '' : 'Workday', days: [1, 2, 3, 4, 5], start: '08:00', end: '18:30', uri: '', playlistName: '', image: '', tracks: 0, volume: null, shuffle: true, color: COLORS[slots.length % COLORS.length], enabled: true });
+    renderSlots();
+    $('slots').lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  $('save').onclick = async () => {
+    try {
+      const j = await api('schedule', { slots });
+      slots = j.slots; savedSlots = JSON.stringify(slots); renderSlots(); toast('Schedule saved — player picks it up within 10 s'); refresh(true);
+    } catch (e) { toast(e.message, true); }
+  };
+  $('discard').onclick = () => { slots = JSON.parse(savedSlots); renderSlots(); };
+  window.addEventListener('beforeunload', e => { if (dirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+  /* ---------- boot ---------- */
+  async function boot() {
+    try {
+      const sch = await api('schedule');
+      showApp();
+      slots = sch.slots || []; savedSlots = JSON.stringify(slots); renderSlots();
+    } catch (e) {
+      if (e.message !== 'Not logged in') { showLogin(); $('loginErr').textContent = 'Server problem: ' + e.message; }
+      return;
+    }
+    // messages from Spotify login redirect: #setup?connected=… / #setup?error=…
+    const [h, q] = location.hash.slice(1).split('?');
+    if (q) { const p = new URLSearchParams(q); if (p.get('connected')) toast(p.get('connected')); if (p.get('error')) toast(p.get('error'), true); }
+    setTab(['now', 'schedule', 'setup'].includes(h) ? h : 'now');
+    refresh();
+  }
+  setInterval(() => { if ($('appView').classList.contains('hidden') || document.hidden) return; refresh(tab !== 'now'); }, 5000);
+  boot();
+})();
+</script>
+</body>
+</html>

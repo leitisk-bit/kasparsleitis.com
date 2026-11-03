@@ -23,3 +23,16 @@ From then on, every change to `site/` goes live in about a minute. The Actions t
 
 - Only changed files are uploaded. Files on the server that did not come from this repository are never deleted.
 - Passwords live only in GitHub Secrets; they are never written into the repository.
+
+## Sound Machine (`site/musicif/`)
+
+Scheduled Spotify music player: admin at https://kasparsleitis.com/musicif/, player at `/musicif/player.html?key=…`.
+Its `config.php` is generated during deploy from these repository secrets (never committed):
+
+| Secret | What |
+|---|---|
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Spotify Developer app (redirect URI `https://kasparsleitis.com/musicif/callback.php`) |
+| `MUSICIF_ADMIN_PASSWORD` | Admin page password |
+| `MUSICIF_PLAYER_KEY` | Long random key used in the player link |
+
+After adding or changing them: **Actions → Deploy to Namecheap → Run workflow**.
