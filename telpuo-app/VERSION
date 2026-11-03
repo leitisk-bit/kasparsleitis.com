@@ -1,1 +1,1 @@
-{"commit": "91a3bec", "date": "2026-11-03T18:19:14+02:00", "change": "Fix legs with no route at fast paces (two short stretches dropped in favour of each other); no straight line over a leg without a route; 2D floor fade is a slider, off by default"}
+{"commit": "2539f42", "date": "2026-11-03T19:57:05+02:00", "change": "Add password-protected Server Info page (/serverinfo)"}
