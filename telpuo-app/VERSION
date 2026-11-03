@@ -1,1 +1,1 @@
-{"commit": "2539f42", "date": "2026-11-03T19:57:05+02:00", "change": "Add password-protected Server Info page (/serverinfo)"}
+{"commit": "cffc6f0", "date": "2026-11-03T19:59:22+02:00", "change": "Serve Server Info at kasparsleitis.com/serverinfo"}
