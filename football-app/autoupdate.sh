@@ -36,7 +36,7 @@ if ! cmp -s "$src/requirements.txt" "$APP/requirements.txt"; then
 fi
 # timer/service files changed? needs root once; tell instead of failing
 for f in football-web.service football-sync.service football-sync.timer; do
-  if ! cmp -s <(sed "s/REPLACE_USER/$USER/" "$src/deploy/$f") "/etc/systemd/system/$f"; then
+  if ! cmp -s <(sed "s/REPLACE_USER/$(id -un)/" "$src/deploy/$f") "/etc/systemd/system/$f"; then
     echo "  NOTE: deploy/$f changed — run: cd $APP && sudo bash deploy/install-units.sh"
   fi
 done
