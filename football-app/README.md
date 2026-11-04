@@ -107,3 +107,10 @@ formations, coaches, and every player's match statistics. `weather.py` adds stad
 and the weather in the 2 hours from kick-off from Open-Meteo (free): measured for played matches, forecast for
 upcoming ones. Both run with every data update. `factors.py` checks whether weather, pitch, rest days, coach changes
 or referees explain anything the model's own predictions miss (workflow actions `collect` and `factors`).
+
+## Other games of our teams
+`other.py` fetches every other game of the teams in our competitions (domestic leagues of teams outside the top 5,
+domestic cups, super cups) with their statistics, into `other_matches` / `other_team_stats`. The tabs stay on our 8
+competitions; rest days count every game; and the model may learn from them: `improve` tries it per statistic and
+keeps it only where predictions of our competitions get better. Opponents outside our competitions count as their
+league's average team. First run: workflow action `other` (~2,800 API calls), then once a day automatically.

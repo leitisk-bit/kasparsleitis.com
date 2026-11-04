@@ -7,6 +7,8 @@
 #   improve   try other model settings; keep only if better; re-test; predict
 #   backtest  re-run the walk-forward test of the active version
 #   backfill  fetch whole seasons (input: seasons)
+#   other     fetch all other games of our teams (domestic league, cups), every season, with details
+#   collected what has been collected so far (details, weather, other games)
 #   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
 #   factors   does weather / pitch / rest / coach change / referee tell more than the model? (analysis)
 #   subs      first substitution timing: 1st half / half-time / 2nd half (analysis only)
@@ -19,7 +21,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -58,6 +60,9 @@ jobs:
                   time.sleep(10)
           if ACTION == "subs":
               print(json.dumps(call("/admin/subs", timeout=120), indent=1, ensure_ascii=False))
+              sys.exit(0)
+          if ACTION == "collected":
+              print(json.dumps(call("/admin/collected", timeout=120), indent=1, ensure_ascii=False))
               sys.exit(0)
           if ACTION == "factors":
               f = call("/admin/factors", timeout=300)

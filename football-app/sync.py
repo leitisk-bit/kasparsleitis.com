@@ -98,6 +98,12 @@ def run(kind: str, seasons=None, limit=None):
                 betsson.fetch(con)
             except Exception as e:  # noqa
                 print("  Betsson check failed:", e, flush=True)
+        if kind == "update":
+            try:
+                import other                     # the teams' domestic league / cup games (lists once a day)
+                other.run(con, client)
+            except Exception as e:  # noqa
+                print("  other games failed:", e, flush=True)
         try:
             import weather                       # match details, stadiums, weather (history + forecast)
             weather.run(con, client)

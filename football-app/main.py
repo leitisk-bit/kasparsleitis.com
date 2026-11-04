@@ -644,9 +644,9 @@ def admin_factors():
 
 @r.get("/api/admin/collected")
 def admin_collected():
-    import extract, weather
+    import extract, other, weather
     c = con()
-    return {"details": extract.summary(c), "weather": weather.summary(c)}
+    return {"details": extract.summary(c), "weather": weather.summary(c), "other_games": other.summary(c)}
 
 
 @r.get("/api/admin/subs")
@@ -669,6 +669,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "betsson.py"), "fetch", "--force"]
     elif kind == "collect":
         cmd = [sys.executable, str(BASE_DIR / "weather.py")]
+    elif kind == "other":
+        cmd = [sys.executable, str(BASE_DIR / "other.py"), "--all"]
     else:
         cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
         if kind == "backfill":

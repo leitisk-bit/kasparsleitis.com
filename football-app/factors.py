@@ -63,7 +63,10 @@ def _rows(con):
     # rest days and coach changes, from every match of each team in our competitions (in date order)
     last, coach_prev, coach_since = {}, {}, {}
     coach = {(r[0], r[1]): r[2] for r in con.execute("SELECT match_id, team_id, coach_id FROM lineups")}
-    all_m = con.execute("SELECT id, date_utc, home_id, away_id FROM matches WHERE status IN ('FT','AET','PEN') ORDER BY date_utc").fetchall()
+    q_all = "SELECT id, date_utc, home_id, away_id FROM matches WHERE status IN ('FT','AET','PEN')"
+    if con.execute("SELECT 1 FROM sqlite_master WHERE name='other_matches'").fetchone():
+        q_all += " UNION ALL SELECT id, date_utc, home_id, away_id FROM other_matches WHERE status IN ('FT','AET','PEN')"
+    all_m = sorted(con.execute(q_all).fetchall(), key=lambda m: m["date_utc"])     # every game: rest days include cups
     rest, newc = {}, {}
     for m in all_m:
         t = datetime.fromisoformat(m["date_utc"].replace("Z", "+00:00"))

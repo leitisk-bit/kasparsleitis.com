@@ -53,13 +53,19 @@ class Data:
 
     def __init__(self, con):
         cols = ", ".join(f"h.{s} h_{s}, a.{s} a_{s}" for s in STATS if s != "goals")
-        rows = con.execute(f"""
-            SELECT m.id, m.date_utc, m.league_id, m.home_id, m.away_id, m.ft_home, m.ft_away, {cols}
-            FROM matches m
-            JOIN team_stats h ON h.match_id=m.id AND h.is_home=1
-            JOIN team_stats a ON a.match_id=m.id AND a.is_home=0
-            WHERE m.status='FT' AND m.details_fetched=1 AND m.ft_home IS NOT NULL
-            ORDER BY m.date_utc""").fetchall()
+        q = """SELECT m.id, m.date_utc, m.league_id, m.home_id, m.away_id, m.ft_home, m.ft_away, {cols}, {main} is_main
+            FROM {m} m
+            JOIN {ts} h ON h.match_id=m.id AND h.is_home=1
+            JOIN {ts} a ON a.match_id=m.id AND a.is_home=0
+            WHERE m.status='FT' AND m.details_fetched=1 AND m.ft_home IS NOT NULL"""
+        rows = con.execute(q.format(cols=cols, main=1, m="matches", ts="team_stats")).fetchall()
+        # the same teams' other games (domestic leagues / cups outside our competitions), see other.py
+        if con.execute("SELECT 1 FROM sqlite_master WHERE name='other_matches'").fetchone():
+            rows += con.execute(q.format(cols=cols, main=0, m="other_matches", ts="other_team_stats")).fetchall()
+        rows.sort(key=lambda r: r["date_utc"])
+        self.main = np.array([bool(r["is_main"]) for r in rows], dtype=bool)
+        # only teams of our competitions get their own strength; other opponents count as their league's average
+        self.known = {int(r["home_id"]) for r in rows if r["is_main"]} | {int(r["away_id"]) for r in rows if r["is_main"]}
         self.ids = np.array([r["id"] for r in rows], dtype=np.int64)
         self.t = np.array([_ts(r["date_utc"]) for r in rows])
         self.league = np.array([r["league_id"] for r in rows])
@@ -76,7 +82,10 @@ class Data:
         self.row_of = {int(m): i for i, m in enumerate(self.ids)}
 
     def __len__(self):
-        return len(self.ids)
+        return int(self.main.sum())             # matches of our competitions
+
+    def main_t(self):
+        return self.t[self.main]
 
 
 # ---------------------------------------------------------------- fitting
@@ -131,24 +140,26 @@ def fit(data: Data, stat, as_of, params):
     """Fit one statistic on matches before `as_of` (unix time)."""
     hl, lam, window = params["half_life"], params["lam"], params["window"]
     yh, ya = data.y[stat]
-    sel = (data.t < as_of) & (data.t >= as_of - window * DAY) & ~np.isnan(yh) & ~np.isnan(ya)
+    use = data.main | bool(params.get("other", 0))
+    sel = use & (data.t < as_of) & (data.t >= as_of - window * DAY) & ~np.isnan(yh) & ~np.isnan(ya)
     idx = np.nonzero(sel)[0]
     if len(idx) < 50:
         return None
     w_m = 0.5 ** ((as_of - data.t[idx]) / (hl * DAY))
-    teams = np.unique(np.concatenate([data.home[idx], data.away[idx]]))
+    teams = [t for t in np.unique(np.concatenate([data.home[idx], data.away[idx]])) if int(t) in data.known]
     leagues = np.unique(data.league[idx])
     lg_col = {int(l): 2 + i for i, l in enumerate(leagues)}
     off = 2 + len(leagues)
     att = {int(t): off + i for i, t in enumerate(teams)}
     dfn = {int(t): off + len(teams) + i for i, t in enumerate(teams)}
-    p = off + 2 * len(teams)
+    zero = off + 2 * len(teams)                 # teams outside our competitions: strength fixed at 0 (league average)
+    p = zero + 1
 
     # two observations per match: home side and away side
     n = len(idx)
     lgc = np.array([lg_col[int(l)] for l in data.league[idx]])
-    ah = np.array([att[int(t)] for t in data.home[idx]]); aa = np.array([att[int(t)] for t in data.away[idx]])
-    dh = np.array([dfn[int(t)] for t in data.home[idx]]); da = np.array([dfn[int(t)] for t in data.away[idx]])
+    ah = np.array([att.get(int(t), zero) for t in data.home[idx]]); aa = np.array([att.get(int(t), zero) for t in data.away[idx]])
+    dh = np.array([dfn.get(int(t), zero) for t in data.home[idx]]); da = np.array([dfn.get(int(t), zero) for t in data.away[idx]])
     C = np.empty((2 * n, 5), dtype=np.int64)
     V = np.ones((2 * n, 5))
     C[:n] = np.stack([np.zeros(n, int), np.ones(n, int), lgc, ah, da], 1)
@@ -160,6 +171,7 @@ def fit(data: Data, stat, as_of, params):
     pen = np.zeros(p)
     pen[2:off] = 1.0                    # competition level: lightly shrunk
     pen[off:] = lam                     # team strengths: shrunk towards average
+    pen[zero] = 1e9
     pen[1] = 0.01
     beta = np.zeros(p)
     beta[0] = math.log(max(np.average(y, weights=w), 0.05))
@@ -476,7 +488,7 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
     t = start
     while t < end:
         t2 = min(t + step_days * DAY, end)
-        block = np.nonzero((data.t >= t) & (data.t < t2))[0]
+        block = np.nonzero(data.main & (data.t >= t) & (data.t < t2))[0]
         if len(block):
             fits = {s: fit(data, s, t, params[s]) for s in stats}
             base = {s: fit(data, s, t, {**params[s], "lam": 1e6}) for s in stats}   # no team strengths
@@ -533,9 +545,9 @@ def improve(con, data=None):
     if len(data) < 300:
         log("Not enough matches with statistics yet to tune (need 300).")
         return None
-    end = float(data.t.max()) + 1
-    start = max(end - 365 * DAY, float(data.t.min()) + 240 * DAY)
-    log(f"Tuning on {np.sum(data.t >= start)} matches from {datetime.fromtimestamp(start, timezone.utc):%Y-%m-%d}")
+    end = float(data.main_t().max()) + 1
+    start = max(end - 365 * DAY, float(data.main_t().min()) + 240 * DAY)
+    log(f"Tuning on {np.sum(data.main_t() >= start)} matches from {datetime.fromtimestamp(start, timezone.utc):%Y-%m-%d}")
     best = {}
     tried = {}
     for prm in GRID:
@@ -548,6 +560,17 @@ def improve(con, data=None):
                 best[s] = (prm, sc[s]["log_score"])
         log("tried", prm, {s: sc[s]["log_score"] for s in sc if s in STATS})
     params = {s: dict(best[s][0]) if s in best else dict(DEFAULT_PARAMS) for s in STATS}
+    if (~data.main).any():
+        # the same settings, but also learning from the teams' domestic league / cup games
+        alt = {s: {**params[s], "other": 1} for s in STATS}
+        sc = walk_forward(data, alt, start, end, 14)
+        for s in STATS:
+            if s in sc:
+                tried.setdefault(s, []).append({**alt[s], "log_score": sc[s]["log_score"]})
+                if sc[s]["log_score"] > best[s][1] + 1e-4:
+                    params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"])
+        log("with other games", {s: (sc[s]["log_score"], "used" if params[s].get("other") else "not better")
+                                 for s in sc if s in STATS})
     cur = active_run(con)
     cur_params = params_of(cur)
     cur_score = walk_forward(data, cur_params, start, end, 14)
@@ -588,8 +611,8 @@ def backtest(con, data=None):
     if len(data) < 300:
         log("Not enough matches for a backtest yet.")
         return
-    start = float(data.t.min()) + 180 * DAY
-    end = float(data.t.max()) + 1
+    start = float(data.main_t().min()) + 180 * DAY
+    end = float(data.main_t().max()) + 1
     con.execute("DELETE FROM predictions WHERE kind='backtest' AND version=?", (v,))
     con.execute("DELETE FROM picks WHERE kind='backtest' AND version=?", (v,))
     made = now_iso()

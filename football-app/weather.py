@@ -61,10 +61,13 @@ def _json(url, tries=3):
 def fetch_venues(con, client):
     ids = [r[0] for r in con.execute(
         "SELECT DISTINCT x.venue_id FROM match_extra x LEFT JOIN venues v ON v.id=x.venue_id "
-        "WHERE x.venue_id IS NOT NULL AND v.id IS NULL")]
+        "WHERE x.venue_id IS NOT NULL AND x.venue_id > 0 AND v.id IS NULL")]
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for vid in ids:
-        res = client.get("/venues", id=vid).get("response") or []
+        try:
+            res = client.get("/venues", id=vid).get("response") or []
+        except RuntimeError as e:               # one bad stadium record must not stop the rest
+            log(f"  venue {vid}: {e}"); res = []
         v = res[0] if res else {}
         con.execute("INSERT OR REPLACE INTO venues(id,name,city,country,capacity,surface,fetched_at) VALUES (?,?,?,?,?,?,?)",
                     (vid, v.get("name"), v.get("city"), v.get("country"), v.get("capacity"),
