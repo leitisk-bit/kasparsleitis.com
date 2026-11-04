@@ -635,6 +635,20 @@ def admin_report():
     }
 
 
+@r.get("/api/admin/factors")
+def admin_factors():
+    """Weather, pitch, rest days, coach changes, referees vs the model's walk-forward predictions (factors.py)."""
+    import factors
+    return factors.analyse(con())
+
+
+@r.get("/api/admin/collected")
+def admin_collected():
+    import extract, weather
+    c = con()
+    return {"details": extract.summary(c), "weather": weather.summary(c)}
+
+
 @r.get("/api/admin/subs")
 def admin_subs():
     """First substitution timing (1st half / half-time / 2nd half), see subs_analysis.py."""
@@ -653,6 +667,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "model.py"), kind]
     elif kind == "betsson":
         cmd = [sys.executable, str(BASE_DIR / "betsson.py"), "fetch", "--force"]
+    elif kind == "collect":
+        cmd = [sys.executable, str(BASE_DIR / "weather.py")]
     else:
         cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
         if kind == "backfill":

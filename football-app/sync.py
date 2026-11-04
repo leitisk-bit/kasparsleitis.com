@@ -98,6 +98,11 @@ def run(kind: str, seasons=None, limit=None):
                 betsson.fetch(con)
             except Exception as e:  # noqa
                 print("  Betsson check failed:", e, flush=True)
+        try:
+            import weather                       # match details, stadiums, weather (history + forecast)
+            weather.run(con, client)
+        except Exception as e:  # noqa — extra data is optional; never block the update
+            print("  details / weather failed:", e, flush=True)
         _log_end(con, log_id, client, total)
         print(f"Done. {total} matches with details. API calls: {client.calls}, quota left: {client.quota_left}")
         print("Running predictions", flush=True)

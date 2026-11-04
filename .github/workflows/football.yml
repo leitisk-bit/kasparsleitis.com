@@ -7,6 +7,8 @@
 #   improve   try other model settings; keep only if better; re-test; predict
 #   backtest  re-run the walk-forward test of the active version
 #   backfill  fetch whole seasons (input: seasons)
+#   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
+#   factors   does weather / pitch / rest / coach change / referee tell more than the model? (analysis)
 #   subs      first substitution timing: 1st half / half-time / 2nd half (analysis only)
 #   betsson   fetch Betsson (= Betsafe) prices now from The Odds API and re-measure the Bet365 difference
 name: Football
@@ -17,7 +19,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -56,6 +58,24 @@ jobs:
                   time.sleep(10)
           if ACTION == "subs":
               print(json.dumps(call("/admin/subs", timeout=120), indent=1, ensure_ascii=False))
+              sys.exit(0)
+          if ACTION == "factors":
+              f = call("/admin/factors", timeout=300)
+              if "error" in f: sys.exit(f["error"])
+              print(f"{f['matches']} matches with walk-forward predictions, {f['with_weather']} with weather")
+              print("model's normal error (actual - expected):", f["overall_bias"])
+              stats = ["goals", "corners", "total_shots", "shots_on_goal", "offsides", "yellow", "fouls"]
+              for name, buckets in f["factors"].items():
+                  print(f"\n== {name}   (difference vs model, %   z)")
+                  print("   " + " " * 22 + "".join(f"{s[:13]:>16}" for s in stats))
+                  for b, cells in buckets.items():
+                      n = max((c or {}).get("n", 0) for c in cells.values())
+                      fmt = lambda c: "-" if not c else "%+.1f%% %+.1f" % (c["diff_pct"], c["z"])
+                      line = "".join("%16s" % fmt(cells.get(s)) for s in stats)
+                      print(f"   {b[:16]:<16}{n:>6}{line}")
+              rf = f["referees"]
+              print(f"\n== referees with 40+ matches: {rf['count_40plus']}; beyond chance (|z|>3): {rf['beyond_chance']}")
+              for x in rf["strongest_cards"]: print("   ", x)
               sys.exit(0)
           if ACTION != "status":
               st = call("/admin/status")

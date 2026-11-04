@@ -100,3 +100,10 @@ API-Football has no Betsson/Betsafe, so Bet365 is collected (it has corners, sho
 tennis app's `ODDS_API_KEY` (2 credits per competition, ~16 a week; stops when fewer than `ODDS_API_RESERVE`=150 are
 left). It measures Betsson ÷ Bet365 per market and price range (`price_ratio`), and Bet on uses Betsson's real price
 where it has one, else Bet365's price × that ratio ("Betsafe est."). The record is scored at that Betsafe price.
+
+## All match details, stadiums and weather
+`extract.py` unpacks the stored API responses (no API calls): goals and cards with minutes, VAR, lineups and
+formations, coaches, and every player's match statistics. `weather.py` adds stadiums (city, pitch surface, capacity)
+and the weather in the 2 hours from kick-off from Open-Meteo (free): measured for played matches, forecast for
+upcoming ones. Both run with every data update. `factors.py` checks whether weather, pitch, rest days, coach changes
+or referees explain anything the model's own predictions miss (workflow actions `collect` and `factors`).
