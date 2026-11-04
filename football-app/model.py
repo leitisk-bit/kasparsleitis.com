@@ -62,7 +62,9 @@ class Data:
         rows = con.execute(q.format(cols=cols, main=1, m="matches", ts="team_stats")).fetchall()
         # the same teams' other games (domestic leagues / cups outside our competitions), see other.py
         if con.execute("SELECT 1 FROM sqlite_master WHERE name='other_matches'").fetchone():
-            rows += con.execute(q.format(cols=cols, main=0, m="other_matches", ts="other_team_stats")).fetchall()
+            from other import COMPETITIVE
+            rows += con.execute(q.format(cols=cols, main=0, m="other_matches", ts="other_team_stats")
+                                + " AND m." + COMPETITIVE).fetchall()
         rows.sort(key=lambda r: r["date_utc"])
         self.main = np.array([bool(r["is_main"]) for r in rows], dtype=bool)
         # only teams of our competitions get their own strength; other opponents count as their league's average

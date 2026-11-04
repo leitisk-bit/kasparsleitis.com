@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS other_lists (team_id INTEGER, season INTEGER, fetched
     PRIMARY KEY (team_id, season));
 """
 FINISHED = ("FT", "AET", "PEN")
+# club friendlies (rotated squads, nothing at stake): stored in the lists, but not used anywhere
+COMPETITIVE = "league_id NOT IN (SELECT id FROM other_competitions WHERE name LIKE '%riendl%')"
 
 
 def log(*a):
@@ -140,7 +142,7 @@ def refresh_lists(con, client, seasons, force=False):
 def fetch_details(con, client, limit=None):
     ids = [r[0] for r in con.execute(
         f"SELECT id FROM other_matches WHERE status IN ({','.join('?' * len(FINISHED))}) AND details_fetched=0 "
-        "ORDER BY date_utc DESC", FINISHED)]
+        f"AND {COMPETITIVE} ORDER BY date_utc DESC", FINISHED)]
     if limit:
         ids = ids[:limit]
     done = 0

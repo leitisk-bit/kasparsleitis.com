@@ -11,6 +11,7 @@
 import json
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
@@ -29,7 +30,13 @@ CREATE TABLE IF NOT EXISTS match_weather (
     wind REAL, gust REAL, humidity REAL, cloud REAL, code INTEGER, fetched_at TEXT
 );
 """
-HOURLY = "temperature_2m,apparent_temperature,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,relative_humidity_2m,cloud_cover,weather_code"
+# 7 variables and at most 14 days per request: Open-Meteo counts that as 1 call (free: 5,000 an hour, 10,000 a day)
+HOURLY = "temperature_2m,precipitation,snowfall,wind_speed_10m,wind_gusts_10m,relative_humidity_2m,weather_code"
+BUDGET = 700                                     # archive calls per run (the update runs every 2 hours)
+
+
+class RateLimited(Exception):
+    pass
 COUNTRY = {"England": "United Kingdom", "Scotland": "United Kingdom", "Wales": "United Kingdom",
            "Northern-Ireland": "United Kingdom", "Northern Ireland": "United Kingdom", "Czech-Republic": "Czechia",
            "Bosnia": "Bosnia and Herzegovina", "Faroe-Islands": "Faroe Islands", "Republic of Ireland": "Ireland"}
@@ -50,7 +57,13 @@ def _json(url, tries=3):
             req = urllib.request.Request(url, headers={"User-Agent": "football-stats"})
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.load(r)
-        except Exception as e:  # noqa
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                raise RateLimited(str(e))           # free limit used up: stop, the next run continues
+            if i == tries - 1:
+                raise
+            time.sleep(5 * (i + 1))
+        except Exception:  # noqa
             if i == tries - 1:
                 raise
             time.sleep(5 * (i + 1))
@@ -90,6 +103,8 @@ def geocode(con):
         try:
             res = _json("https://geocoding-api.open-meteo.com/v1/search?" +
                         urllib.parse.urlencode({"name": name, "count": 10, "language": "en"})).get("results") or []
+        except RateLimited:
+            log("geocoding: Open-Meteo free limit reached — the next run continues"); break
         except Exception as e:  # noqa
             log(f"  geocode {name}: {e}"); continue
         same = [x for x in res if (x.get("country") or "").lower() == want.lower()]
@@ -134,25 +149,32 @@ def _ts(m):
     return m["ts"] or int(datetime.fromisoformat(m["date_utc"].replace("Z", "+00:00")).timestamp())
 
 
-def history(con):
-    """Measured weather for played matches, one archive call per stadium (all its missing dates in one range)."""
+def history(con, budget=BUDGET):
+    """Measured weather for played matches: one archive call per stadium per 2-week window that has matches."""
     rows = con.execute("""SELECT m.id, m.date_utc, x.ts, v.id vid, v.lat, v.lon FROM matches m
         JOIN match_extra x ON x.match_id=m.id JOIN venues v ON v.id=x.venue_id
         LEFT JOIN match_weather w ON w.match_id=m.id
-        WHERE v.lat IS NOT NULL AND m.date_utc < ? AND (w.match_id IS NULL OR w.kind='forecast')""",
+        WHERE v.lat IS NOT NULL AND m.date_utc < ? AND (w.match_id IS NULL OR w.kind='forecast')
+        ORDER BY m.date_utc DESC""",
                        ((datetime.now(timezone.utc) - timedelta(days=6)).isoformat(),)).fetchall()
-    by = {}
-    for r in rows:
-        by.setdefault((r["vid"], r["lat"], r["lon"]), []).append(r)
+    chunks = {}
+    for r in rows:                          # (stadium, 14-day window) -> its matches
+        d = date.fromisoformat(r["date_utc"][:10])
+        chunks.setdefault((r["vid"], r["lat"], r["lon"], d.toordinal() // 14), []).append(r)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     stored = calls = 0
-    for (vid, lat, lon), ms in by.items():
-        d0 = min(m["date_utc"][:10] for m in ms); d1 = max(m["date_utc"][:10] for m in ms)
-        d1 = (date.fromisoformat(d1) + timedelta(days=1)).isoformat()
+    for (vid, lat, lon, _), ms in chunks.items():
+        if calls >= budget:
+            log(f"weather history: budget of {budget} calls used, {len(rows) - stored} matches left for the next runs")
+            break
+        d0 = min(m["date_utc"][:10] for m in ms)
+        d1 = (date.fromisoformat(max(m["date_utc"][:10] for m in ms)) + timedelta(days=1)).isoformat()
         try:
             data = _json("https://archive-api.open-meteo.com/v1/archive?" + urllib.parse.urlencode(
                 {"latitude": lat, "longitude": lon, "start_date": d0, "end_date": d1, "hourly": HOURLY, "timezone": "UTC"}))
             calls += 1
+        except RateLimited:
+            log("weather history: Open-Meteo free limit reached — the next run continues"); break
         except Exception as e:  # noqa
             log(f"  weather venue {vid}: {e}"); continue
         h = data.get("hourly") or {}
@@ -161,8 +183,10 @@ def history(con):
             w = _window(hours, h, _ts(m))
             if w and w["temp"] is not None:
                 _store(con, m["id"], "archive", w, now); stored += 1
-        con.commit()
-        time.sleep(0.3)                     # Open-Meteo free use: be gentle
+        if calls % 50 == 0:
+            con.commit()
+        time.sleep(0.15)
+    con.commit()
     log(f"weather history: {stored} matches from {calls} calls")
     return stored
 
@@ -187,6 +211,8 @@ def forecast(con, force=False):
         try:
             data = _json("https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(
                 {"latitude": lat, "longitude": lon, "hourly": HOURLY, "timezone": "UTC", "past_days": 7, "forecast_days": 16}))
+        except RateLimited:
+            log("forecast: Open-Meteo free limit reached"); break
         except Exception as e:  # noqa
             log(f"  forecast venue {vid}: {e}"); continue
         h = data.get("hourly") or {}

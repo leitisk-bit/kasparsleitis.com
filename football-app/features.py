@@ -51,7 +51,8 @@ def build(con):
     has = lambda t: con.execute("SELECT 1 FROM sqlite_master WHERE name=?", (t,)).fetchone() is not None
     q = "SELECT id, date_utc, status, home_id, away_id, referee, 1 main FROM matches"
     if has("other_matches"):
-        q += " UNION ALL SELECT id, date_utc, status, home_id, away_id, referee, 0 FROM other_matches"
+        from other import COMPETITIVE
+        q += " UNION ALL SELECT id, date_utc, status, home_id, away_id, referee, 0 FROM other_matches WHERE " + COMPETITIVE
     games = sorted(con.execute(q).fetchall(), key=lambda r: r["date_utc"])
     weather = {}
     if has("match_weather"):
