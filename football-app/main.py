@@ -393,9 +393,13 @@ def match_full(match_id: int):
         """SELECT market, scope, side, line, MAX(price) price, MIN(open_price) open_min, COUNT(*) books
            FROM odds WHERE match_id=? GROUP BY market, scope, side, line ORDER BY market, scope, line, side""",
         (match_id,))]
+    # only the newest model version's picks (older versions' picks stay in the database for the record)
     out["picks"] = [dict(x) for x in c.execute(
-        "SELECT tab, market, scope, side, line, prob, price, bookmaker, result, kind, version FROM picks "
-        "WHERE match_id=? AND kind='live' ORDER BY tab, prob DESC", (match_id,))]
+        """SELECT p.tab, p.market, p.scope, p.side, p.line, p.prob, p.price, p.book_price, p.bookmaker, p.result, p.kind, p.version
+           FROM picks p JOIN model_runs r ON r.version=p.version
+           WHERE p.match_id=? AND p.kind='live' AND r.id=(SELECT MAX(r2.id) FROM picks p2 JOIN model_runs r2 ON r2.version=p2.version
+                                                         WHERE p2.match_id=p.match_id AND p2.kind='live')
+           ORDER BY p.tab, p.prob DESC""", (match_id,))]
     return out
 
 

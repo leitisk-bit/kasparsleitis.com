@@ -55,6 +55,7 @@ pre{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border
 #modal .card{max-width:900px;width:100%;position:relative}
 #modal .x{position:absolute;right:12px;top:10px;border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)}
 @media (max-width:700px){header{padding:8px 12px} main{padding:14px 12px 50px} .cols2{grid-template-columns:1fr}}
+.why{white-space:normal;max-width:380px;line-height:1.35;margin-top:2px}
 </style>
 </head>
 <body>
@@ -138,6 +139,49 @@ function pickLabel(p, m){
   }
   const who = p.scope === 'total' ? 'match' : esc(sideName(m, p.scope));
   return `${LABEL[p.market] || p.market} · ${who} ${p.side} ${p.line}`;
+}
+/** Bookmaker market name for a pick, as it is called on Betsafe / Bet365. */
+function marketName(p){
+  const st = LABEL[p.market] || p.market;
+  if (p.market === '1x2') return 'Match result (1X2)';
+  if (p.market === 'dc') return 'Double chance';
+  if (p.market === 'ah') return 'Asian handicap (goals)';
+  if (p.scope === '1x2') return `${st} 1X2 (who gets more)`;
+  if (p.scope === 'dc') return `${st} double chance`;
+  if (p.scope === 'ah') return `${st} Asian handicap`;
+  if (p.scope === 'eh') return `${st} European handicap`;
+  return p.scope === 'total' ? `Total ${st.toLowerCase()} over/under` : `Team total ${st.toLowerCase()} over/under`;
+}
+/** Plain words: what has to happen for the bet to win (and when the stake comes back). */
+function explain(p, m){
+  const T = s => esc(sideName(m, s)), O = s => esc(sideName(m, s === 'home' ? 'away' : 'home'));
+  const unit = p.market === '1x2' || p.market === 'dc' || p.market === 'ah' ? 'goals' : (LABEL[p.market] || p.market).toLowerCase();
+  const n = k => `${k} ${k === 1 ? unit.replace(/s$/, '') : unit}`;
+  const hcp = (side, L) => {                         // Asian handicap on a difference (goals, corners, ...)
+    const t = T(side), o = O(side), unitWord = unit === 'goals' ? '' : ` ${unit}`;
+    if (Math.abs(L * 2 - Math.round(L * 2)) > 1e-9) return 'Quarter line: half the stake on each neighbouring line.';
+    if (Math.abs(L - Math.round(L)) > 1e-9) {        // half line: no stake back
+      return L < 0 ? `${t} must have at least ${Math.ceil(-L)} more${unitWord} than ${o}.`
+                   : `${t} wins if they have more${unitWord}, the same, or at most ${Math.floor(L)} fewer than ${o}.`;
+    }
+    if (L === 0) return `${t} must have more${unitWord} than ${o}; level = stake back.`;
+    return L < 0 ? `${t} needs ${-L + 1}+ more${unitWord} than ${o}; exactly ${-L} more = stake back.`
+                 : `${t} wins with more${unitWord}, the same, or fewer by less than ${L}; exactly ${L} fewer = stake back.`;
+  };
+  if (p.market === '1x2') return p.side === 'draw' ? 'The match must end level after 90 minutes.' : `${T(p.side)} must win (90 minutes).`;
+  if (p.market === 'dc') return p.side === '12' ? 'Either team must win (no draw).' : `${p.side === '1X' ? esc(m.home) : esc(m.away)} must win or draw.`;
+  if (p.market === 'ah') return hcp(p.side, p.line) + ' Counts goals in 90 minutes.';
+  if (p.scope === '1x2') return p.side === 'draw' ? `Both teams must have the same number of ${unit}.` : `${T(p.side)} must have more ${unit} than ${O(p.side)}.`;
+  if (p.scope === 'dc') return p.side === '12' ? `The teams must not have the same number of ${unit}.` : `${p.side === '1X' ? esc(m.home) : esc(m.away)} must have at least as many ${unit}.`;
+  if (p.scope === 'ah') return hcp(p.side, p.line);
+  if (p.scope === 'eh') { const a = p.line > 0 ? `+${p.line}` : `${p.line}`;
+    return `Add ${a} to ${esc(m.home)}'s ${unit}; then ${p.side === 'draw' ? 'the teams must be level' : T(p.side) + ' must have more'}.`; }
+  const k = p.side === 'over' ? Math.floor(p.line) + 1 : Math.ceil(p.line) - 1;
+  const whose = p.scope === 'total' ? 'in the match (both teams together)' : `for ${T(p.scope)}`;
+  return `${p.side === 'over' ? 'At least' : 'At most'} ${n(k)} ${whose}.${p.market === 'cards' ? ' Cards = yellow + red.' : ''}`;
+}
+function pickCell(p, m){
+  return `${pickLabel(p, m)}<div class="muted small why">${esc(marketName(p))} · ${explain(p, m)}</div>`;
 }
 function actual(p, m){
   if (!FINISHED.includes(m.status)) return '';
@@ -298,7 +342,7 @@ views.confidence = () => {
     filter: p => p.prob >= +ST.cmin && (ST.ctype === 'all' || p.market === ST.ctype),
     history: h => { const rows = Object.entries(h.backtest || {}).sort(); return rows.length ? `<div class="note"><b>What the test says</b> (${esc(h.version)}, each match predicted from earlier matches only):<br>${rows.map(([k,o]) => recordLine(o, k)).join('')}${Object.keys(h.live || {}).length ? '<br><b>Live:</b> ' + Object.entries(h.live).map(([k,o]) => recordLine(o, k)).join('') : ''}</div>` : ''; },
     head: `<th class="l">Match</th><th class="l">Pick</th><th>Model</th><th>Fair odds</th><th>Result</th>`,
-    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickCell(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
 };
 
 views.bet = () => {
@@ -311,7 +355,7 @@ views.bet = () => {
     filter: p => p.prob >= +ST.bconf && p.price >= +ST.bodds,
     history: h => { const l = h.live || {}; return l.all ? `<div class="note"><b>Live record:</b> ${recordLine(l.all, 'all picks')}${Object.entries(l.by_market || {}).map(([k,o]) => recordLine(o, LABEL[k] || k)).join('')}</div>` : ''; },
     head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Market</th><th>Price</th><th>Value per 10 €</th><th>Result</th>`,
-    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}${p.book_price && Math.abs(p.book_price - p.price) > 0.005 ? ` · Bet365 ${p.book_price.toFixed(2)}` : ''}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+    row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickCell(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}${p.book_price && Math.abs(p.book_price - p.price) > 0.005 ? ` · Bet365 ${p.book_price.toFixed(2)}` : ''}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
 };
 
 views.sure = () => {
@@ -327,7 +371,7 @@ views.sure = () => {
       return b && b.all ? `<div class="note"><b>What the test says at ${pct(+ST.smin)}+</b> (${esc(h.version)}): ${recordLine(b.all, 'all')}<br>${Object.entries(b.by_stat).map(([k,o]) => recordLine(o, LABEL[k])).join('')}${l && l.all ? `<br><b>Live:</b> ${recordLine(l.all, 'all')}` : ''}</div>` : ''; },
     head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Fair odds</th><th>Expected</th><th>Real</th><th>Result</th>`,
     row: (p, m) => { const e = m.pred && m.pred[p.market]; const ex = e ? (p.scope === 'home' ? e[0] : p.scope === 'away' ? e[1] : e[0] + e[1]) : null;
-      return `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickLabel(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="muted">${f1(ex)}</td><td>${actual(p, m)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`; }});
+      return `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickCell(p, m)}</td><td><b>${pct(p.prob,1)}</b></td><td>${fair(p.prob)}</td><td class="muted">${f1(ex)}</td><td>${actual(p, m)}</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`; }});
 };
 
 views.easy = () => {
@@ -383,7 +427,7 @@ async function showMatch(id){
     <div class="muted small">${dt(m.date_utc)} · ${esc(m.round || '')} · ${esc(m.venue || '')}${m.referee ? ' · Ref: ' + esc(m.referee) : ''}</div>
     ${p ? `<div class="note" style="margin-top:12px">Model ${esc(p.version)} (${p.kind === 'live' ? 'before kick-off' : 'walk-forward test'}): <b>${esc(m.home)} ${pct(p.p1)}</b> · draw <b>${pct(p.px)}</b> · <b>${esc(m.away)} ${pct(p.p2)}</b> · fair odds ${fair(p.p1)} / ${fair(p.px)} / ${fair(p.p2)}
       <br>Expected: ${['goals', ...PSTATS].filter(s => p.markets[s]).map(s => `${LABEL[s]} <b>${f1(p.markets[s].expected[0])}–${f1(p.markets[s].expected[1])}</b>${done && h && a && s !== 'goals' ? ` <span class="muted">(real ${h[s]}–${a[s]})</span>` : ''}`).join(' · ')}</div>` : '<p class="muted">No prediction for this match.</p>'}
-    ${d.picks.length ? `<div class="mgroup">Picks</div>${d.picks.map(x => `<span class="chip">${({confidence:'Confidence',sure:'Sure',easy:'Easy',bet_on:'Bet on'})[x.tab]}: ${pickLabel(x, m)} ${pct(x.prob)}${x.price ? ' @' + x.price.toFixed(2) : ''} <span class="${resCls(x.result)}">${resTxt(x.result)}</span></span>`).join('')}` : ''}
+    ${d.picks.length ? `<div class="mgroup">Picks (model ${esc(d.picks[0].version)})</div><div class="tablewrap"><table><tr><th class="l">Tab</th><th class="l">Bet</th><th>Model</th><th>Fair odds</th><th>Price</th><th>Result</th></tr>${d.picks.map(x => `<tr><td class="l muted small">${({confidence:'Confidence',sure:'Sure Bets',easy:'Easy Wins',bet_on:'Bet on'})[x.tab]}</td><td class="l">${pickCell(x, m)}</td><td><b>${pct(x.prob)}</b></td><td>${fair(x.prob)}</td><td>${x.price ? '<b>' + x.price.toFixed(2) + '</b> <span class="muted small">' + esc(x.bookmaker || '') + '</span>' : '–'}</td><td class="${resCls(x.result)}">${resTxt(x.result)}</td></tr>`).join('')}</table></div>` : ''}
     ${p ? `<div class="mgroup">Over / under — model chance, fair odds and best bookmaker price</div>
       <div class="bar" style="margin:6px 0"><label>Statistic<select id="mstat">${opts(['goals', ...PSTATS].filter(s => p.markets[s]).map(s => [s, LABEL[s]]), 'corners')}</select></label><label>For<select id="mscope">${opts([['total','Match'],['home',m.home],['away',m.away]], 'total')}</select></label></div>
       <div id="mlines" class="tablewrap"></div>` : ''}

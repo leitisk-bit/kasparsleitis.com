@@ -28,6 +28,13 @@ AH = re.compile(r"^(home|away)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", re.I)
 EH = re.compile(r"^(home|draw|away)\s*([+-]?[0-9]+(?:\.[0-9]+)?)$", re.I)
 
 
+def _ah(m):
+    """API-Football writes Asian-handicap lines from the HOME team's side for both outcomes: "Away 2" next to
+    "Home 2" means away -2 (AEK - Real Madrid: "Away 2" @2.00 is Real -2). We store each side's own line."""
+    side, line = m.group(1).lower(), float(m.group(2))
+    return side, (-line if side == "away" else line) + 0.0
+
+
 def classify(bet_name: str, value: str):
     """-> (market, scope, side, line) or None."""
     n = bet_name.strip().lower()
@@ -40,7 +47,7 @@ def classify(bet_name: str, value: str):
         return ("dc", "total", side, 0.0) if side else None
     if n == "asian handicap":
         m = AH.match(v)
-        return ("ah", "total", m.group(1).lower(), float(m.group(2))) if m else None
+        return ("ah", "total", *_ah(m)) if m else None
     half = any(w in n for w in ("half", "1st", "2nd", "first", "second", "minute", "race", "odd/even", "between", "received", "booked", "red card", "yellow card"))
     stat = next((mk for rx, mk in STAT_WORDS if rx.search(n)), None)
     # which team gets more corners / shots / shots on target: 1x2, double chance, Asian and European handicap.
@@ -54,7 +61,7 @@ def classify(bet_name: str, value: str):
             return (stat, "dc", side, 0.0) if side else None
         if "asian handicap" in n:
             m = AH.match(v)
-            return (stat, "ah", m.group(1).lower(), float(m.group(2))) if m else None
+            return (stat, "ah", *_ah(m)) if m else None
         if "european handicap" in n:
             m = EH.match(v)
             return (stat, "eh", m.group(1).lower(), float(m.group(2))) if m else None

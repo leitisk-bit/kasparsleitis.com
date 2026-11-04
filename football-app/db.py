@@ -120,7 +120,29 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+def _once(con, key, fn):
+    """Run a one-time data fix, remembered in the meta table."""
+    con.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    if con.execute("SELECT 1 FROM meta WHERE key=?", (key,)).fetchone():
+        return
+    fn(con)
+    con.execute("INSERT INTO meta(key, value) VALUES (?, datetime('now'))", (key,))
+
+
+def _fix_ah_away(con):
+    """Away Asian-handicap lines were stored with the home team's sign: flip them, and drop the live picks
+    priced with them (their price belonged to the opposite bet)."""
+    if not con.execute("SELECT name FROM sqlite_master WHERE name='odds'").fetchone():
+        return
+    w = "side='away' AND (market='ah' OR scope='ah')"
+    con.execute(f"UPDATE odds SET line = -line - 1000 WHERE {w}")       # two steps: no clash on the primary key
+    con.execute(f"UPDATE odds SET line = line + 1000 WHERE {w} AND line < -500")
+    if con.execute("SELECT name FROM sqlite_master WHERE name='picks'").fetchone():
+        con.execute("DELETE FROM picks WHERE kind='live' AND tab='bet_on' AND (market='ah' OR scope='ah')")
+
+
 def _migrate(con) -> None:
+    _once(con, "fix_ah_away_sign", _fix_ah_away)
     cols = {r[1] for r in con.execute("PRAGMA table_info(matches)")}
     if "ft_home" not in cols:
         # 90-minute score (goals markets are settled on it; 'home_goals' includes extra time)
