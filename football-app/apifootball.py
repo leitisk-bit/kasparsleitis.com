@@ -169,6 +169,7 @@ def store_fixture_details(con, fx: dict) -> bool:
             (mid, tid, 1 if tid == home_id else 0, *row.values(), subs_by_team.get(tid, 0)),
         )
 
+    con.execute("UPDATE team_stats SET cards = yellow + COALESCE(red, 0) WHERE match_id=? AND yellow IS NOT NULL", (mid,))
     con.execute(
         "INSERT OR REPLACE INTO raw_fixtures(match_id,fetched_at,body) VALUES (?,?,?)",
         (mid, _now(), zlib.compress(json.dumps(fx).encode())),

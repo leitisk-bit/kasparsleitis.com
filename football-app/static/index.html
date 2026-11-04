@@ -82,8 +82,9 @@ const API = REMOTE ? 'https://telpuo.kasparsleitis.com/football-api' : '/footbal
 let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
 const $ = s => document.querySelector(s);
 const app = $('#app');
-const LABEL = {corners:'Corners', total_shots:'Shots', shots_on_goal:'Shots on target', offsides:'Offsides', subs:'Substitutions', goals:'Goals', fouls:'Fouls', yellow:'Yellow cards'};
-const PSTATS = ['corners','total_shots','shots_on_goal','offsides','subs'];
+const LABEL = {corners:'Corners', total_shots:'Shots', shots_on_goal:'Shots on target', offsides:'Offsides', subs:'Substitutions', goals:'Goals', fouls:'Fouls', yellow:'Yellow cards', cards:'Cards'};
+const FEAT = {kick:'kick-off time', rest:'short rest', coach:'new coach', weather:'weather', pitch:'pitch', ref:'referee'};
+const PSTATS = ['corners','total_shots','shots_on_goal','offsides','subs','cards'];
 const TABS = [['matches','Matches'],['teams','Teams'],['predictions','Predictions'],['confidence','Confidence'],['bet','Bet on'],['sure','Sure Bets'],['easy','Easy Wins'],['data','Data']];
 let META = {competitions:[], seasons:[]};
 const ST = {}; try { Object.assign(ST, JSON.parse(localStorage.getItem('fb:ui') || '{}')); } catch(e){}
@@ -247,7 +248,7 @@ views.predictions = async () => {
     <div class="bar"><button class="btn" data-job="run">Run predictions now</button><button class="btn ghost" data-job="improve">Improve model</button><button class="btn ghost" data-job="backtest">Re-run test</button><span id="jobst" class="muted small"></span></div>
     ${act ? `<div class="card"><h3>Active model ${esc(act.version)} <span class="muted small" style="font-weight:400">· ${esc(dt(act.created_at))} · ${esc(act.notes || '')}</span></h3>
       <div class="tablewrap"><table><tr><th class="l">Statistic</th><th>Matches tested</th><th>Log score</th><th>Without team strengths</th><th>Gain</th><th>Avg. error</th><th class="l">Settings</th></tr>
-      ${['goals', ...PSTATS].map(s => { const m = bt[s]; const p = act.params[s] || {}; return m ? `<tr><td class="l">${LABEL[s]}</td><td>${m.n.toLocaleString()}</td><td>${m.log_score.toFixed(3)}</td><td class="muted">${m.baseline.toFixed(3)}</td><td class="${m.skill > 0 ? 'won' : 'lost'}">${m.skill > 0 ? '+' : ''}${m.skill.toFixed(3)}</td><td>±${m.mae.toFixed(2)}</td><td class="l muted small">memory ${p.half_life} d · shrink ${p.lam}</td></tr>` : ''; }).join('')}
+      ${['goals', ...PSTATS].map(s => { const m = bt[s]; const p = act.params[s] || {}; return m ? `<tr><td class="l">${LABEL[s]}</td><td>${m.n.toLocaleString()}</td><td>${m.log_score.toFixed(3)}</td><td class="muted">${m.baseline.toFixed(3)}</td><td class="${m.skill > 0 ? 'won' : 'lost'}">${m.skill > 0 ? '+' : ''}${m.skill.toFixed(3)}</td><td>±${m.mae.toFixed(2)}</td><td class="l muted small">memory ${p.half_life} d · shrink ${p.lam}${p.other ? ' · + other games' : ''}${(p.feat || []).length ? ' · uses ' + p.feat.map(f => FEAT[f] || f).join(', ') : ''}</td></tr>` : ''; }).join('')}
       </table></div>
       ${bt['1x2'] ? `<p class="small" style="margin-bottom:0">Match result (home / draw / away): favourite right in <b>${pct(bt['1x2'].accuracy, 1)}</b> of ${bt['1x2'].n.toLocaleString()} matches · log loss ${bt['1x2'].log_loss.toFixed(3)} (always 33/33/33 would be 1.099) · Brier ${bt['1x2'].brier.toFixed(3)}.</p>` : `<p class="muted small">No walk-forward test yet — press "Re-run test".</p>`}
       <p class="muted small" style="margin-bottom:0">Walk-forward test: each match predicted only from matches before it, refitted every week. Log score: higher (closer to 0) is better; "gain" is how much the team strengths add over competition averages.</p></div>` : `<div class="empty">No model yet. After the data backfill press "Run predictions now".</div>`}
@@ -316,7 +317,7 @@ views.bet = () => {
 views.sure = () => {
   ST.smin ??= '0.85'; ST.sstat ??= 'all'; ST.sscope ??= 'total';
   return pickTab({tab:'sure', title:'Sure Bets',
-    intro:`<p>Statistics bets the model is at least this sure about: corners, shots, shots on target, offsides and substitutions, for the match and for each team. For each one the line shown is the boldest one that is still that sure (closest to the expected number), not an easy line like "over 2.5 corners".</p>`,
+    intro:`<p>Statistics bets the model is at least this sure about: corners, shots, shots on target, offsides, substitutions and cards (yellow + red, as the bookmakers count them), for the match and for each team. For each one the line shown is the boldest one that is still that sure (closest to the expected number), not an easy line like "over 2.5 corners".</p>`,
     extra: () => ST.smin,
     controls: () => seg('At least', ST.smin, [['0.8','80%'],['0.85','85%'],['0.9','90%']], v => { ST.smin = v; save(); __reload(); }) +
       seg('For', ST.sscope, [['total','Match'],['teams','Teams'],['all','Both']], v => { ST.sscope = v; save(); __reload(); }) +

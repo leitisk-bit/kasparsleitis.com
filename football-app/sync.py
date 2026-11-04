@@ -7,7 +7,8 @@
 """
 import argparse
 import sys
-from datetime import date, datetime, timezone
+import json
+from datetime import date, datetime, timedelta, timezone
 
 import db
 from apifootball import Client, QuotaExhausted, store_fixture_details, upsert_fixture_basic
@@ -67,6 +68,27 @@ def fetch_missing_details(con, client, limit=None):
     return done
 
 
+def weekly(con, model):
+    """Monday night (UTC): re-tune with everything collected (new matches, factors, other games), re-test,
+    and save a fresh factor analysis. Skipped if done in the last 6 days."""
+    now = datetime.now(timezone.utc)
+    last = con.execute("SELECT MAX(created_at) FROM model_runs WHERE kind='tune'").fetchone()[0]
+    if now.weekday() != 0 or now.hour >= 7 or (last and last > (now - timedelta(days=6)).isoformat()):
+        return
+    print("Weekly: improving the model", flush=True)
+    if model.improve(con):
+        model.backtest(con)
+    model.predict(con); model.settle(con)
+    try:
+        import factors
+        con.execute("CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, made_at TEXT, kind TEXT, data TEXT)")
+        con.execute("INSERT INTO analysis_runs(made_at, kind, data) VALUES (?,?,?)",
+                    (now.isoformat(timespec="seconds"), "factors", json.dumps(factors.analyse(con))))
+        con.commit()
+    except Exception as e:  # noqa
+        print("  factor analysis failed:", e, flush=True)
+
+
 def parse_seasons(s: str):
     if "-" in s:
         a, b = s.split("-")
@@ -114,6 +136,8 @@ def run(kind: str, seasons=None, limit=None):
         print("Running predictions", flush=True)
         import model
         model.run(con)
+        if kind == "update":
+            weekly(con, model)
     except QuotaExhausted as e:
         _log_end(con, log_id, client, total, f"daily quota reached, resume tomorrow: {e}")
         print("Daily quota reached — run the same command again tomorrow, it continues where it stopped.")

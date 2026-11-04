@@ -14,7 +14,7 @@ import db
 from config import (ADMIN_PASSWORD, ADMIN_PASSWORD_HASH, BASE_DIR, BASE_PATH, COMPETITIONS,
                     COOKIE_SECURE, FINISHED, SECRET_KEY)
 
-STATS = ["corners", "total_shots", "shots_on_goal", "offsides", "subs", "fouls", "yellow"]
+STATS = ["corners", "total_shots", "shots_on_goal", "offsides", "subs", "cards", "fouls", "yellow"]
 STATIC = BASE_DIR / "static"
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)

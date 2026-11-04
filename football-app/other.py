@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS other_team_stats (
     match_id INTEGER, team_id INTEGER, is_home INTEGER,
     total_shots INTEGER, shots_on_goal INTEGER, shots_off_goal INTEGER, blocked_shots INTEGER,
     shots_insidebox INTEGER, shots_outsidebox INTEGER, corners INTEGER, offsides INTEGER, fouls INTEGER,
-    yellow INTEGER, red INTEGER, saves INTEGER, possession INTEGER, passes INTEGER, xg REAL, subs INTEGER,
+    yellow INTEGER, red INTEGER, saves INTEGER, possession INTEGER, passes INTEGER, xg REAL, subs INTEGER, cards INTEGER,
     PRIMARY KEY (match_id, team_id)
 );
 CREATE TABLE IF NOT EXISTS other_lists (team_id INTEGER, season INTEGER, fetched_at TEXT, fixtures INTEGER,
@@ -105,6 +105,7 @@ def _details(con, fx):
         cols = list(row)
         con.execute(f"INSERT OR REPLACE INTO other_team_stats(match_id,team_id,is_home,{','.join(cols)},subs) "
                     f"VALUES (?,?,?,{','.join('?' * len(cols))},?)", (mid, tid, int(tid == home), *row.values(), subs.get(tid, 0)))
+    con.execute("UPDATE other_team_stats SET cards = yellow + COALESCE(red, 0) WHERE match_id=? AND yellow IS NOT NULL", (mid,))
     con.execute("INSERT OR REPLACE INTO raw_fixtures(match_id,fetched_at,body) VALUES (?,?,?)",
                 (mid, _now(), zlib.compress(json.dumps(fx).encode())))
     con.execute("UPDATE other_matches SET details_fetched=? WHERE id=?", (1 if stats else 2, mid))

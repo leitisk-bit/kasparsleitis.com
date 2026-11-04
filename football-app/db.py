@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS team_stats (
     corners INTEGER, offsides INTEGER, fouls INTEGER,
     yellow INTEGER, red INTEGER, saves INTEGER,
     possession INTEGER, passes INTEGER, xg REAL,
-    subs INTEGER,
+    subs INTEGER, cards INTEGER,
     PRIMARY KEY (match_id, team_id)
 );
 CREATE INDEX IF NOT EXISTS ix_ts_team ON team_stats(team_id);
@@ -126,6 +126,13 @@ def _migrate(con) -> None:
         # 90-minute score (goals markets are settled on it; 'home_goals' includes extra time)
         con.execute("ALTER TABLE matches ADD COLUMN ft_home INTEGER")
         con.execute("ALTER TABLE matches ADD COLUMN ft_away INTEGER")
+    # cards = yellow + red per team (the cards markets); kept as a column so it works like every other statistic
+    for t in ("team_stats", "other_team_stats"):
+        tc = {r[1] for r in con.execute(f"PRAGMA table_info({t})")}
+        if tc and "cards" not in tc:
+            con.execute(f"ALTER TABLE {t} ADD COLUMN cards INTEGER")
+        if tc:
+            con.execute(f"UPDATE {t} SET cards = yellow + COALESCE(red, 0) WHERE cards IS NULL AND yellow IS NOT NULL")
     pcols = {r[1] for r in con.execute("PRAGMA table_info(picks)")}
     if pcols and "book_price" not in pcols:
         # Bet on: 'price' is the (estimated) Betsafe price, 'book_price' what the source bookmaker showed

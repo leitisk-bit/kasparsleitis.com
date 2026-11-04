@@ -20,6 +20,7 @@ STAT_WORDS = [
     (re.compile(r"corner", re.I), "corners"),
     (re.compile(r"offside", re.I), "offsides"),
     (re.compile(r"\bshots?\b", re.I), "total_shots"),
+    (re.compile(r"\bcards?\b", re.I), "cards"),
     (re.compile(r"\bgoals? over/under|^over/under$|total goals|^total - (home|away)$", re.I), "goals"),
 ]
 OU = re.compile(r"^(over|under)\s*([0-9]+(?:\.[0-9]+)?)$", re.I)
@@ -40,7 +41,7 @@ def classify(bet_name: str, value: str):
     if n == "asian handicap":
         m = AH.match(v)
         return ("ah", "total", m.group(1).lower(), float(m.group(2))) if m else None
-    half = any(w in n for w in ("half", "1st", "2nd", "first", "second", "minute", "race", "odd/even"))
+    half = any(w in n for w in ("half", "1st", "2nd", "first", "second", "minute", "race", "odd/even", "between", "received", "booked", "red card", "yellow card"))
     stat = next((mk for rx, mk in STAT_WORDS if rx.search(n)), None)
     # which team gets more corners / shots / shots on target: 1x2, double chance, Asian and European handicap.
     # The model prices these from home minus away. Lines in a European handicap apply to the home team.

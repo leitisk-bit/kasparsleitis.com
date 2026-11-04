@@ -22,10 +22,11 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 
 import db
+import features as FT
 from odds import BOOKMAKERS as BOOKS
 
-STATS = ["goals", "corners", "total_shots", "shots_on_goal", "offsides", "subs"]
-PICK_STATS = ["corners", "total_shots", "shots_on_goal", "offsides", "subs"]
+STATS = ["goals", "corners", "total_shots", "shots_on_goal", "offsides", "subs", "cards"]
+PICK_STATS = ["corners", "total_shots", "shots_on_goal", "offsides", "subs", "cards"]
 DEFAULT_PARAMS = {"half_life": 240, "lam": 12, "window": 730}
 GRID = [{"half_life": h, "lam": l, "window": 730} for h in (120, 240, 480) for l in (4, 12, 30)]
 GRID += [{"half_life": 240, "lam": 1000, "window": 730}]   # "no team effect": wins where a stat is mostly luck (subs)
@@ -67,6 +68,8 @@ class Data:
         # only teams of our competitions get their own strength; other opponents count as their league's average
         self.known = {int(r["home_id"]) for r in rows if r["is_main"]} | {int(r["away_id"]) for r in rows if r["is_main"]}
         self.ids = np.array([r["id"] for r in rows], dtype=np.int64)
+        self.allf = FT.build(con)                      # factors for every match, played and upcoming
+        self.feat = [self.allf.get(int(r["id"])) for r in rows]
         self.t = np.array([_ts(r["date_utc"]) for r in rows])
         self.league = np.array([r["league_id"] for r in rows])
         self.home = np.array([r["home_id"] for r in rows])
@@ -94,13 +97,18 @@ class Fit:
     def __init__(self, stat, params, beta, cols, disp, nmax):
         self.stat, self.params, self.beta, self.cols, self.disp, self.nmax = stat, params, beta, cols, disp, nmax
 
-    def mu(self, league, home, away):
+    def mu(self, league, home, away, f=None):
         c, b = self.cols, self.beta
         base = b[0] + b[c["lg"].get(league, -1)] if league in c["lg"] else b[0]
+        groups = c.get("groups", [])
+        rc = c.get("ref", {}).get((f or {}).get("ref")) if "ref" in groups else None
         def side(att, dfn, is_home):
             e = base + (b[1] if is_home else 0.0)
             if att in c["att"]: e += b[c["att"][att]]
             if dfn in c["def"]: e += b[c["def"][dfn]]
+            for name, v in FT.side_values(f, groups, is_home):
+                if v: e += b[c["feat"][name]] * v
+            if rc is not None: e += b[rc]
             return math.exp(e)
         return side(home, away, True), side(away, home, False)
 
@@ -153,18 +161,43 @@ def fit(data: Data, stat, as_of, params):
     att = {int(t): off + i for i, t in enumerate(teams)}
     dfn = {int(t): off + len(teams) + i for i, t in enumerate(teams)}
     zero = off + 2 * len(teams)                 # teams outside our competitions: strength fixed at 0 (league average)
-    p = zero + 1
+    groups = [g for g in params.get("feat", []) if g in FT.GROUPS]
+    fnames = [n for g in groups for n, _ in FT.SIDE.get(g, [])]
+    fcol = {n: zero + 1 + i for i, n in enumerate(fnames)}
+    nxt = zero + 1 + len(fnames)
+    rcol = {}
+    if "ref" in groups:                          # referees with enough games in the window get their own effect
+        cnt = {}
+        for i in idx:
+            r = (data.feat[i] or {}).get("ref")
+            if r: cnt[r] = cnt.get(r, 0) + 1
+        for r, k in cnt.items():
+            if k >= 8:
+                rcol[r] = nxt; nxt += 1
+    p = nxt
 
     # two observations per match: home side and away side
     n = len(idx)
     lgc = np.array([lg_col[int(l)] for l in data.league[idx]])
     ah = np.array([att.get(int(t), zero) for t in data.home[idx]]); aa = np.array([att.get(int(t), zero) for t in data.away[idx]])
     dh = np.array([dfn.get(int(t), zero) for t in data.home[idx]]); da = np.array([dfn.get(int(t), zero) for t in data.away[idx]])
-    C = np.empty((2 * n, 5), dtype=np.int64)
-    V = np.ones((2 * n, 5))
-    C[:n] = np.stack([np.zeros(n, int), np.ones(n, int), lgc, ah, da], 1)
-    C[n:] = np.stack([np.zeros(n, int), np.ones(n, int), lgc, aa, dh], 1)
+    K = 5 + len(fnames) + (1 if "ref" in groups else 0)
+    C = np.full((2 * n, K), zero, dtype=np.int64)
+    V = np.zeros((2 * n, K))
+    C[:n, :5] = np.stack([np.zeros(n, int), np.ones(n, int), lgc, ah, da], 1)
+    C[n:, :5] = np.stack([np.zeros(n, int), np.ones(n, int), lgc, aa, dh], 1)
+    V[:, :5] = 1.0
     V[n:, 1] = 0.0                      # away side: no home advantage
+    if K > 5:
+        for j, i in enumerate(idx):
+            fr = data.feat[i]
+            for side_off, is_home in ((0, True), (n, False)):
+                for k, (name, v) in enumerate(FT.side_values(fr, groups, is_home)):
+                    C[side_off + j, 5 + k] = fcol[name]; V[side_off + j, 5 + k] = v
+                if "ref" in groups:
+                    rc = rcol.get((fr or {}).get("ref"))
+                    if rc is not None:
+                        C[side_off + j, K - 1] = rc; V[side_off + j, K - 1] = 1.0
     y = np.concatenate([yh[idx], ya[idx]])
     w = np.concatenate([w_m, w_m])
 
@@ -172,20 +205,21 @@ def fit(data: Data, stat, as_of, params):
     pen[2:off] = 1.0                    # competition level: lightly shrunk
     pen[off:] = lam                     # team strengths: shrunk towards average
     pen[zero] = 1e9
+    for c_ in fcol.values(): pen[c_] = 2.0       # factors: lightly shrunk
+    for c_ in rcol.values(): pen[c_] = 8.0       # referees: shrunk more (many, few games each)
     pen[1] = 0.01
     beta = np.zeros(p)
     beta[0] = math.log(max(np.average(y, weights=w), 0.05))
-    ci = np.repeat(C, 5, axis=1); cj = np.tile(C, (1, 5))
-    vv = (np.repeat(V, 5, axis=1) * np.tile(V, (1, 5)))
+    ci = np.repeat(C, K, axis=1); cj = np.tile(C, (1, K))
+    vv = (np.repeat(V, K, axis=1) * np.tile(V, (1, K)))
+    flat = (ci * p + cj).ravel()
     for _ in range(25):
         eta = (beta[C] * V).sum(1)
         mu = np.exp(np.clip(eta, -10, 10))
         z = eta + (y - mu) / mu
         W = w * mu
-        M = np.zeros((p, p))
-        np.add.at(M, (ci.ravel(), cj.ravel()), (vv * W[:, None]).ravel())
-        rhs = np.zeros(p)
-        np.add.at(rhs, C.ravel(), (V * (W * z)[:, None]).ravel())
+        M = np.bincount(flat, weights=(vv * W[:, None]).ravel(), minlength=p * p).reshape(p, p)
+        rhs = np.bincount(C.ravel(), weights=(V * (W * z)[:, None]).ravel(), minlength=p)
         M[np.diag_indices(p)] += pen
         rhs -= pen * 0                   # ridge towards 0
         new = np.linalg.solve(M, rhs)
@@ -202,7 +236,7 @@ def fit(data: Data, stat, as_of, params):
     else:
         disp = float(np.sum(w * ((y - mu) ** 2 - mu)) / np.sum(w * mu * mu))
         disp = max(disp, 0.0)
-    cols = {"lg": lg_col, "att": att, "def": dfn}
+    cols = {"lg": lg_col, "att": att, "def": dfn, "groups": groups, "feat": fcol, "ref": rcol}
     return Fit(stat, params, beta, cols, disp, nmax)
 
 
@@ -215,12 +249,12 @@ def _trim(a, eps=1e-5):
     return [round(float(x), 6) for x in a[:last]]
 
 
-def predict_match(fits, league, home, away):
+def predict_match(fits, league, home, away, feat=None):
     out = {}
     for s, f in fits.items():
         if f is None:
             continue
-        mh, ma = f.mu(league, home, away)
+        mh, ma = f.mu(league, home, away, feat)
         out[s] = {"eh": round(mh, 3), "ea": round(ma, 3), "ph": _trim(f.pmf(mh)), "pa": _trim(f.pmf(ma))}
     if "goals" in out:
         g = out["goals"]
@@ -464,9 +498,10 @@ def active_run(con):
 
 
 def params_of(run):
-    if not run:
-        return {s: dict(DEFAULT_PARAMS) for s in STATS}
-    return json.loads(run["params"])
+    p = json.loads(run["params"]) if run else {}
+    for s in STATS:                             # statistics added after this version was made: default settings
+        p.setdefault(s, dict(DEFAULT_PARAMS))
+    return p
 
 
 def new_version(con):
@@ -491,12 +526,13 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
         block = np.nonzero(data.main & (data.t >= t) & (data.t < t2))[0]
         if len(block):
             fits = {s: fit(data, s, t, params[s]) for s in stats}
-            base = {s: fit(data, s, t, {**params[s], "lam": 1e6}) for s in stats}   # no team strengths
+            base = {s: fit(data, s, t, {**params[s], "lam": 1e6, "feat": []}) for s in stats}   # no team strengths
             for i in block:
                 lg, h, a = int(data.league[i]), int(data.home[i]), int(data.away[i])
                 if any(fits[s] is None for s in stats):
                     continue
-                pred = predict_match(fits, lg, h, a)
+                fr = data.feat[i]
+                pred = predict_match(fits, lg, h, a, fr)
                 if on_pred:
                     on_pred(int(data.ids[i]), pred)
                 for s in stats:
@@ -504,7 +540,7 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
                     if np.isnan(yh) or np.isnan(ya):
                         continue
                     f, b = fits[s], base[s]
-                    mh, ma = f.mu(lg, h, a); bh, ba = b.mu(lg, h, a)
+                    mh, ma = f.mu(lg, h, a, fr); bh, ba = b.mu(lg, h, a)
                     r = res[s]
                     r["ls"].append((log_score(f.pmf(mh), yh) + log_score(f.pmf(ma), ya)) / 2)
                     r["ls0"].append((log_score(b.pmf(bh), yh) + log_score(b.pmf(ba), ya)) / 2)
@@ -521,7 +557,9 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
     out = {}
     for s, r in res.items():
         if r["n"]:
+            h = len(r["ls"]) // 2
             out[s] = {"n": r["n"], "log_score": round(float(np.mean(r["ls"])), 5),
+                      "halves": [float(np.mean(r["ls"][:h])) if h else None, float(np.mean(r["ls"][h:]))],
                       "baseline": round(float(np.mean(r["ls0"])), 5),
                       "skill": round(float(np.mean(r["ls"]) - np.mean(r["ls0"])), 5),
                       "mae": round(float(np.mean(r["ae"])), 4)}
@@ -536,6 +574,17 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
 
 def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
+
+
+def _steady(new, best, margin):
+    """Better overall by `margin`, and better in both halves of the test period: a pattern has to hold, not
+    win once by chance."""
+    if new["log_score"] <= best[1] + margin:
+        return False
+    old_h = best[2] if len(best) > 2 else None
+    if not old_h or new.get("halves") is None or None in old_h or None in new["halves"]:
+        return True
+    return new["halves"][0] > old_h[0] and new["halves"][1] > old_h[1]
 
 
 def improve(con, data=None):
@@ -557,7 +606,7 @@ def improve(con, data=None):
                 continue
             tried.setdefault(s, []).append({**prm, "log_score": sc[s]["log_score"]})
             if s not in best or sc[s]["log_score"] > best[s][1]:
-                best[s] = (prm, sc[s]["log_score"])
+                best[s] = (prm, sc[s]["log_score"], sc[s]["halves"])
         log("tried", prm, {s: sc[s]["log_score"] for s in sc if s in STATS})
     params = {s: dict(best[s][0]) if s in best else dict(DEFAULT_PARAMS) for s in STATS}
     if (~data.main).any():
@@ -567,10 +616,21 @@ def improve(con, data=None):
         for s in STATS:
             if s in sc:
                 tried.setdefault(s, []).append({**alt[s], "log_score": sc[s]["log_score"]})
-                if sc[s]["log_score"] > best[s][1] + 1e-4:
-                    params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"])
+                if _steady(sc[s], best[s], 1e-4):
+                    params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"], sc[s]["halves"])
         log("with other games", {s: (sc[s]["log_score"], "used" if params[s].get("other") else "not better")
                                  for s in sc if s in STATS})
+    # factors (kick-off, rest, coach, weather, pitch, referee): add a group to a statistic only if it predicts better
+    for g in FT.GROUPS:
+        alt = {s: {**params[s], "feat": list(params[s].get("feat", [])) + [g]} for s in STATS}
+        sc = walk_forward(data, alt, start, end, 14)
+        kept = []
+        for s in STATS:
+            if s in sc and _steady(sc[s], best[s], 2e-4):
+                params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"], sc[s]["halves"]); kept.append(s)
+            if s in sc:
+                tried.setdefault(s, []).append({**alt[s], "log_score": sc[s]["log_score"]})
+        log(f"factor {g}: used for {kept or 'nothing'}")
     cur = active_run(con)
     cur_params = params_of(cur)
     cur_score = walk_forward(data, cur_params, start, end, 14)
@@ -667,7 +727,7 @@ def predict(con, data=None):
     from betsson import ratios
     rat = ratios(con)
     for r in rows:
-        pred = predict_match(fits, r["league_id"], r["home_id"], r["away_id"])
+        pred = predict_match(fits, r["league_id"], r["home_id"], r["away_id"], data.allf.get(r["id"]))
         odds_rows = [dict(o) for o in con.execute(
             "SELECT bookmaker, market, scope, side, line, price FROM odds WHERE match_id=?", (r["id"],))
             if not BOOKS or o["bookmaker"].lower() in BOOKS or o["bookmaker"] == "Betsson"]

@@ -114,3 +114,10 @@ domestic cups, super cups) with their statistics, into `other_matches` / `other_
 competitions; rest days count every game; and the model may learn from them: `improve` tries it per statistic and
 keeps it only where predictions of our competitions get better. Opponents outside our competitions count as their
 league's average team. First run: workflow action `other` (~2,800 API calls), then once a day automatically.
+
+## Patterns in the model (features.py)
+Kick-off time, short rest (3 days or less, any competition), new coach (first 6 games), weather (rain, heavy rain,
+strong wind, cold, hot), artificial pitch, and the referee are fitted together with the team strengths. `improve`
+adds a group to a statistic only if walk-forward predictions get better overall AND in both halves of the test
+year, so chance wins are not kept. Cards (yellow + red) are a statistic like the others; the referee mostly matters
+there. Every Monday night the model is re-tuned with everything collected and a factor analysis is saved.
