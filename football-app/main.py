@@ -649,6 +649,26 @@ def admin_collected():
     return {"details": extract.summary(c), "weather": weather.summary(c), "other_games": other.summary(c)}
 
 
+@r.get("/api/admin/oddscheck")
+def admin_oddscheck(n: int = 6):
+    """Handicap prices next to the result prices, to check which way round the feed writes handicap lines."""
+    c = con()
+    out = []
+    for m in c.execute("""SELECT DISTINCT m.id, th.name home, ta.name away, m.date_utc FROM odds o JOIN matches m ON m.id=o.match_id
+                          JOIN teams th ON th.id=m.home_id JOIN teams ta ON ta.id=m.away_id
+                          WHERE o.bookmaker='Bet365' AND (o.market='ah' OR o.scope='ah') ORDER BY m.date_utc LIMIT ?""", (n,)):
+        q = lambda w, *a: [dict(x) for x in c.execute(
+            f"SELECT market, scope, side, line, price FROM odds WHERE match_id=? AND bookmaker='Bet365' AND {w} ORDER BY market, line, side",
+            (m["id"], *a))]
+        out.append({"match": f"{m['home']} – {m['away']}", "date": m["date_utc"],
+                    "1x2": {x["side"]: x["price"] for x in q("market='1x2'")},
+                    "goals_ah": [(x["side"], x["line"], x["price"]) for x in q("market='ah'")],
+                    "corners_1x2": {x["side"]: x["price"] for x in q("market='corners' AND scope='1x2'")},
+                    "corners_ah": [(x["side"], x["line"], x["price"]) for x in q("market='corners' AND scope='ah'")],
+                    "corners_total_expected": None})
+    return out
+
+
 @r.get("/api/admin/subs")
 def admin_subs():
     """First substitution timing (1st half / half-time / 2nd half), see subs_analysis.py."""

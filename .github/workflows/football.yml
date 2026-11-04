@@ -21,7 +21,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -60,6 +60,12 @@ jobs:
                   time.sleep(10)
           if ACTION == "subs":
               print(json.dumps(call("/admin/subs", timeout=120), indent=1, ensure_ascii=False))
+              sys.exit(0)
+          if ACTION == "oddscheck":
+              for m in call("/admin/oddscheck"):
+                  print("\n", m["match"], m["date"], "| 1x2", m["1x2"], "| corners 1x2", m["corners_1x2"])
+                  print("   goals AH  ", m["goals_ah"])
+                  print("   corners AH", m["corners_ah"])
               sys.exit(0)
           if ACTION == "collected":
               print(json.dumps(call("/admin/collected", timeout=120), indent=1, ensure_ascii=False))
