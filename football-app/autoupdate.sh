@@ -17,6 +17,12 @@ if [ -z "${FB_LATEST:-}" ]; then
 fi
 [ -f "$FB_LATEST" ] && rm -f "$FB_LATEST"
 
+# confirmed lineups ~1 h before kick-off: poll every 10 minutes (own crontab, no root needed)
+if ! crontab -l 2>/dev/null | grep -q "football/lineups.py\|lineups.py >>"; then
+  ( crontab -l 2>/dev/null; echo "*/10 * * * * cd $APP && $APP/.venv/bin/python lineups.py >> $APP/data/lineups.log 2>&1" ) | crontab -
+  echo "$(date '+%F %T') lineup poller added to crontab"
+fi
+
 tree=$(git rev-parse origin/main:football-app)
 [ "$(cat "$APP/.deployed" 2>/dev/null)" = "$tree" ] && exit 0
 

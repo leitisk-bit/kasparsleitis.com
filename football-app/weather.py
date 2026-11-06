@@ -94,25 +94,58 @@ def _city(c):
     return (c or "").split(",")[0].split("(")[0].split("/")[0].strip()
 
 
+def _variants(c):
+    """Spellings to try: as written, the part in brackets, without accents, each part of a double name."""
+    import unicodedata
+    c = c or ""
+    out = [_city(c)]
+    if "(" in c:
+        out.append(c.split("(")[1].split(")")[0].strip())
+    out += [x.replace("St. ", "Sankt ").replace("St ", "Sankt ") for x in list(out) if x.startswith(("St. ", "St "))]
+    out += [unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode() for x in list(out)]
+    for x in list(out):
+        out += [p.strip() for p in x.replace("–", "-").split("-") if len(p.strip()) > 2]
+    seen = []
+    for x in out:
+        if x and x not in seen:
+            seen.append(x)
+    return seen
+
+
 def geocode(con):
-    rows = con.execute("SELECT id, name, city, country FROM venues WHERE lat IS NULL AND city IS NOT NULL").fetchall()
+    cols = {r[1] for r in con.execute("PRAGMA table_info(venues)")}
+    if "geo_tries" not in cols:
+        con.execute("ALTER TABLE venues ADD COLUMN geo_tries INTEGER DEFAULT 0")
+    # the stadium record's city, or (when the API has no record) the city written on the fixtures
+    rows = con.execute("""SELECT v.id, v.name, v.country,
+            COALESCE(v.city, (SELECT x.venue_city FROM match_extra x WHERE x.venue_id=v.id AND x.venue_city IS NOT NULL
+                              GROUP BY x.venue_city ORDER BY COUNT(*) DESC LIMIT 1)) city
+        FROM venues v WHERE v.lat IS NULL AND COALESCE(v.geo_tries, 0) < 3""").fetchall()
     done = 0
     for r in rows:
-        name = _city(r["city"])
+        if not r["city"]:
+            continue
         want = COUNTRY.get(r["country"] or "", (r["country"] or "").replace("-", " "))
+        pick = None
         try:
-            res = _json("https://geocoding-api.open-meteo.com/v1/search?" +
-                        urllib.parse.urlencode({"name": name, "count": 10, "language": "en"})).get("results") or []
+            for name in _variants(r["city"]):
+                res = _json("https://geocoding-api.open-meteo.com/v1/search?" +
+                            urllib.parse.urlencode({"name": name, "count": 10, "language": "en"})).get("results") or []
+                same = [x for x in res if not want or (x.get("country") or "").lower() == want.lower()]
+                if same:
+                    pick = max(same, key=lambda x: x.get("population") or 0)
+                    break
+                time.sleep(0.2)
         except RateLimited:
             log("geocoding: Open-Meteo free limit reached — the next run continues"); break
         except Exception as e:  # noqa
-            log(f"  geocode {name}: {e}"); continue
-        same = [x for x in res if (x.get("country") or "").lower() == want.lower()]
-        pick = max(same or res, key=lambda x: x.get("population") or 0, default=None) if (same or res) else None
+            log(f"  geocode {r['city']}: {e}")
         if pick:
-            con.execute("UPDATE venues SET lat=?, lon=?, geo_name=? WHERE id=?",
-                        (pick["latitude"], pick["longitude"], f"{pick.get('name')}, {pick.get('country')}", r["id"]))
+            con.execute("UPDATE venues SET lat=?, lon=?, geo_name=?, city=COALESCE(city, ?) WHERE id=?",
+                        (pick["latitude"], pick["longitude"], f"{pick.get('name')}, {pick.get('country')}", r["city"], r["id"]))
             done += 1
+        else:
+            con.execute("UPDATE venues SET geo_tries=COALESCE(geo_tries, 0)+1 WHERE id=?", (r["id"],))
         time.sleep(0.2)
     con.commit()
     log(f"geocoded {done}/{len(rows)} venues")

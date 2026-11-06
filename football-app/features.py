@@ -7,12 +7,17 @@ the teams' other games):
   weather  rain (0.1-3 mm), heavy rain (3+ mm), strong wind (35+ km/h), cold (<3 °C), hot (25+ °C)   (forecast before)
   pitch    artificial turf
   ref      the referee (when announced)
+  lineup   strength of the starting XI vs the team's usual XI (confirmed lineups, ~1 h before kick-off)
+  absent   share of the usual team that is injured / suspended
+  stakes   league table late in the season: nothing to play for / close title or relegation fight
+  xg       finishing luck: goals minus xG over the last 8 games
+  travel   away team's trip in 1000 km
 
 Each model statistic uses only the groups that 'improve' found to predict better.
 """
 from datetime import datetime
 
-GROUPS = ["kick", "rest", "coach", "weather", "pitch", "ref"]
+GROUPS = ["kick", "rest", "coach", "weather", "pitch", "ref", "lineup", "absent", "stakes", "xg", "travel"]
 # per observation (one side of a match): name -> function(match features, is_home side) -> value
 SIDE = {
     "kick": [("k1719", lambda f, h: float(17 <= f["hour"] < 19)), ("k19", lambda f, h: float(f["hour"] >= 19))],
@@ -26,7 +31,26 @@ SIDE = {
                 ("cold", lambda f, h: float(f["temp"] is not None and f["temp"] < 3)),
                 ("hot", lambda f, h: float(f["temp"] is not None and f["temp"] >= 25))],
     "pitch": [("artificial", lambda f, h: float(bool(f["surface"]) and "artificial" in f["surface"]))],
+    # players.py: today's XI vs the usual XI (rating points), and share of the usual team that is missing
+    "lineup": [("xi_att", lambda f, h: _v(f, "xi_h" if h else "xi_a")),
+               ("xi_def", lambda f, h: _v(f, "xi_a" if h else "xi_h"))],
+    "absent": [("abs_att", lambda f, h: _v(f, "abs_h" if h else "abs_a")),
+               ("abs_def", lambda f, h: _v(f, "abs_a" if h else "abs_h"))],
+    # situation.py: league table late in the season, finishing luck (goals minus xG), away travel
+    "stakes": [("dead_att", lambda f, h: _v(f, "dead_h" if h else "dead_a")),
+               ("dead_def", lambda f, h: _v(f, "dead_a" if h else "dead_h")),
+               ("fight_att", lambda f, h: _v(f, "fight_h" if h else "fight_a")),
+               ("fight_def", lambda f, h: _v(f, "fight_a" if h else "fight_h"))],
+    "xg": [("luck_att", lambda f, h: _v(f, "xga_h" if h else "xga_a")),
+           ("luck_def", lambda f, h: _v(f, "xgd_a" if h else "xgd_h"))],
+    "travel": [("trav_att", lambda f, h: _v(f, "trav_h" if h else "trav_a")),
+               ("trav_def", lambda f, h: _v(f, "trav_a" if h else "trav_h"))],
 }
+
+
+def _v(f, k):
+    v = f.get(k)
+    return float(v) if v is not None else 0.0          # unknown = usual (no effect)
 NEUTRAL = {"hour": 15, "rest_h": None, "rest_a": None, "newc_h": 0, "newc_a": 0, "precip": None, "wind": None,
            "temp": None, "surface": None, "ref": None}
 
@@ -90,6 +114,12 @@ def build(con):
         f["surface"] = surface.get(g["id"])
         f["ref"] = _ref(g["referee"])
         out[g["id"]] = f
+    # players (XI strength, missing players) and situation (table, xG luck, travel)
+    import players, situation
+    for part in (players.build(con), situation.build(con)):
+        for mid, extra in part.items():
+            if mid in out:
+                out[mid].update(extra)
     return out
 
 

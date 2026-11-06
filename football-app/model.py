@@ -412,6 +412,7 @@ def make_picks(pred, odds_rows=None, rat=None):
         from betsson import BOOK, REF, betsafe_price
         real = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == BOOK}
         ref = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == REF}
+        pin = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == "Pinnacle"}
         for key in set(real) | set(ref):
             market, scope, side, line = key
             if key in real:
@@ -422,9 +423,11 @@ def make_picks(pred, odds_rows=None, rat=None):
             p = prob(pred, market, scope, side, line)
             if p is None or p < BET_MIN_P or price < BET_MIN_PRICE or p * price - 1 < BET_MIN_EV:
                 continue
+            # the market's view: Pinnacle (sharpest) without its margin, else the bookmaker's own price
+            mp = market_prob(odds_rows, pin[key]) if key in pin else None
             picks.append(dict(tab="bet_on", market=market, scope=scope, side=side, line=line, prob=p,
                               price=price, book_price=book_price, bookmaker=label,
-                              market_prob=market_prob(odds_rows, o)))
+                              market_prob=mp if mp is not None else market_prob(odds_rows, o)))
     for p in picks:
         p["prob"] = round(float(p["prob"]), 5)
     return picks

@@ -122,6 +122,11 @@ def run(kind: str, seasons=None, limit=None):
                 print("  Betsson check failed:", e, flush=True)
         if kind == "update":
             try:
+                import players                   # injured / suspended players, current season
+                players.injuries(con, client)
+            except Exception as e:  # noqa
+                print("  injuries failed:", e, flush=True)
+            try:
                 import other                     # the teams' domestic league / cup games (lists once a day)
                 other.run(con, client)
             except Exception as e:  # noqa

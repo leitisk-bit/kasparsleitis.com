@@ -8,6 +8,7 @@
 #   backtest  re-run the walk-forward test of the active version
 #   backfill  fetch whole seasons (input: seasons)
 #   other     fetch all other games of our teams (domestic league, cups), every season, with details
+#   injuries  injured / suspended players for every competition and season (history), then current every update
 #   collected what has been collected so far (details, weather, other games)
 #   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
 #   factors   does weather / pitch / rest / coach change / referee tell more than the model? (analysis)
@@ -21,7 +22,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"

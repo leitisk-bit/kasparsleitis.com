@@ -13,7 +13,8 @@ from config import COMPETITIONS
 # API-Football has no Betsson/Betsafe, so Bet365 is collected: it has the most markets (corners, shots, offsides).
 # Betsafe's price is estimated from it with the measured Betsson/Bet365 ratio (betsson.py).
 # Names as API-Football writes them; comma-separated, empty = all.
-BOOKMAKERS = [b.strip().lower() for b in os.environ.get("ODDS_BOOKMAKERS", "Bet365").split(",") if b.strip()]
+# Pinnacle is kept too: the sharpest prices, used as "the market's view" (not for betting).
+BOOKMAKERS = [b.strip().lower() for b in os.environ.get("ODDS_BOOKMAKERS", "Bet365,Pinnacle").split(",") if b.strip()]
 
 STAT_WORDS = [
     (re.compile(r"shots?\s*on\s*(target|goal)", re.I), "shots_on_goal"),

@@ -648,9 +648,11 @@ def admin_factors():
 
 @r.get("/api/admin/collected")
 def admin_collected():
-    import extract, other, weather
+    import extract, other, players, weather
     c = con()
-    return {"details": extract.summary(c), "weather": weather.summary(c), "other_games": other.summary(c)}
+    return {"details": extract.summary(c), "weather": weather.summary(c), "other_games": other.summary(c),
+            "players": players.summary(c),
+            "api_calls_today": c.execute("SELECT MIN(quota_left) FROM sync_log WHERE started_at >= date('now')").fetchone()[0]}
 
 
 @r.get("/api/admin/oddscheck")
@@ -695,6 +697,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "weather.py")]
     elif kind == "other":
         cmd = [sys.executable, str(BASE_DIR / "other.py"), "--all"]
+    elif kind == "injuries":
+        cmd = [sys.executable, str(BASE_DIR / "players.py"), "injuries", "--all"]
     else:
         cmd = [sys.executable, str(BASE_DIR / "sync.py"), "update" if kind != "backfill" else "backfill"]
         if kind == "backfill":

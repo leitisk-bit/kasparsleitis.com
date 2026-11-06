@@ -121,3 +121,12 @@ strong wind, cold, hot), artificial pitch, and the referee are fitted together w
 adds a group to a statistic only if walk-forward predictions get better overall AND in both halves of the test
 year, so chance wins are not kept. Cards (yellow + red) are a statistic like the others; the referee mostly matters
 there. Every Monday night the model is re-tuned with everything collected and a factor analysis is saved.
+
+## Players, injuries, lineups, table, xG, travel
+`players.py`: injured / suspended players for every competition and season (`/injuries`), and confirmed lineups
+~1 h before kick-off (`lineups.py`, every 10 minutes from the user's crontab — added by `autoupdate.sh`); the match
+is re-predicted when both XIs are in. Every API response is kept compressed in `raw_api`.
+Model groups: `lineup` (today's XI vs the usual XI, player value = recent minutes-weighted rating), `absent` (share
+of the usual team missing), `stakes` (league table late in the season), `xg` (goals minus xG, last 8 games),
+`travel` (away trip). Pinnacle's prices are kept as the market's view for Bet on. Same rule as all patterns:
+used only where walk-forward predictions get better in both halves of the test year.
