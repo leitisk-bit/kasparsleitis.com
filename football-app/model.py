@@ -96,9 +96,10 @@ class Data:
 # ---------------------------------------------------------------- fitting
 
 class Fit:
-    def __init__(self, stat, params, beta, cols, disp, nmax, tdisp=None):
+    def __init__(self, stat, params, beta, cols, disp, nmax, tdisp=None, tdist=None):
         self.stat, self.params, self.beta, self.cols, self.disp, self.nmax = stat, params, beta, cols, disp, nmax
         self.tdisp = tdisp or {}                # team -> own spread (how predictable that team's count is)
+        self.tdist = tdist or {}                # substitutions: team -> (its own recent distribution, weight)
 
     def mu(self, league, home, away, f=None):
         c, b = self.cols, self.beta
@@ -116,7 +117,12 @@ class Fit:
         return side(home, away, True), side(away, home, False)
 
     def pmf(self, mu, team=None):
-        return count_pmf(mu, self.tdisp.get(team, self.disp), self.nmax)
+        p = count_pmf(mu, self.tdisp.get(team, self.disp), self.nmax)
+        if team in self.tdist:                  # coach habits: mix in the team's own substitution pattern
+            own, a = self.tdist[team]
+            n = max(len(p), len(own))
+            p = [a * (own[i] if i < len(own) else 0.0) + (1 - a) * (p[i] if i < len(p) else 0.0) for i in range(n)]
+        return p
 
 
 def count_pmf(mu, disp, nmax=None):
@@ -252,8 +258,22 @@ def fit(data: Data, stat, as_of, params):
             if int(t) in data.known and b_ > 0:
                 v = (a_ + k * unit * disp) / (b_ + k * unit)
                 tdisp[int(t)] = float(min(max(v, 0.0), 4 * disp + 0.5))
+    tdist = {}
+    if k > 0 and nmax is not None:
+        # substitutions: each team's own recent distribution (time-weighted), trusted like n / (n + k) matches
+        tid = np.concatenate([data.home[idx], data.away[idx]]).astype(np.int64)
+        yy = np.clip(np.nan_to_num(y).astype(np.int64), 0, nmax)
+        for t in np.unique(tid):
+            if int(t) not in data.known:
+                continue
+            m = tid == t
+            h = np.bincount(yy[m], weights=w[m], minlength=nmax + 1)
+            tot = float(h.sum())
+            if tot > 0:
+                neff = float(m.sum())
+                tdist[int(t)] = ((h / tot).tolist(), neff / (neff + k))
     cols = {"lg": lg_col, "att": att, "def": dfn, "groups": groups, "feat": fcol, "ref": rcol}
-    return Fit(stat, params, beta, cols, disp, nmax, tdisp)
+    return Fit(stat, params, beta, cols, disp, nmax, tdisp, tdist)
 
 
 # ---------------------------------------------------------------- predictions
@@ -643,7 +663,7 @@ def improve(con, data=None):
     alt = {s: {**params[s], "tdisp": 30} for s in STATS}
     sc = walk_forward(data, alt, start, end, 14)
     for s in STATS:
-        if s in sc and s != "subs":
+        if s in sc:
             tried.setdefault(s, []).append({**alt[s], "log_score": sc[s]["log_score"]})
             if _steady(sc[s], best[s], 1e-4):
                 params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"], sc[s]["halves"])
