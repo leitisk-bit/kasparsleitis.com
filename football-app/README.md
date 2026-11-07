@@ -130,3 +130,11 @@ Model groups: `lineup` (today's XI vs the usual XI, player value = recent minute
 of the usual team missing), `stakes` (league table late in the season), `xg` (goals minus xG, last 8 games),
 `travel` (away trip). Pinnacle's prices are kept as the market's view for Bet on. Same rule as all patterns:
 used only where walk-forward predictions get better in both halves of the test year.
+
+## Every night: pattern search and re-tune
+`discover.py` tests ~20 ideas from the stored data (playing style, fouls, form, fixture congestion, a league game
+after a European midweek, promoted teams, back three, referee's card / foul history, derbies, early season,
+Christmas period, late European kick-offs) against the active model's walk-forward errors: found on the older
+years (|z| >= 3), confirmed on the last year (same direction, |z| >= 2). Confirmed ideas become factor groups
+(`auto_<name>`) that the re-tune may use. The re-tune runs every night (01-07 UTC); a change to which patterns a
+statistic uses goes live only when two runs in a row agree. Results: Data tab, workflow actions `discoveries` / `discover`.

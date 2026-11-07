@@ -48,6 +48,24 @@ SIDE = {
 }
 
 
+BASE_GROUPS = list(GROUPS)
+
+
+def load_auto(con):
+    """Patterns promoted by the automatic search (discover.py) become groups the re-tune can test: auto_<name>."""
+    import discover
+    discover.init(con)
+    names = [r[0] for r in con.execute("SELECT candidate FROM promoted") if r[0] in discover.CANDIDATES]
+    GROUPS[:] = BASE_GROUPS + [f"auto_{c}" for c in names]
+    for c in names:
+        if discover.CANDIDATES[c][1] == "side":
+            SIDE[f"auto_{c}"] = [(f"{c}_att", lambda f, h, c=c: _v(f, f"{c}_h" if h else f"{c}_a")),
+                                 (f"{c}_def", lambda f, h, c=c: _v(f, f"{c}_a" if h else f"{c}_h"))]
+        else:
+            SIDE[f"auto_{c}"] = [(c, lambda f, h, c=c: _v(f, c))]
+    return names
+
+
 def _v(f, k):
     v = f.get(k)
     return float(v) if v is not None else 0.0          # unknown = usual (no effect)
@@ -116,7 +134,11 @@ def build(con):
         out[g["id"]] = f
     # players (XI strength, missing players) and situation (table, xG luck, travel)
     import players, situation
-    for part in (players.build(con), situation.build(con)):
+    parts = [players.build(con), situation.build(con)]
+    if load_auto(con):                                   # promoted patterns: their values for every match
+        import discover
+        parts.append(discover.compute(con))
+    for part in parts:
         for mid, extra in part.items():
             if mid in out:
                 out[mid].update(extra)

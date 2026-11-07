@@ -393,6 +393,9 @@ views.data = async () => {
     <div class="bar" style="margin:0"><button class="btn" data-job="update">Run update</button><label>Seasons<input id="seas" value="2021-2026" style="width:110px"></label>
     <button class="btn ghost" data-job="backfill">Run backfill</button><button class="btn ghost" data-job="improve">Improve model</button><span id="st" class="muted small"></span></div><pre id="outp"></pre></div>
     <div class="card tablewrap"><h3>Coverage</h3><div id="cov"></div></div><div class="card tablewrap"><h3>Sync history</h3><div id="hist"></div></div>
+    <div class="card tablewrap"><h3>Discovered patterns</h3>
+      <p class="muted small" style="margin-top:0">Every night the server tests about 20 ideas against the model's own errors: found on the older years (|z| ≥ 3), then confirmed on the last year (same direction, |z| ≥ 2). Confirmed ones are offered to the model, which uses them only where predictions get better. Effect: change per +1 standard deviation of the idea, in % of the average.</p>
+      <div id="disc" class="small"></div><button class="btn ghost" data-job="discover" style="margin-top:8px">Search now</button></div>
     <div class="card tablewrap"><h3>Odds markets not recognised yet</h3><div id="unk" class="small"></div></div>`;
   document.querySelectorAll('[data-job]').forEach(b => b.onclick = async () => {
     const r = await api('/admin/sync', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({kind: b.dataset.job, seasons: $('#seas').value})});
@@ -400,7 +403,13 @@ views.data = async () => {
   });
   let timer;
   async function refresh(){
-    const [s, m] = await Promise.all([api('/admin/status'), api('/model')]);
+    const [s, m, dv] = await Promise.all([api('/admin/status'), api('/model'), api('/admin/discoveries').catch(() => null)]);
+    if (dv) {
+      const who = w => ({att: 'team itself', def: 'its opponent', match: 'the match'})[w] || w;
+      const zc = z => z == null ? '–' : `<span class="${Math.abs(z) >= 3 ? 'won' : ''}">${z.toFixed(1)}</span>`;
+      $('#disc').innerHTML = (dv.run_at ? `<p class="muted small">Last search ${esc(dt(dv.run_at))} · ${dv.tests} tests · in use by the search: ${dv.promoted.length ? dv.promoted.map(p => '<b>' + esc(p.candidate) + '</b>').join(', ') : 'none yet'}</p>` : '<p class="muted small">No search yet.</p>') +
+        (dv.top.length ? `<table><tr><th class="l">Idea</th><th class="l">Of</th><th class="l">Statistic</th><th>Older years</th><th>z</th><th>Last year</th><th>z</th><th class="l">Result</th></tr>${dv.top.map(r => `<tr><td class="l">${esc(r.what)}</td><td class="l">${who(r.side)}</td><td class="l">${esc(LABEL[r.stat] || r.stat)}</td><td>${r.effect_disc == null ? '–' : (r.effect_disc > 0 ? '+' : '') + r.effect_disc + '%'}</td><td>${zc(r.z_disc)}</td><td>${r.effect_conf == null ? '–' : (r.effect_conf > 0 ? '+' : '') + r.effect_conf + '%'}</td><td>${zc(r.z_conf)}</td><td class="l ${r.promoted ? 'won' : 'muted'}">${r.promoted ? 'confirmed' : Math.abs(r.z_disc || 0) >= 3 ? 'not confirmed' : 'too weak'}</td></tr>`).join('')}</table>` : '');
+    }
     $('#st').textContent = s.running ? 'Running…' : '';
     $('#outp').textContent = s.output || 'No job output yet.';
     $('#cov').innerHTML = s.coverage.length ? `<table><tr><th class="l">Competition</th><th>Season</th><th>Matches</th><th>With stats</th><th>Pending</th></tr>${s.coverage.map(c => `<tr><td class="l">${esc(c.name)}</td><td>${c.season}/${String(c.season+1).slice(2)}</td><td>${c.matches}</td><td>${c.with_stats}</td><td>${c.pending || ''}</td></tr>`).join('')}</table>` : `<div class="empty">Database is empty.</div>`;

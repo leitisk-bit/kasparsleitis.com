@@ -638,13 +638,29 @@ def improve(con, data=None):
         log(f"factor {g}: used for {kept or 'nothing'}")
     cur = active_run(con)
     cur_params = params_of(cur)
+    # which patterns a statistic uses (and other games yes/no) may only change when two runs in a row agree:
+    # repeated testing on mostly the same year would otherwise let a lucky pattern in now and then
+    proposed = {s: dict(params[s]) for s in STATS}
+    sig = lambda p: (tuple(sorted(p.get("feat", []))), int(p.get("other", 0)))
+    prev = con.execute("SELECT params, metrics FROM model_runs WHERE kind='tune' ORDER BY id DESC LIMIT 1").fetchone()
+    prev_prop = None
+    if prev:
+        pm = json.loads(prev["metrics"] or "{}")
+        prev_prop = pm.get("proposed") or json.loads(prev["params"] or "{}")
+    waiting = [s for s in STATS if cur and sig(params[s]) != sig(cur_params[s])
+               and not (prev_prop and s in prev_prop and sig(prev_prop[s]) == sig(params[s]))]
+    if waiting:
+        for s in waiting:
+            params[s] = {**params[s], "feat": list(cur_params[s].get("feat", [])), "other": cur_params[s].get("other", 0)}
+        log("waiting for a second run to confirm:", {s: sig(proposed[s]) for s in waiting})
     cur_score = walk_forward(data, cur_params, start, end, 14)
     new_score = walk_forward(data, params, start, end, 14)
     total = lambda sc: sum(sc[s]["log_score"] for s in STATS if s in sc)
     better = cur is None or total(new_score) > total(cur_score) + 1e-4
     version = new_version(con)
     metrics = {"tuning": new_score, "previous": {"version": cur["version"] if cur else None, "tuning": cur_score},
-               "grid": tried, "tuned_from": start, "tuned_to": end}
+               "grid": tried, "tuned_from": start, "tuned_to": end, "proposed": proposed,
+               "waiting": {s: list(sig(proposed[s])) for s in waiting}}
     con.execute("INSERT INTO model_runs(version, created_at, kind, params, metrics, active, notes) VALUES (?,?,?,?,?,?,?)",
                 (version, now_iso(), "tune", json.dumps(params), json.dumps(metrics), 0,
                  "better than " + (cur["version"] if cur else "nothing") if better else

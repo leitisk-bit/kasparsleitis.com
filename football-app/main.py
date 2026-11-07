@@ -675,6 +675,12 @@ def admin_oddscheck(n: int = 6):
     return out
 
 
+@r.get("/api/admin/discoveries")
+def admin_discoveries():
+    import discover
+    return discover.report(con())
+
+
 @r.get("/api/admin/subs")
 def admin_subs():
     """First substitution timing (1st half / half-time / 2nd half), see subs_analysis.py."""
@@ -697,6 +703,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "weather.py")]
     elif kind == "other":
         cmd = [sys.executable, str(BASE_DIR / "other.py"), "--all"]
+    elif kind == "discover":
+        cmd = [sys.executable, str(BASE_DIR / "discover.py")]
     elif kind == "injuries":
         cmd = [sys.executable, str(BASE_DIR / "players.py"), "injuries", "--all"]
     else:

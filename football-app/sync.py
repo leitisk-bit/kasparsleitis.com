@@ -69,13 +69,20 @@ def fetch_missing_details(con, client, limit=None):
 
 
 def weekly(con, model):
-    """Monday night (UTC): re-tune with everything collected (new matches, factors, other games), re-test,
-    and save a fresh factor analysis. Skipped if done in the last 6 days."""
+    """Every night (01-07 UTC): search for new patterns, re-tune with everything collected (new matches,
+    factors, other games, promoted patterns), re-test, and save a fresh factor analysis.
+    Skipped if done in the last 20 hours. (Name kept: it used to be weekly.)"""
     now = datetime.now(timezone.utc)
     last = con.execute("SELECT MAX(created_at) FROM model_runs WHERE kind='tune'").fetchone()[0]
-    if now.weekday() != 0 or now.hour >= 7 or (last and last > (now - timedelta(days=6)).isoformat()):
+    if not (1 <= now.hour < 7) or (last and last > (now - timedelta(hours=20)).isoformat()):
         return
-    print("Weekly: improving the model", flush=True)
+    print("Nightly: searching for new patterns", flush=True)
+    try:
+        import discover
+        discover.run(con)
+    except Exception as e:  # noqa
+        print("  pattern search failed:", e, flush=True)
+    print("Nightly: improving the model", flush=True)
     if model.improve(con):
         model.backtest(con)
     model.predict(con); model.settle(con)

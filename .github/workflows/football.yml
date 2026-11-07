@@ -9,6 +9,7 @@
 #   backfill  fetch whole seasons (input: seasons)
 #   other     fetch all other games of our teams (domestic league, cups), every season, with details
 #   injuries  injured / suspended players for every competition and season (history), then current every update
+#   discover  search for new patterns now (also runs every night); discoveries = show the last search
 #   collected what has been collected so far (details, weather, other games)
 #   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
 #   factors   does weather / pitch / rest / coach change / referee tell more than the model? (analysis)
@@ -22,7 +23,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -67,6 +68,13 @@ jobs:
                   print("\n", m["match"], m["date"], "| 1x2", m["1x2"], "| corners 1x2", m["corners_1x2"])
                   print("   goals AH  ", m["goals_ah"])
                   print("   corners AH", m["corners_ah"])
+              sys.exit(0)
+          if ACTION == "discoveries":
+              d = call("/admin/discoveries")
+              print("last search", d["run_at"], "|", d["tests"], "tests | promoted:", [p["candidate"] for p in d["promoted"]])
+              for r in d["top"]:
+                  print("  %-4s %-60s %-5s %-13s older %+6s%% z=%5s | last year %+6s%% z=%5s" % ("OK" if r["promoted"] else "", r["what"][:60], r["side"], r["stat"],
+                        r["effect_disc"], r["z_disc"], r["effect_conf"], r["z_conf"]))
               sys.exit(0)
           if ACTION == "collected":
               print(json.dumps(call("/admin/collected", timeout=120), indent=1, ensure_ascii=False))
