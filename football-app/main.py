@@ -681,6 +681,18 @@ def admin_discoveries():
     return discover.report(con())
 
 
+@r.get("/api/admin/teams_predictability")
+def admin_teams_predictability():
+    import teams_analysis
+    return teams_analysis.analyse(con())
+
+
+@r.get("/api/team/{team_id}/predictability")
+def team_predictability(team_id: int):
+    import teams_analysis
+    return teams_analysis.for_team(con(), team_id)
+
+
 @r.get("/api/admin/subs")
 def admin_subs():
     """First substitution timing (1st half / half-time / 2nd half), see subs_analysis.py."""

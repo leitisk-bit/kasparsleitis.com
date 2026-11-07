@@ -138,3 +138,12 @@ Christmas period, late European kick-offs) against the active model's walk-forwa
 years (|z| >= 3), confirmed on the last year (same direction, |z| >= 2). Confirmed ideas become factor groups
 (`auto_<name>`) that the re-tune may use. The re-tune runs every night (01-07 UTC); a change to which patterns a
 statistic uses goes live only when two runs in a row agree. Results: Data tab, workflow actions `discoveries` / `discover`.
+
+## Per team: own spread, predictability report, head-to-head
+Each team has its own attack / defence strength per statistic. On top of that the re-tune can give each team its
+own spread (`tdisp`: how steady that team's count is, pulled towards the common spread like 30 average matches),
+kept only where predictions get better. `teams_analysis.py` reports per team and statistic how much the counts
+swung compared with what the model assumed, older years vs last year, and whether that is a lasting trait across
+teams (Teams tab, workflow action `teams`). Head-to-head (earlier meetings vs the teams' usual) is tested in the
+nightly pattern search (`h2h_*`). No separate model per team or per pair: with 200-300 matches per team and a
+handful per pair it would mostly fit noise.

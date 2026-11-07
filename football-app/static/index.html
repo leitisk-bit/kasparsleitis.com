@@ -255,8 +255,22 @@ views.teams = async () => {
     if (!current){ $('#out').innerHTML = teams.length ? '' : `<div class="empty">No data yet. Start a backfill on the Data tab.</div>`; return; }
     const q = `last=${$('#last').value}&venue=${$('#venue').value}`;
     const d = await api(`/team/${current}?${q}`), sm = d.summary;
+    api(`/team/${current}/predictability`).then(pp => {
+      const el = $('#pred'); if (!el) return;
+      const t = pp.team;
+      if (!t) { el.innerHTML = '<h3>How predictable is this team?</h3><div class="muted small">Not enough tested matches yet.</div>'; return; }
+      const word = v => v == null ? '–' : v < 0.9 ? 'steadier' : v > 1.1 ? 'more erratic' : 'as expected';
+      const lasting = r => r == null ? '–' : r >= 0.3 ? 'yes, clearly' : r >= 0.15 ? 'somewhat' : 'mostly chance';
+      const bias = (o, n) => o == null || n == null ? '–' : (Math.abs(o) < 0.1 && Math.abs(n) < 0.1) ? 'on target' :
+        (o > 0) === (n > 0) ? (o > 0 ? 'usually above the model' : 'usually below the model') : 'no steady direction';
+      el.innerHTML = `<h3>How predictable is this team?</h3>
+        <p class="muted small" style="margin-top:0">From the walk-forward test: how much this team's own count swung compared with what the model assumed (1.00 = as assumed). Older years / last year. The last column says whether, across all teams, this kind of predictability lasts from one period to the next — if not, a team's number is mostly luck.</p>
+        <table><tr><th class="l">Statistic</th><th>Swing</th><th class="l"></th><th>Older / last year</th><th class="l">Level vs model</th><th class="l">Lasting trait?</th></tr>
+        ${PSTATS.filter(st => t[st]).map(st => { const x = t[st]; return `<tr><td class="l">${LABEL[st]}</td><td><b>${x.spread?.toFixed(2) ?? '–'}</b></td><td class="l muted">${word(x.spread)}</td><td>${x.spread_old?.toFixed(2) ?? '–'} / ${x.spread_new?.toFixed(2) ?? '–'}</td><td class="l">${bias(x.bias_old, x.bias_new)}</td><td class="l muted">${lasting(pp.lasting[st]?.spread_r)}</td></tr>`; }).join('')}</table>`;
+    }).catch(() => {});
     $('#out').innerHTML = `<div class="card"><h3>${logo(d.team.logo)}${esc(d.team.name)} <span class="muted small" style="font-weight:400">· ${sm.matches} matches</span></h3>
       <div class="grid">${PSTATS.map(s => `<div class="tile"><div class="k">${LABEL[s]}</div><div class="v">${fmt(sm[s].for)}</div><div class="s">against ${fmt(sm[s].against)} · match ${fmt(sm[s].total)}</div></div>`).join('')}</div></div>
+      <div class="card tablewrap" id="pred"><h3>How predictable is this team?</h3><div class="muted small">Loading…</div></div>
       <div class="card"><h3>Over / under check</h3><div class="bar" style="margin:0">
         <label>Stat<select id="ous">${opts(Object.entries(LABEL).filter(([k]) => k !== 'goals'), 'corners')}</select></label>
         <label>Count<select id="ouc">${opts([['total','Match total'],['for','Team\'s own'],['against','Opponent\'s']], 'total')}</select></label>

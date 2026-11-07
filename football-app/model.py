@@ -96,8 +96,9 @@ class Data:
 # ---------------------------------------------------------------- fitting
 
 class Fit:
-    def __init__(self, stat, params, beta, cols, disp, nmax):
+    def __init__(self, stat, params, beta, cols, disp, nmax, tdisp=None):
         self.stat, self.params, self.beta, self.cols, self.disp, self.nmax = stat, params, beta, cols, disp, nmax
+        self.tdisp = tdisp or {}                # team -> own spread (how predictable that team's count is)
 
     def mu(self, league, home, away, f=None):
         c, b = self.cols, self.beta
@@ -114,8 +115,8 @@ class Fit:
             return math.exp(e)
         return side(home, away, True), side(away, home, False)
 
-    def pmf(self, mu):
-        return count_pmf(mu, self.disp, self.nmax)
+    def pmf(self, mu, team=None):
+        return count_pmf(mu, self.tdisp.get(team, self.disp), self.nmax)
 
 
 def count_pmf(mu, disp, nmax=None):
@@ -238,8 +239,21 @@ def fit(data: Data, stat, as_of, params):
     else:
         disp = float(np.sum(w * ((y - mu) ** 2 - mu)) / np.sum(w * mu * mu))
         disp = max(disp, 0.0)
+    tdisp = {}
+    k = float(params.get("tdisp", 0) or 0)
+    if k > 0 and nmax is None:
+        # each team's own spread for its count, pulled towards the common one like k extra average matches
+        tid = np.concatenate([data.home[idx], data.away[idx]]).astype(np.int64)
+        num, den = w * ((y - mu) ** 2 - mu), w * mu * mu
+        u, inv = np.unique(tid, return_inverse=True)
+        sn, sd, nw = np.bincount(inv, weights=num), np.bincount(inv, weights=den), np.bincount(inv, weights=w)
+        unit = float(den.sum() / w.sum()) if w.sum() > 0 else 0.0
+        for t, a_, b_, n_ in zip(u, sn, sd, nw):
+            if int(t) in data.known and b_ > 0:
+                v = (a_ + k * unit * disp) / (b_ + k * unit)
+                tdisp[int(t)] = float(min(max(v, 0.0), 4 * disp + 0.5))
     cols = {"lg": lg_col, "att": att, "def": dfn, "groups": groups, "feat": fcol, "ref": rcol}
-    return Fit(stat, params, beta, cols, disp, nmax)
+    return Fit(stat, params, beta, cols, disp, nmax, tdisp)
 
 
 # ---------------------------------------------------------------- predictions
@@ -257,7 +271,7 @@ def predict_match(fits, league, home, away, feat=None):
         if f is None:
             continue
         mh, ma = f.mu(league, home, away, feat)
-        out[s] = {"eh": round(mh, 3), "ea": round(ma, 3), "ph": _trim(f.pmf(mh)), "pa": _trim(f.pmf(ma))}
+        out[s] = {"eh": round(mh, 3), "ea": round(ma, 3), "ph": _trim(f.pmf(mh, home)), "pa": _trim(f.pmf(ma, away))}
     if "goals" in out:
         g = out["goals"]
         M = np.outer(np.array(g["ph"]), np.array(g["pa"]))
@@ -547,7 +561,7 @@ def walk_forward(data, params, start, end, step_days, stats=STATS, on_pred=None)
                     f, b = fits[s], base[s]
                     mh, ma = f.mu(lg, h, a, fr); bh, ba = b.mu(lg, h, a)
                     r = res[s]
-                    r["ls"].append((log_score(f.pmf(mh), yh) + log_score(f.pmf(ma), ya)) / 2)
+                    r["ls"].append((log_score(f.pmf(mh, h), yh) + log_score(f.pmf(ma, a), ya)) / 2)
                     r["ls0"].append((log_score(b.pmf(bh), yh) + log_score(b.pmf(ba), ya)) / 2)
                     r["ae"].append((abs(mh - yh) + abs(ma - ya)) / 2)
                     r["n"] += 1
@@ -625,6 +639,16 @@ def improve(con, data=None):
                     params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"], sc[s]["halves"])
         log("with other games", {s: (sc[s]["log_score"], "used" if params[s].get("other") else "not better")
                                  for s in sc if s in STATS})
+    # each team's own spread (some teams' counts are steadier than others')
+    alt = {s: {**params[s], "tdisp": 30} for s in STATS}
+    sc = walk_forward(data, alt, start, end, 14)
+    for s in STATS:
+        if s in sc and s != "subs":
+            tried.setdefault(s, []).append({**alt[s], "log_score": sc[s]["log_score"]})
+            if _steady(sc[s], best[s], 1e-4):
+                params[s] = alt[s]; best[s] = (alt[s], sc[s]["log_score"], sc[s]["halves"])
+    log("own spread per team:", {s: (sc[s]["log_score"], "used" if params[s].get("tdisp") else "not better")
+                                 for s in sc if s in STATS})
     # factors (kick-off, rest, coach, weather, pitch, referee): add a group to a statistic only if it predicts better
     for g in FT.GROUPS:
         alt = {s: {**params[s], "feat": list(params[s].get("feat", [])) + [g]} for s in STATS}
@@ -641,7 +665,7 @@ def improve(con, data=None):
     # which patterns a statistic uses (and other games yes/no) may only change when two runs in a row agree:
     # repeated testing on mostly the same year would otherwise let a lucky pattern in now and then
     proposed = {s: dict(params[s]) for s in STATS}
-    sig = lambda p: (tuple(sorted(p.get("feat", []))), int(p.get("other", 0)))
+    sig = lambda p: (tuple(sorted(p.get("feat", []))), int(p.get("other", 0)), int(bool(p.get("tdisp", 0))))
     prev = con.execute("SELECT params, metrics FROM model_runs WHERE kind='tune' ORDER BY id DESC LIMIT 1").fetchone()
     prev_prop = None
     if prev:
@@ -651,7 +675,8 @@ def improve(con, data=None):
                and not (prev_prop and s in prev_prop and sig(prev_prop[s]) == sig(params[s]))]
     if waiting:
         for s in waiting:
-            params[s] = {**params[s], "feat": list(cur_params[s].get("feat", [])), "other": cur_params[s].get("other", 0)}
+            params[s] = {**params[s], "feat": list(cur_params[s].get("feat", [])), "other": cur_params[s].get("other", 0),
+                         "tdisp": cur_params[s].get("tdisp", 0)}
         log("waiting for a second run to confirm:", {s: sig(proposed[s]) for s in waiting})
     cur_score = walk_forward(data, cur_params, start, end, 14)
     new_score = walk_forward(data, params, start, end, 14)

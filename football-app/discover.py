@@ -46,7 +46,14 @@ CANDIDATES = {
     "early_season": ("First 4 league rounds of the season", "match"),
     "festive":      ("Christmas / New Year period (20 Dec - 5 Jan)", "match"),
     "late_kickoff_euro": ("UEFA match kicking off 19:00 UTC or later", "match"),
+    # head-to-head: in these two teams' earlier meetings (at least 2, up to the last 6, any competition), how
+    # far the match total was from what the two teams usually produce (their last 20 games each)
+    "h2h_goals":   ("Head-to-head: goals in earlier meetings vs the teams' usual", "match"),
+    "h2h_corners": ("Head-to-head: corners in earlier meetings vs the teams' usual", "match"),
+    "h2h_shots":   ("Head-to-head: shots in earlier meetings vs the teams' usual", "match"),
+    "h2h_cards":   ("Head-to-head: cards in earlier meetings vs the teams' usual", "match"),
 }
+H2H = {"h2h_goals": ("ft_home", "ft_away"), "h2h_corners": ("hco", "aco"), "h2h_shots": ("hs", "as_"), "h2h_cards": ("hc", "ac")}
 
 
 def log(*a):
@@ -110,6 +117,8 @@ def compute(con):
     all_c, all_f = [], []
     mean = lambda d: sum(d) / len(d) if d else None
     rounds = defaultdict(int)                            # (league, season, team) -> league games played
+    meet = defaultdict(lambda: defaultdict(lambda: deque(maxlen=6)))     # pair -> candidate -> meeting deviations
+    usual = defaultdict(lambda: defaultdict(lambda: deque(maxlen=20)))   # team -> candidate -> match totals
 
     out = {}
     for r in rows:
@@ -145,7 +154,20 @@ def compute(con):
         f["early_season"] = int(r["league_id"] in TOP5 and min(rounds[key + (r["home_id"],)], rounds[key + (r["away_id"],)]) < 4)
         f["festive"] = int((t.month == 12 and t.day >= 20) or (t.month == 1 and t.day <= 5))
         f["late_kickoff_euro"] = int(r["league_id"] in UEFA and t.hour >= 19)
+        pair = frozenset((r["home_id"], r["away_id"]))
+        for c in H2H:
+            d = meet[pair][c]
+            f[c] = sum(d) / len(d) if len(d) >= 2 else None
         out[r["id"]] = f
+        if r["status"] in ("FT", "AET", "PEN"):
+            for c, (x, y) in H2H.items():
+                if r[x] is None or r[y] is None:
+                    continue
+                tot = r[x] + r[y]
+                uh, ua = usual[r["home_id"]][c], usual[r["away_id"]][c]
+                if len(uh) >= 5 and len(ua) >= 5:
+                    meet[pair][c].append(tot - (sum(uh) / len(uh) + sum(ua) / len(ua)) / 2)
+                uh.append(tot); ua.append(tot)
 
         if r["status"] not in ("FT", "AET", "PEN"):
             continue

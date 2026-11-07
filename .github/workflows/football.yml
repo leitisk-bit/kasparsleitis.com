@@ -10,6 +10,7 @@
 #   other     fetch all other games of our teams (domestic league, cups), every season, with details
 #   injuries  injured / suspended players for every competition and season (history), then current every update
 #   discover  search for new patterns now (also runs every night); discoveries = show the last search
+#   teams     how predictable each team is per statistic, and whether that lasts (older years vs last year)
 #   collected what has been collected so far (details, weather, other games)
 #   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
 #   factors   does weather / pitch / rest / coach change / referee tell more than the model? (analysis)
@@ -23,7 +24,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -68,6 +69,14 @@ jobs:
                   print("\n", m["match"], m["date"], "| 1x2", m["1x2"], "| corners 1x2", m["corners_1x2"])
                   print("   goals AH  ", m["goals_ah"])
                   print("   corners AH", m["corners_ah"])
+              sys.exit(0)
+          if ACTION == "teams":
+              t = call("/admin/teams_predictability", timeout=300)
+              if "error" in t: sys.exit(t["error"])
+              for s, v in t["stats"].items():
+                  print(f"\n== {s}: {v['teams_both_periods']} teams in both periods | lasting trait? spread r={v['spread_lasting_r']}  bias r={v['bias_lasting_r']}")
+                  print("   steadiest:   ", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["steadiest"][:6]))
+                  print("   most erratic:", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["most_erratic"][:6]))
               sys.exit(0)
           if ACTION == "discoveries":
               d = call("/admin/discoveries")
