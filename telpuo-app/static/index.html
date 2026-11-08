@@ -104,6 +104,15 @@ body:not(.is-admin) .admin-only{display:none!important}
       <div class="grid" id="mapList"></div>
       <div class="muted" id="noMaps" hidden>No maps yet.</div>
     </div>
+    <details class="card admin-only" id="checkCard" hidden>
+      <summary><b>Let Claude check draft maps</b> <span class="muted">(one-time setup)</span></summary>
+      <p class="muted">Claude checks new maps through GitHub. Draft maps are hidden from everyone but you, so GitHub needs a <b>view-only checker key</b>. It can read draft maps but cannot change or publish anything. It changes if you change the admin password.</p>
+      <ol class="muted">
+        <li><button class="btn small" id="checkCopy" type="button">Copy checker key</button> <code id="checkShow"></code></li>
+        <li>On GitHub open <b>leitisk-bit/kasparsleitis.com → Settings → Secrets and variables → Actions → New repository secret</b>.</li>
+        <li>Name: <code>TELPUO_CHECK_KEY</code>. Secret: paste the key. Press <b>Add secret</b>.</li>
+      </ol>
+    </details>
   </section>
 
   <!-- one map -->
@@ -491,12 +500,14 @@ $('#saveBtn').onclick=async()=>{ try { await api('maps/'+M.id,{method:'PUT',head
 $('#reread').onclick=async()=>{ try { await api('maps/'+M.id+'/reread',{method:'POST'}); toast('Reading the map again. About a minute; saved runs are redone after.'); openMap(M.id); } catch(e){ toast(e.message); } };
 $('#delMap').onclick=async()=>{ if ($('#delMap').dataset.armed!=='1'){ $('#delMap').dataset.armed='1'; $('#delMap').textContent='Click again to delete for good'; return; }
   try { await api('maps/'+M.id,{method:'DELETE'}); location.hash=''; } catch(e){ toast(e.message); } };
-let ADMIN=false;
+let ADMIN=false, CHECK_KEY='';
+$('#checkCopy').onclick = async () => { try { await navigator.clipboard.writeText(CHECK_KEY); toast('Checker key copied. Paste it into GitHub as described.'); } catch(e){ toast('Could not copy. Select and copy it by hand.'); $('#checkShow').textContent = CHECK_KEY; } };
 async function checkAdmin(){ let r={}; try { r=await api('admin'); ADMIN=!!r.admin && (r.required ? !!KEY : true); if (r.required===false) ADMIN=true; } catch(e){ ADMIN=false; }
   if (ADMIN && r.version){ const v=r.version, d=v.date ? new Date(v.date) : null, st=new Date(r.started*1000);
     const f = x => x.toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
     $('#verTag').textContent = (d ? `App updated ${f(d)}` : 'App version: development') + ` · running since ${f(st)}`;
     $('#verTag').title = v.commit ? `Version ${v.commit}: ${v.change}` : ''; }
+  CHECK_KEY = ADMIN ? (r.check_key || '') : ''; $('#checkCard').hidden = !CHECK_KEY;
   document.body.classList.toggle('is-admin', ADMIN); $('#keyBtn').textContent = ADMIN ? 'Sign out' : 'Admin sign in'; $('#keyBtn').hidden = ADMIN && !KEY;
   if ($('#showLegs')) $('#showLegs').checked = ADMIN; }
 function askKey(){ if (!ADMIN) $('#keyBtn').click(); }

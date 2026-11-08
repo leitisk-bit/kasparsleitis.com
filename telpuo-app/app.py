@@ -21,8 +21,15 @@ def admin_ok():
     key = request.headers.get('X-Admin-Key') or unquote(request.cookies.get('ior_admin', ''))
     return not ADMIN_KEY or hmac.compare_digest(key.encode(), ADMIN_KEY.encode())
 
+# a view-only key made from the admin password: lets the checking jobs on GitHub read draft maps,
+# but not change anything. It changes when the admin password changes.
+CHECK_KEY = hmac.new(ADMIN_KEY.encode(), b'telpuo-check', 'sha256').hexdigest()[:32] if ADMIN_KEY else ''
+def check_ok():
+    k = request.headers.get('X-Check-Key', '')
+    return bool(CHECK_KEY and k) and hmac.compare_digest(k.encode(), CHECK_KEY.encode())
+
 def published(m): return bool(m) and m.get('published', True) is not False   # maps from before approval existed stay public
-def can_see(m): return bool(m) and (published(m) or admin_ok())
+def can_see(m): return bool(m) and (published(m) or admin_ok() or check_ok())
 def _seen(mid):
     """The map's meta if this visitor may see it; otherwise a 404 (a draft map does not exist for the public)."""
     m = store.get_meta(mid)
@@ -46,7 +53,7 @@ def _version():
 @app.get('/api/admin')
 def api_admin():
     out = dict(admin=admin_ok(), required=bool(ADMIN_KEY))
-    if out['admin']: out.update(version=_version(), started=STARTED, now=time.time())
+    if out['admin']: out.update(version=_version(), started=STARTED, now=time.time(), check_key=CHECK_KEY)
     return jsonify(out)
 
 # ------------------------------------------------------------------ server info (admin only)

@@ -5,14 +5,15 @@ jobs:
   status:
     runs-on: ubuntu-latest
     steps:
-      - run: |
+      - env: { CHECK: '${{ secrets.TELPUO_CHECK_KEY }}' }
+        run: |
           B=https://telpuo.kasparsleitis.com
-          curl -s --max-time 30 $B/api/maps > maps.json
+          curl -s -H "X-Check-Key: $CHECK" --max-time 30 $B/api/maps > maps.json
           echo "app version: $(curl -s --max-time 30 $B/ | grep -c verTag) (1+ = has the version label)"; echo "headers: $(curl -sI --max-time 30 $B/ | tr -d '\r' | grep -iE 'cache|cf-cache|age:|etag|last-mod' | tr '\n' ' ')"; echo "api admin: $(curl -s --max-time 30 $B/api/admin)"
           python3 - <<'PY'
           import json, urllib.request
           B = 'https://telpuo.kasparsleitis.com'
-          get = lambda p: json.load(urllib.request.urlopen(urllib.request.Request(B + p, headers={'User-Agent': 'status-check'}), timeout=30))
+          get = lambda p: json.load(urllib.request.urlopen(urllib.request.Request(B + p, headers={'User-Agent': 'status-check', 'X-Check-Key': __import__('os').environ.get('CHECK', '')}), timeout=30))
           maps = json.load(open('maps.json'))
           print(len(maps), 'maps')
           for m in maps:

@@ -1,19 +1,27 @@
-# Copies a map PDF from the Telpu O app to the 'debug-maps' branch, so a map reading problem can be looked at.
+# Fetches a map (PDF + what the app read from it) so Claude can check it, also while it is a draft.
+# The repository is public, so the files are encrypted for Claude's key (.github/telpuo-check.pub.pem)
+# before they go into the log: only the holder of the matching private key can read them.
 name: Telpu O fetch map
 on:
   workflow_dispatch:
     inputs:
       map: { description: 'Map id', required: true }
-permissions: { contents: write }
+permissions: { contents: read }
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          git fetch origin debug-maps && git checkout debug-maps || git checkout --orphan debug-maps
-          git rm -rq --cached . >/dev/null 2>&1 || true
-          mkdir -p maps && curl -sf --max-time 120 -o "maps/${{ inputs.map }}.pdf" "https://telpuo.kasparsleitis.com/api/maps/${{ inputs.map }}/pdf"
-          curl -sf --max-time 60 -o "maps/${{ inputs.map }}.json" "https://telpuo.kasparsleitis.com/api/maps/${{ inputs.map }}"
-          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add maps && git commit -qm "Map ${{ inputs.map }}" && git push -q origin HEAD:debug-maps
+      - env: { CHECK: '${{ secrets.TELPUO_CHECK_KEY }}' }
+        run: |
+          B=https://telpuo.kasparsleitis.com; M="${{ inputs.map }}"
+          mkdir -p out
+          echo "pdf HTTP $(curl -s -H "X-Check-Key: $CHECK" --max-time 120 -o out/map.pdf -w '%{http_code}' "$B/api/maps/$M/pdf")"
+          echo "json HTTP $(curl -s -H "X-Check-Key: $CHECK" --max-time 60 -o out/map.json -w '%{http_code}' "$B/api/maps/$M")"
+          tar czf map.tgz -C out .
+          openssl rand -hex 32 > k
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in map.tgz -out map.enc -pass file:k
+          openssl pkeyutl -encrypt -pubin -inkey .github/telpuo-check.pub.pem -in k -out k.enc
+          echo "KEYDATA $(base64 -w0 k.enc)"
+          echo "MAPDATA $(base64 -w0 map.enc)"
+          rm -f k map.tgz out/*

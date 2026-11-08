@@ -9,7 +9,8 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
-      - run: |
+      - env: { CHECK: '${{ secrets.TELPUO_CHECK_KEY }}' }
+        run: |
           mkdir -p runs
-          code=$(curl -s --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}")
+          code=$(curl -s -H "X-Check-Key: $CHECK" --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}")
           echo "HTTP $code, $(wc -c < runs/${{ inputs.run }}.json) bytes"; echo "RUNDATA $(gzip -c runs/${{ inputs.run }}.json | base64 -w0)"
