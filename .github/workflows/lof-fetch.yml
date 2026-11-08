@@ -5,6 +5,7 @@ on:
     inputs:
       id: { description: 'lof.lv seriali_rez id', required: true }
       path: { description: 'or another lof.lv address (path after https://lof.lv/)', required: false, default: '' }
+      post: { description: 'POST the results request (source.php, r=<this>)', required: false, default: '' }
 permissions: { contents: read }
 jobs:
   fetch:
@@ -15,6 +16,12 @@ jobs:
           P='${{ inputs.path }}'
           case "$P" in *[!A-Za-z0-9/._?=\&-]*) echo "bad path"; exit 1;; esac
           U="https://lof.lv/seriali_rez/?id=${{ inputs.id }}"; [ -n "$P" ] && U="https://lof.lv/$P"
-          code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' "$U")
+          R='${{ inputs.post }}'
+          case "$R" in *[!0-9]*) echo "post must be digits"; exit 1;; esac
+          if [ -n "$R" ]; then
+            code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' -X POST --data-urlencode txt=1 --data-urlencode "p=ev=${{ inputs.id }}&t=1&r=$R&d=0" "https://lof.lv/seriali_rez/source.php")
+          else
+            code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' "$U")
+          fi
           echo "HTTP $code, $(wc -c < page.html) bytes"
           echo "PAGEDATA $(gzip -c page.html | base64 -w0)"
