@@ -1,1 +1,1 @@
-{"commit": "073959a", "date": "2026-11-08T18:59:52+02:00", "change": "Stairwells: the two halves are joined on a floor only where one half has no door of its own; no walking in through one half and out through the other"}
+{"commit": "226c672", "date": "2026-11-08T19:14:07+02:00", "change": "Route options: leave out ways that walk to a staircase and away again without taking it"}
