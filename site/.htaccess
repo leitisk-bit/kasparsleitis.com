@@ -11,13 +11,19 @@ Options -Indexes
 
 <IfModule mod_expires.c>
 	ExpiresActive On
-	ExpiresByType text/html A300
+	ExpiresByType text/html A0
 	ExpiresByType image/svg+xml A604800
 	ExpiresByType image/png A604800
 	ExpiresByType image/jpeg A604800
 	ExpiresByType image/webp A604800
 	ExpiresByType text/css A3600
 	ExpiresByType application/javascript A3600
+</IfModule>
+
+<IfModule mod_headers.c>
+	<FilesMatch "\.(html|php)$">
+		Header set Cache-Control "no-cache"
+	</FilesMatch>
 </IfModule>
 
 <FilesMatch "^(web\.config|\.ftp-deploy-sync-state\.json)$">

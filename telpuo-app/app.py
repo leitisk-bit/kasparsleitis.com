@@ -66,6 +66,14 @@ def serverinfo_page():                # the page itself is on the website
     return redirect('https://kasparsleitis.com/serverinfo/', 302)
 
 @app.after_request
+def _fresh_pages(r):
+    # pages and answers: the browser must ask again each time, so an app update shows on the next
+    # reload (map pictures and 3D textures may be kept: they change only with a new address)
+    if r.mimetype in ('text/html', 'application/json') and 'Cache-Control' not in r.headers:
+        r.headers['Cache-Control'] = 'no-cache'
+    return r
+
+@app.after_request
 def _site_cors(r):
     # Let only kasparsleitis.com/serverinfo and /football read these answers from the browser.
     o = request.headers.get('Origin', '')
