@@ -15,7 +15,19 @@ app.config['MAX_CONTENT_LENGTH'] = 60 * 1024 * 1024
 ADMIN_KEY = os.environ.get('OREPLAY_ADMIN_KEY', '')       # if set, needed to edit/delete maps
 
 def admin_ok():
-    return not ADMIN_KEY or hmac.compare_digest(request.headers.get('X-Admin-Key', '').encode(), ADMIN_KEY.encode())
+    # the admin page sends the key as a header; it also leaves it in a cookie so pictures and the replay
+    # page (plain links) can show maps that are not published yet
+    from urllib.parse import unquote
+    key = request.headers.get('X-Admin-Key') or unquote(request.cookies.get('ior_admin', ''))
+    return not ADMIN_KEY or hmac.compare_digest(key.encode(), ADMIN_KEY.encode())
+
+def published(m): return bool(m) and m.get('published', True) is not False   # maps from before approval existed stay public
+def can_see(m): return bool(m) and (published(m) or admin_ok())
+def _seen(mid):
+    """The map's meta if this visitor may see it; otherwise a 404 (a draft map does not exist for the public)."""
+    m = store.get_meta(mid)
+    if not can_see(m): abort(404)
+    return m
 
 NEED_ADMIN = 'This needs the admin password.'
 OPT_VER = 2               # bump when route options are worked out differently (old saved ones are ignored)
@@ -101,7 +113,7 @@ def replay_page(): return send_from_directory(app.static_folder, 'replay.html')
 
 # ------------------------------------------------------------------ maps
 @app.get('/api/maps')
-def api_maps(): return jsonify(store.list_maps())
+def api_maps(): return jsonify([m for m in store.list_maps() if can_see(m)])
 
 @app.post('/api/maps')
 def api_new_map():
@@ -111,7 +123,7 @@ def api_new_map():
     mid = store.new_id(); d = store.map_dir(mid); os.makedirs(d)
     f.save(os.path.join(d, 'map.pdf'))
     name = (request.form.get('name') or f.filename.rsplit('.', 1)[0]).strip()[:120]
-    store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(),
+    store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(), published=False,
                    page=int(request.form.get('page') or 0), status='analysing', message='Reading the map…')
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(id=mid)
@@ -227,25 +239,26 @@ def _build_now(mid):
 
 @app.get('/api/maps/<mid>')
 def api_map(mid):
-    m = store.get_meta(mid)
-    if not m: abort(404)
+    m = _seen(mid)
     return jsonify(meta=m, features=store.get_features(mid), runs=store.list_runs(mid), now=time.time())
 
 @app.get('/api/maps/<mid>/image')
 def api_map_image(mid):
+    _seen(mid)
     p = os.path.join(store.map_dir(mid), 'map.jpg')
     if not os.path.exists(p): abort(404)
     return send_file(p, mimetype='image/jpeg', max_age=3600)
 
 @app.get('/api/maps/<mid>/pdf')
 def api_map_pdf(mid):
+    _seen(mid)
     return send_file(os.path.join(store.map_dir(mid), 'map.pdf'), mimetype='application/pdf')
 
 @app.get('/api/maps/<mid>/options')
 def api_options(mid):
     """All sensible routes for one leg, fastest first, timed at a pace (the selected runner's, or a default)."""
-    m = store.get_meta(mid)
-    if not m or m.get('status') != 'ready': return jsonify(error='The map is not ready yet.'), 409
+    m = _seen(mid)
+    if m.get('status') != 'ready': return jsonify(error='The map is not ready yet.'), 409
     try: leg = int(request.args.get('leg', 1)); px_s = float(request.args.get('px_s') or DEFAULT_PX_S)
     except ValueError: return jsonify(error='Bad leg or pace.'), 400
     px_s = min(0.2, max(0.01, px_s))
@@ -287,8 +300,8 @@ def api_reread(mid):
 
 @app.get('/api/maps/<mid>/three')
 def api_three(mid):
-    m = store.get_meta(mid)
-    if not m or not m.get('three'): return jsonify(error='No 3D data for this map yet.'), 404
+    m = _seen(mid)
+    if not m.get('three'): return jsonify(error='No 3D data for this map yet.'), 404
     t = m['three']; feat = store.get_features(mid)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'],
                    tex=[dict(x, img=f"api/maps/{mid}/tex/{x['floor']}.webp?{int(m.get('built') or 0)}") for x in t['tex']],
@@ -329,6 +342,7 @@ def _stairs3d(mid, built, off):
 @app.get('/api/maps/<mid>/tex/<floor>.webp')
 def api_tex(mid, floor):
     if not re.fullmatch(r'-?\d+(\.\d+)?', floor): abort(404)
+    _seen(mid)
     p = os.path.join(store.map_dir(mid), f'tex{floor}.webp')
     if not os.path.exists(p): abort(404)
     return send_file(p, mimetype='image/webp', max_age=86400)
@@ -351,6 +365,18 @@ def api_save_map(mid):
         store.set_meta(mid, status='building', message='Rebuilding the route network…', checked=True)
         store.background(_build, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(ok=True)
+
+@app.post('/api/maps/<mid>/publish')
+def api_publish(mid):
+    """Admin approval: a published map is listed and open to everyone; a draft only to the admin."""
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    m = store.get_meta(mid)
+    if not m: abort(404)
+    on = bool((request.get_json(silent=True) or {}).get('published', True))
+    if on and m.get('status') != 'ready': return jsonify(error='The map is not ready yet. Publish it when it has been prepared.'), 409
+    if on and m.get('problems'): return jsonify(error=f"Some legs have no route ({', '.join(map(str, m['problems']))}). Fix them before publishing."), 409
+    store.set_meta(mid, published=on, published_at=time.time() if on else None)
+    return jsonify(ok=True, published=on)
 
 @app.delete('/api/maps/<mid>')
 def api_delete_map(mid):
@@ -407,6 +433,7 @@ def _html_text(html):
 
 @app.get('/api/maps/<mid>/results')
 def api_get_results(mid):
+    _seen(mid)
     r = store.get_results(mid)
     if not r: return jsonify(groups=[])
     taken = {(x.get('group'), x.get('name')) for x in store.list_runs(mid)}
@@ -443,7 +470,7 @@ def _fmt(s):
 @app.post('/api/maps/<mid>/runs/check')
 def api_check_run(mid):
     """Read a watch file and say which results it could belong to."""
-    if not store.get_meta(mid): abort(404)
+    _seen(mid)
     f = request.files.get('track')
     if not f or not f.filename: return jsonify(error='Choose your TCX file.'), 400
     try: t0, obs = _read_track(f)
@@ -464,8 +491,7 @@ def api_check_run(mid):
 
 @app.post('/api/maps/<mid>/runs')
 def api_new_run(mid):
-    m = store.get_meta(mid)
-    if not m: abort(404)
+    m = _seen(mid)
     if m.get('status') != 'ready': return jsonify(error='The map is still being prepared. Try again in a minute.'), 409
     feat = store.get_features(mid)
     n_legs = len(feat['controls']) - 1
@@ -566,12 +592,12 @@ def _reconstruct_now(rid, mid, legs, obs):
     store.set_run(rid, run)
 
 @app.get('/api/maps/<mid>/runs')
-def api_runs(mid): return jsonify(store.list_runs(mid))
+def api_runs(mid): _seen(mid); return jsonify(store.list_runs(mid))
 
 @app.get('/api/runs/<rid>')
 def api_run(rid):
     r = store.get_run(rid)
-    if not r: abort(404)
+    if not r or not can_see(store.get_meta(r.get('map'))): abort(404)
     return jsonify(r)
 
 @app.delete('/api/runs/<rid>')

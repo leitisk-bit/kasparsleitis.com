@@ -40,6 +40,7 @@ label.lbl{font-size:12px;color:var(--muted);display:flex;flex-direction:column;g
 .mapcard b{display:block;font-weight:600}
 .pill{display:inline-block;font:600 11px var(--f-body);padding:2px 7px;border-radius:999px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.04em}
 .pill.ok{color:var(--ok)} .pill.work{color:var(--warn)} .pill.bad{color:var(--bad)}
+.pill.draft{color:var(--muted)} .pubbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;border:1px dashed var(--line);border-radius:8px} .pubbox.on{border-style:solid} .pubbox .btn{margin-left:auto}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}
 .stage{position:relative;height:72vh;background:var(--stage);border-radius:8px;overflow:hidden;touch-action:none}
 .stage canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -215,6 +216,9 @@ body:not(.is-admin) .admin-only{display:none!important}
 'use strict';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
+// the key also goes in a cookie, so map pictures and the replay page can show maps that are not published yet
+function keyCookie(k){ document.cookie = 'ior_admin=' + (k ? encodeURIComponent(k) : '') + '; path=/; SameSite=Strict' + (location.protocol==='https:' ? '; Secure' : '') + (k ? '; max-age=31536000' : '; max-age=0'); }
+keyCookie(KEY);
 const H = () => KEY ? {'X-Admin-Key': KEY} : {};
 let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true,4500); }
 const fmt = s => { s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0'); };
@@ -233,7 +237,8 @@ async function openLib(){
   for (const m of maps){
     const a=document.createElement('a'); a.className='card mapcard'; a.href='#map-'+m.id;
     const st = m.status==='ready' ? ((m.problems||[]).length ? `<span class="pill bad">check</span> <span class="muted">${(m.problems||[]).length} leg(s) without a route</span>` : '<span class="pill ok">ready</span>') : m.status==='error' ? '<span class="pill bad">error</span>' : `<span class="pill work">working</span> <span class="muted">${esc(m.message||'')}</span>`;
-    a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b><div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
+    const draft = m.published===false ? ' <span class="pill draft" title="Only you can see this map. Publish it on the map page.">draft</span>' : '';
+    a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b>${draft}<div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
     box.appendChild(a);
   }
   if (maps.some(m=>m.status!=='ready'&&m.status!=='error')){ stopPoll(); pollT=setTimeout(()=>{ if (!$('#lib').hidden) openLib(); }, 3000); }
@@ -291,11 +296,18 @@ function renderStatus(){
   const stale = working && M.updated && (Date.now()/1000+CLOCK-M.updated) > 180;
   const warn = (M.warnings||[]).map(x=>`<div class="bad">⚠ ${esc(x)}</div>`).join('');
   const legs = L.length ? `<details ${p.length?'open':''}><summary class="muted">Route check per leg</summary><ul class="legcheck">${L.map(x=>`<li>${x.error?'<span class="bad">✗</span>':'<span class="ok">✓</span>'} Leg ${x.leg}${x.error?' · no route':` · ${esc(x.stairs||'same floor')} · ${fmt(x.time||0)}`}</li>`).join('')}</ul></details>` : '';
-  s.innerHTML = `<div>${head}</div>${warn}<ol class="steps">${rows.map(([k,t,d])=>`<li class="${k}">${icon(k)}<b>${t}</b><span class="muted">${d}</span></li>`).join('')}</ol>`
+  const pub = M.published!==false, canPub = st==='ready' && !p.length;
+  const pubBox = `<div class="pubbox ${pub?'on':''}">${pub ? `<span class="pill ok">published</span> Everyone can see this map and add runs.` : `<span class="pill draft">draft</span> Only you can see this map. ${canPub ? 'When you have checked it, publish it for everyone.' : working ? 'You can publish it once it is prepared.' : 'Fix the legs without a route first.'}`}
+    <button class="btn small ${pub?'':'primary'}" id="pubBtn" ${!pub && !canPub ? 'disabled' : ''}>${pub ? 'Unpublish' : 'Approve and publish'}</button></div>`;
+  s.innerHTML = pubBox + `<div>${head}</div>${warn}<ol class="steps">${rows.map(([k,t,d])=>`<li class="${k}">${icon(k)}<b>${t}</b><span class="muted">${d}</span></li>`).join('')}</ol>`
     + (working ? `<div class="muted">Last activity ${ago(M.updated)} ago${stale?' · <span class="bad">no progress for a while: the job may have stopped. Try “Read the map again”.</span>':''}</div>` : '')
     + legs
     + `<div class="jobbtns"><button class="btn small" data-job="reread" ${working?'disabled':''}>Read the map again</button><button class="btn small" data-job="rebuild" ${working?'disabled':''}>Rebuild routes</button><button class="btn small" data-job="rerun" ${working||!runs.length?'disabled':''}>Redo all runs</button></div>`
     + `<div class="muted">Read again: reads the PDF from scratch (replaces manual fixes). Rebuild: keeps your fixes, builds routes again. Both redo the saved runs afterwards.</div>`;
+  $('#pubBtn').onclick = async () => { const on = M.published===false; $('#pubBtn').disabled = true;
+    try { await api('maps/'+M.id+'/publish', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({published:on})});
+      toast(on ? 'Published: everyone can see this map now.' : 'Unpublished: only you can see this map now.'); openMap(M.id); }
+    catch(e){ toast(e.message); $('#pubBtn').disabled = false; } };
   s.querySelectorAll('[data-job]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.job; b.disabled=true;
     try { const r=await api('maps/'+M.id+'/'+k,{method:'POST'}); toast(k==='rerun' ? `Working out ${r.runs} run${r.runs===1?'':'s'} again.` : k==='rebuild' ? 'Rebuilding the routes.' : 'Reading the map again.'); openMap(M.id); }
     catch(e){ toast(e.message); b.disabled=false; } });
@@ -474,14 +486,14 @@ async function checkAdmin(){ let r={}; try { r=await api('admin'); ADMIN=!!r.adm
   if ($('#showLegs')) $('#showLegs').checked = ADMIN; }
 function askKey(){ if (!ADMIN) $('#keyBtn').click(); }
 $('#keyBtn').onclick=()=>{
-  if (ADMIN){ KEY=''; try{ localStorage.removeItem('ior:key'); }catch(e){} checkAdmin().then(route); return; }
+  if (ADMIN){ KEY=''; keyCookie(''); try{ localStorage.removeItem('ior:key'); }catch(e){} checkAdmin().then(route); return; }
   if ($('#keyBox')) return;
   const box=document.createElement('form'); box.id='keyBox'; box.className='card'; box.style.cssText='position:fixed;right:16px;top:16px;z-index:30;width:min(300px,calc(100% - 32px))';
   box.innerHTML='<label class="lbl">Admin password<input class="field" type="password" id="keyIn" autocomplete="current-password"></label><div style="display:flex;gap:8px"><button class="btn primary small" type="submit">Sign in</button><button class="btn small" type="button" id="keyCancel">Cancel</button></div>';
   document.body.appendChild(box); $('#keyIn').focus(); $('#keyCancel').onclick=()=>box.remove();
   box.onsubmit=async ev=>{ ev.preventDefault(); KEY=$('#keyIn').value; await checkAdmin();
     if (!ADMIN){ KEY=''; toast('Wrong password.'); return; }
-    try{ localStorage.setItem('ior:key',KEY);}catch(e){} box.remove(); toast('Signed in as admin.'); route(); }; };
+    keyCookie(KEY); try{ localStorage.setItem('ior:key',KEY);}catch(e){} box.remove(); toast('Signed in as admin.'); route(); }; };
 
 /* ---------- canvas ---------- */
 const cv=$('#cv'), ctx=cv.getContext('2d'), stage=$('#stage'); let cw=0,ch=0,dpr=1;
