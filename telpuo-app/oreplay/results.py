@@ -152,3 +152,75 @@ def courses(res):
     for g in res['groups']:
         out.setdefault(tuple(g['codes']), []).append(g['name'])
     return [{'codes': list(k), 'groups': v} for k, v in out.items()]
+
+
+# ---- lof.lv: the results straight from the site (no PDF). lof.lv loads its result pages from
+# source.php; asked for the "graph" view it returns the standard orienteering-software CSV
+# (OE format): every runner's class, start and finish clock times, and each control code with
+# the time it was punched (counted from the start).
+OE_STATUS = {'0': 'ok', '1': 'dns', '2': 'dnf', '3': 'mp', '4': 'dsq', '5': 'ot'}
+
+def lof_id(s):
+    """The race id from a lof.lv link (…seriali_rez/?id=2026110832#s) or the id itself."""
+    m = re.search(r'(?:[?&]id=)?(\d{8,12})', s or '')
+    return m.group(1) if m else None
+
+def fetch_lof(race_id, timeout=40):
+    """(event title, CSV text) for a lof.lv race."""
+    import urllib.request, urllib.parse, json
+    ua = {'User-Agent': 'telpuo-replay/1.0 (indoor orienteering replay)'}
+    page = urllib.request.urlopen(urllib.request.Request(f'https://lof.lv/seriali_rez/?id={race_id}', headers=ua), timeout=timeout).read().decode('utf-8', 'replace')
+    event = ''
+    m = re.search(r'var ev=(\{.*?\});', page)
+    if m:
+        try:
+            ev = json.loads(m.group(1)); d = (ev.get('datums') or '').split('-')
+            event = ev.get('sacen') or ''
+            if len(d) == 3: event += f' ({d[2]}.{d[1]}.{d[0]})'
+        except ValueError: pass
+    body = urllib.parse.urlencode({'txt': 1, 'p': f'ev={race_id}&t=1&r=3&d=0'}).encode()
+    req = urllib.request.Request('https://lof.lv/seriali_rez/source.php', data=body, headers=ua)
+    data = json.loads(urllib.request.urlopen(req, timeout=timeout).read().decode('utf-8', 'replace'))
+    if not data.get('csv'): raise ValueError('lof.lv sent no results for this race (check the link)')
+    return event, data['csv']
+
+def parse_oe_csv(csv_text, event=''):
+    rows = [r.split(';') for r in csv_text.replace('\r', '').split('\n') if r.strip()]
+    if not rows: raise ValueError('empty results')
+    head = rows[0]
+    col = {}
+    for i, h in enumerate(head):
+        col.setdefault(h.strip(), i)
+    def get(r, name):
+        i = col.get(name); return r[i].strip() if i is not None and i < len(r) else ''
+    first_ctrl = col.get('Control1')
+    if first_ctrl is None: raise ValueError('these results have no split times')
+    groups = {}
+    for r in rows[1:]:
+        cls = get(r, 'Short') or get(r, 'Long') or get(r, 'Course')
+        if not cls: continue
+        codes, punches = [], []
+        for i in range(first_ctrl, len(r) - 1, 2):
+            c, t = r[i].strip(), r[i + 1].strip()
+            if not c: break
+            codes.append(c); punches.append(secs(t) if t else None)
+        total = secs(get(r, 'Time')) if get(r, 'Time') else None
+        status = OE_STATUS.get(get(r, 'Classifier'), get(r, 'Classifier') or '')
+        legs = None
+        if status == 'ok' and total and punches and all(p is not None for p in punches):
+            cum = punches + [total]
+            legs = [cum[0]] + [b - a for a, b in zip(cum, cum[1:])]
+            if any(l < 0 for l in legs): legs = None
+        pl = get(r, 'Pl')
+        name = (get(r, 'First name') + ' ' + get(r, 'Surname')).strip()
+        g = groups.setdefault(cls, {'name': cls, 'n_controls': len(codes), 'codes': codes + ['F'], 'runners': []})
+        if len(codes) > g['n_controls']: g['codes'] = codes + ['F']; g['n_controls'] = len(codes)
+        g['runners'].append({'place': int(pl) if pl.isdigit() and status == 'ok' else None, 'name': name,
+                             'club': get(r, 'Cl.name') or get(r, 'City'), 'total': total,
+                             'status': status if legs or status != 'ok' else 'incomplete', 'legs': legs,
+                             'start': secs(get(r, 'Start')) if get(r, 'Start') else None})
+    out = []
+    for g in groups.values():
+        g['runners'].sort(key=lambda x: (x['place'] is None, x['place'] or 0, x['total'] or 1e9))
+        out.append(g)
+    return {'event': event, 'groups': out}

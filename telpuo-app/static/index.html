@@ -144,7 +144,9 @@ body:not(.is-admin) .admin-only{display:none!important}
               <div id="resInfo" class="muted"></div>
               <details id="resImport"><summary class="btn small" id="resSum">Import results with splits</summary>
                 <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-                  <div class="muted">Open the race on lof.lv, choose <b>Split</b>, and save the page as PDF (Print → Save as PDF) or as a web page. Or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
+                  <div class="muted"><b>Easiest:</b> paste the race's lof.lv link, for example <code>https://lof.lv/seriali_rez/?id=2026110832</code>.</div>
+                  <input class="field" type="url" id="resLof" placeholder="lof.lv link to the race">
+                  <div class="muted">Or a saved results page: on lof.lv choose <b>Split</b> and save it as PDF or as a web page, or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
                   <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,application/pdf,text/html">
                   <textarea class="field" id="resText" rows="2" placeholder="…or paste the results page here"></textarea>
                   <button class="btn primary small" type="button" id="resBtn">Import and save results</button>
@@ -423,10 +425,11 @@ function renderResults(quiet){
 }
 $('#resBtn').onclick = async () => {
   const fd=new FormData(); const f=$('#resFile').files[0];
-  if (f) fd.append('file',f); else if ($('#resText').value.trim()) fd.append('text',$('#resText').value); else { toast('Choose the results file or paste the page.'); return; }
+  const lof=$('#resLof').value.trim();
+  if (lof) fd.append('lof',lof); else if (f) fd.append('file',f); else if ($('#resText').value.trim()) fd.append('text',$('#resText').value); else { toast('Paste the lof.lv link, choose the results file or paste the page.'); return; }
   $('#resBtn').disabled=true;
   $('#resBtn').textContent='Saving…';
-  try { const r=await api('maps/'+M.id+'/results',{method:'POST',body:fd}); toast(`Saved: ${r.runners} runners in ${r.groups.join(', ')}`); $('#resFile').value=''; $('#resText').value=''; $('#resImport').open=false; await loadResults(true); openMap(M.id); }
+  try { const r=await api('maps/'+M.id+'/results',{method:'POST',body:fd}); toast(`Saved: ${r.runners} runners in ${r.groups.join(', ')}`); $('#resFile').value=''; $('#resText').value=''; $('#resLof').value=''; $('#resImport').open=false; await loadResults(true); openMap(M.id); }
   catch(err){ toast(err.message); $('#resInfo').innerHTML=`<span class="bad">Not saved: ${esc(err.message)}</span>`; }
   $('#resBtn').disabled=false; $('#resBtn').textContent='Import and save results'; };
 

@@ -404,9 +404,15 @@ def api_results(mid):
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     feat = store.get_features(mid)
     if not feat: return jsonify(error='The map is still being read. Try again in a minute.'), 409
-    f = request.files.get('file'); text = request.form.get('text', '')
+    f = request.files.get('file'); text = request.form.get('text', ''); lof = request.form.get('lof', '').strip()
     try:
-        if f and f.filename:
+        if lof:
+            rid = results.lof_id(lof)
+            if not rid: return jsonify(error='That does not look like a lof.lv race link (it should end with ?id= and a number).'), 400
+            try: event, csv_text = results.fetch_lof(rid)
+            except (OSError, ValueError) as e: return jsonify(error=f'Could not get the results from lof.lv: {e}'), 502
+            res = results.parse_oe_csv(csv_text, event)
+        elif f and f.filename:
             data = f.read()
             res = results.parse(data=data) if data[:5] == b'%PDF-' else results.parse(text=_html_text(data.decode('utf-8', 'replace')))
         elif text.strip(): res = results.parse(text=text)
