@@ -1,1 +1,1 @@
-{"commit": "9d4e84f", "date": "2026-11-08T19:25:07+02:00", "change": "Results: import straight from a lof.lv link (all groups, splits and start times from lof.lv's own CSV), no PDF needed"}
+{"commit": "715f2d0", "date": "2026-11-08T19:27:24+02:00", "change": "Results import: Clear button; one source at a time (link, file or pasted text)"}
