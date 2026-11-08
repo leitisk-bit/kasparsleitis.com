@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       id: { description: 'lof.lv seriali_rez id', required: true }
+      path: { description: 'or another lof.lv address (path after https://lof.lv/)', required: false, default: '' }
 permissions: { contents: read }
 jobs:
   fetch:
@@ -11,6 +12,9 @@ jobs:
     steps:
       - run: |
           case "${{ inputs.id }}" in *[!0-9]*) echo "id must be digits"; exit 1;; esac
-          code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' "https://lof.lv/seriali_rez/?id=${{ inputs.id }}")
+          P='${{ inputs.path }}'
+          case "$P" in *[!A-Za-z0-9/._?=\&-]*) echo "bad path"; exit 1;; esac
+          U="https://lof.lv/seriali_rez/?id=${{ inputs.id }}"; [ -n "$P" ] && U="https://lof.lv/$P"
+          code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' "$U")
           echo "HTTP $code, $(wc -c < page.html) bytes"
           echo "PAGEDATA $(gzip -c page.html | base64 -w0)"
