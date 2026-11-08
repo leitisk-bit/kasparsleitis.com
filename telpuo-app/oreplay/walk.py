@@ -317,7 +317,11 @@ def build(img, features, progress=None):
         o = f'{parts[0]}_{parts[1]}_dn'
         if o not in N: continue
         d = math.hypot(N[n][1] - N[o][1], N[n][2] - N[o][2])
-        if d < 150 and (not has_door[n] or not has_door[o]): add(n, o, d, 0); add(o, n, d, 0)
+        if d >= 150 or (has_door[n] and has_door[o]): continue
+        # a straight purple bar at the stairwell closes it at this floor: no way past either
+        mx, my = (N[n][1] + N[o][1]) / 2, (N[n][2] + N[o][2]) / 2
+        if any(math.hypot(bx - mx, by - my) < 75 for bx, by, _ in features.get('stair_bars', [])): continue
+        add(n, o, d, 0); add(o, n, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():
         if fl_name in N and c in N:

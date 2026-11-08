@@ -209,6 +209,20 @@ def analyze(pdf_path, page=0):
                     elif it[0] == 'c':
                         p0, p3 = it[1], it[4]; f[key].append([round(p0.x * S, 1), round(p0.y * S, 1), round(p3.x * S, 1), round(p3.y * S, 1), round(max(wd, 3), 1)])
 
+    # closed-stairwell bars: a short STRAIGHT purple line drawn across a stairwell's door closes the
+    # stairwell at that floor: no way out there and no way past (4. posms J on floor 3). A bracket drawn in several pieces with
+    # a gap is not a bar (the stairwell can be passed). Kept as [x, y, length] centres.
+    f['stair_bars'] = []
+    for d in drawings:
+        sc = _rgb(d.get('color')); fc = _rgb(d.get('fill'))
+        if not (_is_tape(sc) or _is_tape(fc)): continue
+        r = d['rect']; w_, h_ = r.width * S, r.height * S
+        kinds = ''.join(i[0] for i in d['items'])
+        # (a small FILLED purple block, as on the 3. posms maps, closes only the door: runners pass by
+        # inside the stairwell, so it is not counted here)
+        if kinds == 'l' and not fc and (d.get('width') or 0) * S >= 9 and 25 <= max(w_, h_) <= 140:
+            f['stair_bars'].append([round((r.x0 + r.x1) / 2 * S), round((r.y0 + r.y1) / 2 * S), round(max(w_, h_))])
+
     def in_ignore(x, y):
         return any(a <= x <= c and b <= y <= d for a, b, c, d in f['ignore'])
 
