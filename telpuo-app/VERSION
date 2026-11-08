@@ -1,1 +1,1 @@
-{"commit": "b9787df", "date": "2026-11-08T20:51:34+02:00", "change": "Name: AI Runner"}
+{"commit": "676df26", "date": "2026-11-08T22:29:45+02:00", "change": "Stairs tab: per-map switch to read stair symbols by the legend (off by default; work in progress, not yet right on 4. posms B)"}
