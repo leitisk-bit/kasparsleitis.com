@@ -588,8 +588,8 @@ def _reconstruct_now(rid, mid, legs, obs):
     R = Recon(N, E, POLY, info['controls'])
     run['message'] = 'Working out the route…'; store.set_run(rid, run)
     def prog(s): run['message'] = 'Working out the route: ' + s; store.set_run(rid, run)
-    lead, lead_who = _split_leaders(mid, len(legs))
-    res = R.run([int(round(x)) for x in legs], obs, [c.get('floor') for c in feat['controls']], progress=prog, leader=lead)
+    # the AI runner: the fastest route on every leg, at this runner's own best pace (its own split times)
+    res = R.run([int(round(x)) for x in legs], obs, [c.get('floor') for c in feat['controls']], progress=prog)
     k = feat.get('display_scale', 1)
     codes = [{'start': 'Start', 'finish': 'Finish'}.get(c['kind']) or (f"{c['n']}-{c['code']}" if c.get('code') else str(c['n'])) for c in feat['controls']]
     def conv(pts):
@@ -622,11 +622,10 @@ def _reconstruct_now(rid, mid, legs, obs):
         legs_out.append({'label': label, 't0': cum[i], 't1': cum[i + 1], 'split': L['T'], 'route': L['route'],
                          'fastest': L['fastest'], 'fastestT': L['fastestT'], 'note': note})
         glegs.append({'label': label, 't0': cum[i], 't1': cum[i + 1], 'split': L['fastestT'], 'route': L['fastest'],
-                      'note': (f"Split leader on this leg: {lead_who[i]}, {L['fastestT']} s, shown on the fastest route. " if L.get('leader') else
-                               "Fastest option found, at this runner's best pace. ") + f"Waits at the control; the runner arrived {L['T'] - L['fastestT']} s later."})
+                      'note': f"AI runner: the fastest route found, at this runner's own best pace ({L['fastestT']} s). Waits at the control; the runner arrived {L['T'] - L['fastestT']} s later."})
     run.update(status='done', message='', legs=legs_out, pts3d=p3, ghost3d=g3, floors_fit=res['floors_fit'], px_s=res['px_s'],
                runners=[{'name': run['name'] + (f" ({run['group']})" if run.get('group') else ''), 'color': '#E3262B', 'abs0': run.get('start_ms') or 0, 'pts': pts, 'legs': legs_out},
-                        {'name': 'Split leader' if any(lead) else 'Fastest route', 'color': '#1F6FE0', 'abs0': run.get('start_ms') or 0, 'pts': gp, 'legs': glegs, 'ghost': True}])
+                        {'name': 'AI runner', 'color': '#1F6FE0', 'abs0': run.get('start_ms') or 0, 'pts': gp, 'legs': glegs, 'ghost': True}])
     store.set_run(rid, run)
 
 @app.get('/api/maps/<mid>/runs')
