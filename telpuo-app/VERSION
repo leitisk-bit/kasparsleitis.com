@@ -1,1 +1,1 @@
-{"commit": "53c4248", "date": "2026-11-08T17:37:44+02:00", "change": "Map reader: a Č/Š/Ž staircase on a map with no plain C/S/Z is called C/S/Z"}
+{"commit": "37c8e9d", "date": "2026-11-08T17:40:44+02:00", "change": "Map reader: keep Č/Š/Ž staircases as drawn (revert the rename to C/S/Z)"}
