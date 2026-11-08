@@ -1,1 +1,1 @@
-{"commit": "560a729", "date": "2026-11-08T20:46:24+02:00", "change": "Ghost runner is the split leader (best split on each leg across all groups on the course); lost legs: routes that follow the watch's floor order, and the way a runner would have planned"}
+{"commit": "fe54206", "date": "2026-11-08T20:51:24+02:00", "change": "Ghost runner is the AI runner: fastest route at the runner's own pace, its own split times"}
