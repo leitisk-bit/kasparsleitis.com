@@ -1,0 +1,16 @@
+# Prints a lof.lv results page (gzip + base64 in the log), so the results importer can be taught its layout.
+name: lof.lv fetch page
+on:
+  workflow_dispatch:
+    inputs:
+      id: { description: 'lof.lv seriali_rez id', required: true }
+permissions: { contents: read }
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          case "${{ inputs.id }}" in *[!0-9]*) echo "id must be digits"; exit 1;; esac
+          code=$(curl -s --max-time 60 -o page.html -w '%{http_code}' "https://lof.lv/seriali_rez/?id=${{ inputs.id }}")
+          echo "HTTP $code, $(wc -c < page.html) bytes"
+          echo "PAGEDATA $(gzip -c page.html | base64 -w0)"
