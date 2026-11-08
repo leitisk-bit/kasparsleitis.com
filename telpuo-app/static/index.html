@@ -200,10 +200,8 @@ body:not(.is-admin) .admin-only{display:none!important}
           </div>
 
           <div data-pane="stairs" hidden>
-            <div class="muted">Stairwell letters per floor. Red flights go up from that floor, blue flights go down; the same letter on different floors is one stairwell.</div>
-            <label class="lbl" style="flex-direction:row;align-items:flex-start;gap:8px;margin:6px 0"><input type="checkbox" id="stairLegend" style="margin-top:3px">
-              <span><b>Read stairs by the legend</b><br><span class="muted">Each flight is got on and off only where it meets the floor (the open end of the symbol), never from its side; the orange landing is ignored. Turn on for maps drawn like 4. posms. Rebuilds the routes.</span></span></label>
-            <div class="list" id="stairList"></div>
+            <div class="muted">Stairwell letters per floor. Red flights go up from that floor, blue flights go down; the same letter on different floors is one stairwell. Each flight is got on only where it meets the floor; the stair drawing itself (and an orange landing between the halves) is never used to change sides.</div>
+                        <div class="list" id="stairList"></div>
             <button class="btn small" id="addStair">Add letter (click map)</button>
           </div>
 

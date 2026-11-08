@@ -10,7 +10,7 @@ Rules (map legend):
   * pockets: a control that can only be reached through one stair flight (inside a stairwell, or
     fenced off by tape next to one).
 """
-import math, collections
+import math, collections, os
 import numpy as np
 from scipy import ndimage as ndi
 from skimage.graph import MCP_Geometric
@@ -176,6 +176,86 @@ def stair_symbols(walk, cls, k, FL):
         floor[y, x] = True
     return floor, out
 
+def stair_open(walk, cls, k, FL):
+    """Stair symbols by the legend. Red steps lead up from this floor, blue steps down; each is got on only
+    where its own steps meet the floor (corridor or room). The rest of the drawing (orange landing, white
+    hatching, black lines) is not floor, so on a floor you cannot change from one half to the other inside
+    the stairwell. A colour that meets no floor (walled in, or its opening closed by a purple bar) keeps its
+    point inside and is joined to the other half later: the stairwell can be passed there, not left.
+    Only small drawn symbols; a wide red stair hall (3. posms U at the start) stays floor."""
+    red, blue = cls == k['red'], cls == k['blue']
+    land = cls == k['landing']
+    sym = ndi.binary_fill_holes(ndi.binary_closing(red | blue, iterations=3))
+    lab, n = ndi.label(sym)
+    if not n: return walk, FL, None
+    sz = ndi.sum(sym, lab, range(1, n + 1))
+    small = np.isin(lab, [i + 1 for i in range(n) if sz[i] < 4000])
+    # its landing: small orange pieces touching it
+    # its landing: an orange piece that touches both the red and the blue half would let a runner change
+    # halves on this floor, so it is part of the stairs (ignored). An orange area touching only one half
+    # (the start by U on 3. posms A, the top floor of K on 3. posms B) is floor.
+    llab, ln = ndi.label(land)
+    icon = small.copy()
+    if ln:
+        near_r = ndi.binary_dilation(red & small, iterations=3)
+        near_b = ndi.binary_dilation(blue & small, iterations=3)
+        both = set(np.unique(llab[near_r & land])) & set(np.unique(llab[near_b & land]))
+        lsz = ndi.sum(land, llab, range(1, ln + 1))
+        for t in both:
+            if t and lsz[t - 1] < 2500: icon |= llab == t
+    floor = walk & ~icon
+    out = {}
+    for name, (fl, x, y) in FL.items():
+        H_, W_ = icon.shape
+        if not (0 <= y < H_ and 0 <= x < W_) or not ndi.binary_dilation(icon[max(0, y - 3):y + 4, max(0, x - 3):x + 4]).any():
+            out[name] = (fl, x, y); continue                    # not a small symbol: as before
+        col = red if name.endswith('_up') else blue
+        R = 50; y0, x0 = max(0, y - R), max(0, x - R)
+        # the whole half: its coloured stripes joined across the white step lines, never across a black line
+        cw = col[y0:y + R, x0:x + R]
+        joined = ndi.binary_closing(cw, iterations=2) & (cw | (cls[y0:y + R, x0:x + R] == k['white'])) & icon[y0:y + R, x0:x + R]
+        cl, _ = ndi.label(joined)
+        ys_, xs_ = np.nonzero(cl)
+        if not len(xs_): out[name] = (fl, x, y); continue
+        j = int(np.argmin((xs_ + x0 - x) ** 2 + (ys_ + y0 - y) ** 2))
+        own = np.zeros_like(red); own[y0:y0 + cl.shape[0], x0:x0 + cl.shape[1]] = cl == cl[ys_[j], xs_[j]]
+        door = ndi.binary_dilation(own, iterations=4) & floor
+        if door.any():
+            # it opens onto the biggest floor area it touches (a room or corridor), not a sliver beside it
+            Y0_, X0_ = max(0, y - 150), max(0, x - 150)
+            fw = floor[Y0_:y + 150, X0_:x + 150]
+            flab, _ = ndi.label(fw)
+            dl = flab[door[Y0_:y + 150, X0_:x + 150]]
+            ids, cnt = np.unique(dl[dl > 0], return_counts=True)
+            if len(ids):
+                sizes = ndi.sum(fw, flab, ids)
+                best = ids[int(np.argmax(sizes))]
+                keep = np.zeros_like(door); keep[Y0_:Y0_ + fw.shape[0], X0_:X0_ + fw.shape[1]] = flab == best
+                door &= keep
+        dy, dx = np.nonzero(door)
+        if not len(dx): out[name] = (fl, int(xs_[j] + x0), int(ys_[j] + y0)); continue   # no opening of its own
+        oy, ox = np.nonzero(own)
+        cx_, cy_ = ox.mean(), oy.mean()
+        j = int(np.argmin((dx - cx_) ** 2 + (dy - cy_) ** 2))
+        out[name] = (fl, int(dx[j]), int(dy[j]))
+    for name, (fl, x, y) in out.items():
+        floor[y, x] = True
+    return floor, out, icon
+
+def snap_big(walk, x, y, r=60, min_area=1500):
+    """The nearest walkable spot that is part of a real floor area (not a scrap cut off by a drawing)."""
+    y0, x0 = max(0, y - 150), max(0, x - 150)
+    w = walk[y0:y + 150, x0:x + 150]
+    lab, n = ndi.label(w)
+    if n:
+        sz = ndi.sum(w, lab, range(1, n + 1))
+        big = np.isin(lab, [i + 1 for i in range(n) if sz[i] >= min_area])
+        ys, xs = np.nonzero(big)
+        if len(xs):
+            d2 = (xs + x0 - x) ** 2 + (ys + y0 - y) ** 2; j = int(np.argmin(d2))
+            if d2[j] <= r * r: return int(xs[j] + x0), int(ys[j] + y0)
+    return snap(walk, x, y)
+
 def snap(walk, x, y, r=45):
     y0, x0 = max(0, y - r), max(0, x - r)
     ys, xs = np.nonzero(walk[y0:y + r, x0:x + r])
@@ -250,6 +330,8 @@ def build(img, features, progress=None):
     FL = flights(cls, k, features)
     if features.get('stair_rule') == 'legend':                # per map, switched on in the Stairs tab
         walk, FL = stair_symbols(walk, cls, k, FL)
+    else:                                                      # the legend rule, on every map
+        walk, FL, _ = stair_open(walk, cls, k, FL)
     N = dict(FL)
     names = control_names(features)
     # pockets: only what the runner confirmed on the check screen is forced; the pixel network
@@ -259,7 +341,7 @@ def build(img, features, progress=None):
     pocket_ctrl = {p['control']: p['flight'] for p in pockets}
     for c, nm in zip(features['controls'], names):
         if nm in pocket_ctrl: N[nm] = (c['floor'], int(c['x']), int(c['y'])); continue
-        p = snap(walk, int(c['x']), int(c['y']))
+        p = snap_big(walk, int(c['x']), int(c['y']))
         if p is None: p = (int(c['x']), int(c['y']))
         N[nm] = (c['floor'], *p)
     E, POLY = [], {}

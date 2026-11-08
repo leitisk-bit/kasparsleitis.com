@@ -37,7 +37,7 @@ def _seen(mid):
     return m
 
 NEED_ADMIN = 'This needs the admin password.'
-OPT_VER = 6               # bump when route options are worked out differently (old saved ones are ignored)
+OPT_VER = 7               # bump when route options are worked out differently (old saved ones are ignored)
 DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
