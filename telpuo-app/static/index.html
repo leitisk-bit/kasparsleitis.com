@@ -149,7 +149,8 @@ body:not(.is-admin) .admin-only{display:none!important}
                   <div class="muted">Or a saved results page: on lof.lv choose <b>Split</b> and save it as PDF or as a web page, or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
                   <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,application/pdf,text/html">
                   <textarea class="field" id="resText" rows="2" placeholder="…or paste the results page here"></textarea>
-                  <button class="btn primary small" type="button" id="resBtn">Import and save results</button>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" type="button" id="resBtn">Import and save results</button>
+                  <button class="btn small" type="button" id="resClear" title="Empty the link, the chosen file and the pasted text">Clear</button></div>
                 </div>
               </details>
             </div>
@@ -423,6 +424,11 @@ function renderResults(quiet){
   // a watch file already chosen before the results arrived: check it again now
   if (!quiet && $('#rTrack').files[0] && CHECKED_NO_RES) $('#rTrack').onchange(); else if (!$('#rTrack').files[0]) resetRunForm();
 }
+$('#resClear').onclick = () => { $('#resLof').value=''; $('#resFile').value=''; $('#resText').value=''; $('#resInfo').innerHTML=''; };
+// only one source at a time: typing a link or pasting text drops a chosen file, and choosing a file drops the rest
+$('#resLof').oninput = () => { if ($('#resLof').value.trim()){ $('#resFile').value=''; $('#resText').value=''; } };
+$('#resText').oninput = () => { if ($('#resText').value.trim()){ $('#resFile').value=''; $('#resLof').value=''; } };
+$('#resFile').onchange = () => { if ($('#resFile').files[0]){ $('#resLof').value=''; $('#resText').value=''; } };
 $('#resBtn').onclick = async () => {
   const fd=new FormData(); const f=$('#resFile').files[0];
   const lof=$('#resLof').value.trim();
