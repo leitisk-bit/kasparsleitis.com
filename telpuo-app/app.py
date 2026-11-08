@@ -211,6 +211,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
+    feat = dict(feat, stair_rule=(store.get_meta(mid) or {}).get('stair_rule'))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -292,6 +293,17 @@ def api_options(mid):
     out = {'leg': leg, 'options': opts}
     with open(cache, 'w') as f: json.dump(out, f, separators=(',', ':'))
     return jsonify(out)
+
+@app.post('/api/maps/<mid>/stair_rule')
+def api_stair_rule(mid):
+    """How this map's stair symbols are read: 'legend' (each flight got on only at its open end, the
+    orange landing ignored) or the standard reading. Rebuilds the routes."""
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not store.get_meta(mid): abort(404)
+    rule = 'legend' if (request.get_json(silent=True) or {}).get('legend') else None
+    store.set_meta(mid, stair_rule=rule)
+    store.background(_build, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
+    return jsonify(ok=True, stair_rule=rule)
 
 @app.post('/api/maps/<mid>/rebuild')
 def api_rebuild(mid):

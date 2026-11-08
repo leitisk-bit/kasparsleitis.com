@@ -201,6 +201,8 @@ body:not(.is-admin) .admin-only{display:none!important}
 
           <div data-pane="stairs" hidden>
             <div class="muted">Stairwell letters per floor. Red flights go up from that floor, blue flights go down; the same letter on different floors is one stairwell.</div>
+            <label class="lbl" style="flex-direction:row;align-items:flex-start;gap:8px;margin:6px 0"><input type="checkbox" id="stairLegend" style="margin-top:3px">
+              <span><b>Read stairs by the legend</b><br><span class="muted">Each flight is got on and off only where it meets the floor (the open end of the symbol), never from its side; the orange landing is ignored. Turn on for maps drawn like 4. posms. Rebuilds the routes.</span></span></label>
             <div class="list" id="stairList"></div>
             <button class="btn small" id="addStair">Add letter (click map)</button>
           </div>
@@ -338,6 +340,11 @@ function renderStatus(){
     try { await api('maps/'+M.id+'/publish', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({published:on})});
       toast(on ? 'Published: everyone can see this map now.' : 'Unpublished: only you can see this map now.'); openMap(M.id); }
     catch(e){ toast(e.message); $('#pubBtn').disabled = false; } };
+  if ($('#stairLegend')) { $('#stairLegend').checked = M.stair_rule === 'legend';
+    $('#stairLegend').onchange = async e => { const on = e.target.checked; e.target.disabled = true;
+      try { await api('maps/'+M.id+'/stair_rule', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({legend:on})});
+        toast(on ? 'Stairs read by the legend. Rebuilding the routes…' : 'Standard stair reading. Rebuilding the routes…'); openMap(M.id); }
+      catch(err){ toast(err.message); e.target.checked = !on; } e.target.disabled = false; }; }
   s.querySelectorAll('[data-job]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.job; b.disabled=true;
     try { const r=await api('maps/'+M.id+'/'+k,{method:'POST'}); toast(k==='rerun' ? `Working out ${r.runs} run${r.runs===1?'':'s'} again.` : k==='rebuild' ? 'Rebuilding the routes.' : 'Reading the map again.'); openMap(M.id); }
     catch(e){ toast(e.message); b.disabled=false; } });

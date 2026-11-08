@@ -129,6 +129,53 @@ def flights(cls, k, features):
                         out[name] = (fl, int(xs[j]), int(ys[j]), len(xs))
     return {n: v[:3] for n, v in out.items()}
 
+def stair_symbols(walk, cls, k, FL):
+    """Stair symbols read as the legend says. Blue leads one floor down, red one floor up; a flight is got
+    on and off only where it meets the floor (the open end of the symbol), never from its sides or its far
+    end, which are walls; the orange landing inside a symbol is ignored. So the drawing itself, its black
+    frame included, is not walkable, and each flight's point is moved to where it meets the floor.
+    Only small drawn symbols: a wide red stair hall (3. posms U at the start) stays floor you run across.
+    A flight that meets no floor (walled in, or closed by a purple bar) keeps its point inside: it is joined
+    to the other flight of its stairwell later, so the stairwell can be passed but not left there."""
+    red, blue = cls == k['red'], cls == k['blue']
+    sym = ndi.binary_fill_holes(ndi.binary_closing(red | blue, iterations=4))      # the whole drawn symbol
+    lab, n = ndi.label(sym)
+    if not n: return walk, FL
+    sz = ndi.sum(sym, lab, range(1, n + 1))
+    small = np.isin(lab, [i + 1 for i in range(n) if sz[i] < 4000])
+    land = cls == k['landing']
+    llab, ln = ndi.label(land)
+    icon = small.copy()
+    if ln:
+        lsz = ndi.sum(land, llab, range(1, ln + 1))
+        for t in np.unique(llab[ndi.binary_dilation(small, iterations=3) & land]):
+            if t and lsz[t - 1] < 2500: icon |= llab == t
+    near = ndi.binary_dilation(icon, iterations=4)
+    floor = walk & ~icon & ~(near & np.isin(cls, [k['black'], k['white'], k['tape']]))
+    fl_lab, fl_n = ndi.label(floor)                         # specks and misprints are not floor
+    if fl_n:
+        fsz = ndi.sum(floor, fl_lab, range(fl_n + 1)); floor &= fsz[fl_lab] >= 300
+    out = {}
+    for name, (fl, x, y) in FL.items():
+        if not (0 <= y < icon.shape[0] and 0 <= x < icon.shape[1]) or not near[y, x]:
+            out[name] = (fl, x, y); continue                    # part of a wide stair hall: unchanged
+        col = red if name.endswith('_up') else blue
+        R = 70; y0, x0 = max(0, y - R), max(0, x - R)
+        # the whole flight: its coloured strips joined across the white step lines
+        cl, _ = ndi.label(ndi.binary_closing(col[y0:y + R, x0:x + R], iterations=3) & small[y0:y + R, x0:x + R])
+        ys_, xs_ = np.nonzero(cl)
+        if not len(xs_): out[name] = (fl, x, y); continue
+        j = int(np.argmin((xs_ + x0 - x) ** 2 + (ys_ + y0 - y) ** 2))
+        own = np.zeros_like(red); own[y0:y0 + cl.shape[0], x0:x0 + cl.shape[1]] = cl == cl[ys_[j], xs_[j]]
+        door = ndi.binary_dilation(own, iterations=7) & floor
+        ys, xs = np.nonzero(door)
+        if not len(xs): out[name] = (fl, x, y); continue        # meets no floor: closed here
+        j = int(np.argmin((xs - x) ** 2 + (ys - y) ** 2))
+        out[name] = (fl, int(xs[j]), int(ys[j]))
+    for name, (fl, x, y) in out.items():
+        floor[y, x] = True
+    return floor, out
+
 def snap(walk, x, y, r=45):
     y0, x0 = max(0, y - r), max(0, x - r)
     ys, xs = np.nonzero(walk[y0:y + r, x0:x + r])
@@ -201,6 +248,8 @@ def build(img, features, progress=None):
     """Returns N (name -> (floor, x, y)), E (a, b, px, floors, directed), POLY, info."""
     walk, cls, k = walk_mask(img, features)
     FL = flights(cls, k, features)
+    if features.get('stair_rule') == 'legend':                # per map, switched on in the Stairs tab
+        walk, FL = stair_symbols(walk, cls, k, FL)
     N = dict(FL)
     names = control_names(features)
     # pockets: only what the runner confirmed on the check screen is forced; the pixel network
