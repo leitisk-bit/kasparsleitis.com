@@ -56,6 +56,18 @@ def _trace(G, N, POLY, p, step=8.0):
     return out
 
 
+def _visits_stairs(G, p):
+    """Does the route walk up to a staircase and away again without taking it (a pointless detour)?"""
+    for u, n, v in zip(p, p[1:], p[2:]):
+        q = n.split('_')
+        if len(q) != 3 or q[2] not in ('up', 'dn'): continue
+        if G[u][n]['fl'] or G[n][v]['fl']: continue           # arrives or leaves by the stairs: fine
+        partner = lambda x: x.split('_')[:2] == q[:2]          # the other half of the same stairwell
+        if partner(u) or partner(v): continue
+        return True
+    return False
+
+
 def _doubles_back(tr, near=14.0, gap=80.0, share=0.06):
     """Does the route run back along a stretch it already ran (to the end of a hall and back)?"""
     if len(tr) < 10: return False
@@ -99,6 +111,7 @@ def leg_options(graph, leg, px_s=0.04, floor_s=11.0, mpp=0.0847, limit=600, max_
             t = sum(G[u][v]['t'] for u, v in zip(p, p[1:]))
             if best is None: best = t
             if t > best * 1.5 + 30: break             # half as slow again: nobody would choose it
+            if _visits_stairs(G, p): continue
             tr = _trace(G, N, POLY, p)
             if kept:
                 if _doubles_back(tr) or _same_as(tr, [k[2] for k in kept]): continue
