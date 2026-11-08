@@ -135,6 +135,27 @@ def snap(walk, x, y, r=45):
     if not len(xs): return None
     j = np.argmin((xs + x0 - x) ** 2 + (ys + y0 - y) ** 2); return int(xs[j] + x0), int(ys[j] + y0)
 
+def plen(poly):
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(poly, poly[1:]))
+
+def _clear(W, a, b):
+    """Can one walk in a straight line from a to b (all of it on walkable ground)?"""
+    n = int(math.hypot(b[0] - a[0], b[1] - a[1])) + 1
+    xs = np.rint(np.linspace(a[0], b[0], n + 1)).astype(int); ys = np.rint(np.linspace(a[1], b[1], n + 1)).astype(int)
+    if xs.min() < 0 or ys.min() < 0 or xs.max() >= W.shape[1] or ys.max() >= W.shape[0]: return False
+    return bool(W[ys, xs].all())
+
+def straighten(W, pts):
+    """Pull a corridor path tight: from each point go straight to the farthest later point in sight, so the
+    route runs in straight lines between corners instead of stepping around them in short angled bits."""
+    if len(pts) < 3: return pts
+    out, i = [pts[0]], 0
+    while i < len(pts) - 1:
+        j = len(pts) - 1
+        while j > i + 1 and not _clear(W, pts[i], pts[j]): j -= 1
+        out.append(pts[j]); i = j
+    return out
+
 def rdp(pts, eps=1.0):
     if len(pts) < 3: return pts
     a, b = np.array(pts[0], float), np.array(pts[-1], float); ab = b - a; L = np.hypot(*ab) or 1
@@ -265,7 +286,8 @@ def build(img, features, progress=None):
                 cst = cum[ty, tx]
                 if not np.isfinite(cst): continue
                 tb = m.traceback((ty, tx))
-                E.append((s, t, float(cst), 0, True)); POLY[(s, t)] = rdp([(int(x + x0), int(y + y0)) for y, x in tb])
+                poly = straighten(Wm, rdp([(int(x), int(y)) for y, x in tb]))
+                E.append((s, t, float(min(cst, plen(poly))), 0, True)); POLY[(s, t)] = [(x + x0, y + y0) for x, y in poly]
         if progress: progress(f'floor {fl} done')
     # stairs (directed)
     # a flight leads to the next floor (up or down) where the same stairwell appears: floors may be 0, 1, 1.5, 2 …

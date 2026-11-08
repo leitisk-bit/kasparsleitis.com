@@ -100,7 +100,12 @@ def leg_options(graph, leg, px_s=0.04, floor_s=11.0, mpp=0.0847, limit=600, max_
             if best is None: best = t
             if t > best * 1.5 + 30: break             # half as slow again: nobody would choose it
             tr = _trace(G, N, POLY, p)
-            if kept and (_doubles_back(tr) or _same_as(tr, [k[2] for k in kept])): continue
+            if kept:
+                if _doubles_back(tr) or _same_as(tr, [k[2] for k in kept]): continue
+                # the same stairs as a way already listed: only a really different line through the
+                # building counts (not the same corridors with a small bend or a nip past a corner)
+                sk = _key(G, N, p).split('|')[0]
+                if sk != 'no stairs' and _same_as(tr, [k[2] for k in kept if _key(G, N, k[1]).split('|')[0] == sk], near=35.0, share=0.5): continue
             kept.append((t, p, tr))
             if len(kept) >= max_opts: break
     except (nx.NetworkXNoPath, nx.NodeNotFound):
