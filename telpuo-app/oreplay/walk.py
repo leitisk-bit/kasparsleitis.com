@@ -306,15 +306,18 @@ def build(img, features, progress=None):
         first, second = (f'{g}_{L}_dn', f'{g}_{L}_up') if tag == 'up' else (f'{g}_{L}_up', f'{g}_{L}_dn')
         m_ = first if first in N else (second if second in N else None)
         if m_: add(n, m_, 0.0, 1)
-    # a stairwell goes on past a floor even when the exit to that floor is closed (a purple bar
-    # across the door): the up and down flights of one letter on one floor are always joined
+    # The up and down halves of a stairwell on one floor. When each half has its own door onto the floor
+    # (4. posms: one half goes down to -1, the other up to 2) they are separate: you cannot walk in
+    # through one and out through the other. When a half has no door of its own (walled in, or its door
+    # closed by a purple bar), it is reached through the other half inside the stairwell: join them.
+    has_door = collections.Counter(a_ for a_, b_, px_, fl_, _ in E if not fl_)
     for n in list(N):
         parts = n.split('_')
         if len(parts) != 3 or parts[2] != 'up': continue
         o = f'{parts[0]}_{parts[1]}_dn'
-        if o in N:
-            d = math.hypot(N[n][1] - N[o][1], N[n][2] - N[o][2])
-            if d < 150: add(n, o, d, 0); add(o, n, d, 0)
+        if o not in N: continue
+        d = math.hypot(N[n][1] - N[o][1], N[n][2] - N[o][2])
+        if d < 150 and (not has_door[n] or not has_door[o]): add(n, o, d, 0); add(o, n, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():
         if fl_name in N and c in N:
