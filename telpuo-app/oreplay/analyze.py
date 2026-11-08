@@ -25,14 +25,19 @@ def _rgb(c):
 def _near(c, ref, tol=60):
     return c is not None and sum(abs(a - b) for a, b in zip(c, ref)) <= tol
 
+# Colours. Some maps come out of the print workflow with softer colours (4. posms: blue 100,159,213,
+# stair letters 152,80,159, tape 113,82,162, building grey 191): those are accepted too.
+SOFT_LETTER = (152, 80, 159)
+SOFT_TAPE = (113, 82, 162)
+
 def _is_course(c):   # magenta / purple overprint (not the bluer violet tape)
-    return c is not None and 130 < c[0] < 215 and 30 < c[1] < 115 and 110 < c[2] < 205
+    return c is not None and 130 < c[0] < 215 and 30 < c[1] < 115 and 110 < c[2] < 205 and not _near(c, SOFT_LETTER, 14)
 
 def _is_violet(c):   # letters (violet, brighter blue component than course magenta)
-    return c is not None and c[1] < 60 and c[2] > 220 and c[0] > 150
+    return c is not None and ((c[1] < 60 and c[2] > 220 and c[0] > 150) or _near(c, SOFT_LETTER, 14))
 
 def _is_blue(c):
-    return c is not None and c[2] > 220 and 120 < c[1] < 200 and c[0] < 120
+    return c is not None and c[2] > 200 and 120 < c[1] < 200 and c[0] < 120
 
 def _is_green(c):
     return c is not None and c[1] > 140 and c[0] < 80 and c[2] < 80
@@ -41,7 +46,7 @@ def _is_red(c):
     return c is not None and c[0] > 200 and c[1] < 70 and c[2] < 70
 
 def _is_tape(c):
-    return c is not None and c[2] > 220 and c[1] < 40 and c[0] < 170
+    return c is not None and ((c[2] > 220 and c[1] < 40 and c[0] < 170) or _near(c, SOFT_TAPE, 20))
 
 # ---------------------------------------------------------------- glyphs
 _TPL = {}
@@ -87,7 +92,8 @@ def _read_number(mask):
     for x0, x1, y0, y1 in merged:
         w, h = x1 - x0, y1 - y0
         if h < 0.35 * H:
-            if w < 0.5 * H and y0 > 0.5 * H: txt += '.'; continue
+            if not txt and w > 1.5 * h and 0.25 * H < (y0 + y1) / 2 < 0.75 * H: txt += '-'; continue   # basement: "-1"
+            if w < 0.5 * H and y0 > 0.5 * H and w < 1.4 * h: txt += '.'; continue
             return None
         sub = mask[y0:y1, x0:x1]
         if w < 0.2 * h: return None            # a thin line, not a figure
@@ -95,7 +101,7 @@ def _read_number(mask):
         else: ch, cf = classify_glyph(sub, '023456789')
         if cf < 0.6: return None
         txt += ch; confs.append(cf)
-    if not txt or txt.startswith('.') or txt.endswith('.') or txt.count('.') > 1 or not confs: return None
+    if not txt or txt.lstrip('-').startswith('.') or txt.endswith('.') or txt.count('.') > 1 or not confs or txt == '-': return None
     v = float(txt)
     return (int(v) if v == int(v) else v), min(confs)
 
@@ -304,7 +310,7 @@ def analyze(pdf_path, page=0):
     # buildings: walls + rooms + open floor (not white, not overprint, not floor lines)
     q = 4
     sm = img[::q, ::q].astype(int)
-    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30) | (abs(sm - [202, 202, 202]).sum(-1) < 24))
+    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30) | (abs(sm - [202, 202, 202]).sum(-1) < 24) | (abs(sm - [191, 191, 191]).sum(-1) < 12))
     mapc = ndi.binary_closing(mapc, iterations=1)
     lab, n = ndi.label(mapc)
     floors = collections.defaultdict(list)
@@ -317,7 +323,7 @@ def analyze(pdf_path, page=0):
         if in_ignore(cx, cy): continue
         crop = img[box[1]:box[3], box[0]:box[2]].astype(int)
         cream_n = ((abs(crop - [255, 235, 194]).sum(-1) < 40) | (abs(crop - [255, 214, 135]).sum(-1) < 40)).sum()   # floor or stair landing
-        stair_n = ((crop[..., 0] > 200) & (crop[..., 1] < 80) & (crop[..., 2] < 80)).sum() + ((crop[..., 2] > 220) & (crop[..., 0] < 120) & (crop[..., 1] > 130)).sum()
+        stair_n = ((crop[..., 0] > 200) & (crop[..., 1] < 80) & (crop[..., 2] < 80)).sum() + ((crop[..., 2] > 200) & (crop[..., 0] < 120) & (crop[..., 1] > 130)).sum()
         if cream_n < 800 and not (cream_n >= 100 and stair_n >= 150): continue   # small top floors: only a stairwell
         if (crop.sum(-1) < 120).sum() < 2000: continue          # needs walls
         fl = floor_of_point(cx, cy)
@@ -349,7 +355,7 @@ def analyze(pdf_path, page=0):
         if in_ignore(x, y) and floor_at(x, y) is None: continue
         m = path_mask(d)
         if m is None: continue
-        ch, conf = classify_glyph(m, 'ABCDEFGHIJKLMNOPRSTUVXYZ')
+        ch, conf = classify_glyph(m, 'ABCDEFGHIJKLMNOPRSTUVXYZČŠŽ')
         fl = floor_at(x, y)
         if fl is None: fl = floor_of_point(x, y)
         if fl is None or fl not in floors: continue
