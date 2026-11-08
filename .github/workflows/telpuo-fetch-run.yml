@@ -12,7 +12,7 @@ jobs:
       - env: { CHECK: '${{ secrets.TELPUO_CHECK_KEY }}' }
         run: |
           B=https://telpuo.kasparsleitis.com
-          echo "LIVE checkCard in page: $(curl -s --max-time 30 $B/ | grep -c checkCard) | $(curl -sI --max-time 30 $B/ | tr -d '\r' | grep -i last-modified)"
+          echo "LIVE checkCard in page: $(curl -s --max-time 30 $B/ | grep -c checkCard) resLof: $(curl -s --max-time 30 $B/ | grep -c resLof) resClear: $(curl -s --max-time 30 $B/ | grep -c resClear) | $(curl -sI --max-time 30 $B/ | tr -d '\r' | grep -i last-modified)"
           echo "LIVE admin api: $(curl -s --max-time 30 $B/api/admin)"
           mkdir -p runs
           code=$(curl -s -H "X-Check-Key: $CHECK" --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}")
