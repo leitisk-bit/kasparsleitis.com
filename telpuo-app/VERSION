@@ -1,1 +1,1 @@
-{"commit": "37c8e9d", "date": "2026-11-08T17:40:44+02:00", "change": "Map reader: keep Č/Š/Ž staircases as drawn (revert the rename to C/S/Z)"}
+{"commit": "20b594a", "date": "2026-11-08T18:20:31+02:00", "change": "Routes run in straight lines between corners; one option per way through the building (no twins with a small bend)"}
