@@ -362,6 +362,11 @@ def analyze(pdf_path, page=0):
         stairs.append({'letter': ch, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': round(float(conf), 2)})
     # the same letter on several floors should be the same physical stairwell: majority vote per
     # glyph outline signature fixes single misreads
+    # a letter with a hacek (Č) drawn on a map that has no plain one (C) is that staircase: call it C
+    plain = {'Č': 'C', 'Š': 'S', 'Ž': 'Z'}
+    have = {s_['letter'] for s_ in stairs}
+    for s_ in stairs:
+        if s_['letter'] in plain and plain[s_['letter']] not in have: s_['letter'] = plain[s_['letter']]
     f['stair_labels'] = stairs
 
     # ---- one-way chevrons
