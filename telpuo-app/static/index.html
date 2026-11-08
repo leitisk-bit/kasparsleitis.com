@@ -40,6 +40,7 @@ label.lbl{font-size:12px;color:var(--muted);display:flex;flex-direction:column;g
 .mapcard b{display:block;font-weight:600}
 .pill{display:inline-block;font:600 11px var(--f-body);padding:2px 7px;border-radius:999px;border:1px solid currentColor;text-transform:uppercase;letter-spacing:.04em}
 .pill.ok{color:var(--ok)} .pill.work{color:var(--warn)} .pill.bad{color:var(--bad)}
+.howto{margin:4px 0 10px;font-size:13.5px;line-height:1.45} .howto summary{cursor:pointer;color:var(--accent);font-weight:600} .howto ol{margin:4px 0 8px;padding-left:20px} .howto p{margin:4px 0 8px} .howto .must{color:var(--bad);font-weight:600;border-left:3px solid var(--bad);padding:4px 8px;background:color-mix(in srgb, var(--bad) 7%, transparent)} .howto code{font-size:12px}
 .pill.draft{color:var(--muted)} .pubbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:10px;border:1px dashed var(--line);border-radius:8px} .pubbox.on{border-style:solid} .pubbox .btn{margin-left:auto}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:12px;align-items:start}
 .stage{position:relative;height:72vh;background:var(--stage);border-radius:8px;overflow:hidden;touch-action:none}
@@ -140,7 +141,21 @@ body:not(.is-admin) .admin-only{display:none!important}
             </div>
             <form id="runForm" style="display:flex;flex-direction:column;gap:8px">
               <h2 style="margin:0">Add your run</h2>
-              <label class="lbl">1. Your watch file (TCX from Garmin Connect: activity → ⋯ → Export to TCX)<input class="field" type="file" id="rTrack" accept=".tcx"></label>
+              <label class="lbl">1. Your watch file (TCX)<input class="field" type="file" id="rTrack" accept=".tcx"></label>
+              <details class="howto"><summary>How do I get my TCX file?</summary>
+                <p class="must">Garmin watches: start a <b>Run</b> activity, not Indoor Run, Treadmill or any other run. Only <b>Run</b> records the altitude that shows which floor you were on.</p>
+                <b>Garmin Connect (website, on a computer)</b>
+                <ol><li>Sign in at <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> and open the activity.</li>
+                  <li>Click the gear icon ⚙ at the top right of the activity.</li>
+                  <li>Choose <b>Export to TCX</b>. The file is saved to your Downloads.</li></ol>
+                <b>Garmin Connect app (phone)</b>
+                <p>The app cannot export files. Open <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> in your phone's browser instead (choose “desktop site” if needed) and follow the steps above.</p>
+                <b>Strava</b>
+                <p>Open your activity on strava.com and add <code>/export_tcx</code> to the end of its address, for example <code>strava.com/activities/123456789/export_tcx</code>. Works only for your own activities.</p>
+                <b>Suunto</b>
+                <p>Should work if you can get a TCX file (for example through Strava), but it has not been tested yet.</p>
+                <p class="muted">Tested with Garmin watches.</p>
+              </details>
               <div id="rCheck" class="status" hidden></div>
               <div id="whoBox" hidden style="display:flex;flex-direction:column;gap:6px">
                 <div class="lbl">2. Whose run is this?</div>
