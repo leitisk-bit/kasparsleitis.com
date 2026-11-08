@@ -1,1 +1,1 @@
-{"commit": "85be9f7", "date": "2026-11-08T19:41:48+02:00", "change": "Pages are never kept stale by the browser (no-cache), so updates show on the next reload"}
+{"commit": "f840ca6", "date": "2026-11-08T20:02:10+02:00", "change": "Stairwells: a straight purple bar across the door closes the stairwell at that floor (no way past); a bracket with a gap does not"}
