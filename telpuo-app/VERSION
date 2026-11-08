@@ -1,1 +1,1 @@
-{"commit": "715f2d0", "date": "2026-11-08T19:27:24+02:00", "change": "Results import: Clear button; one source at a time (link, file or pasted text)"}
+{"commit": "85be9f7", "date": "2026-11-08T19:41:48+02:00", "change": "Pages are never kept stale by the browser (no-cache), so updates show on the next reload"}
