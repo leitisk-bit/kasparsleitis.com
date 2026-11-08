@@ -8,6 +8,7 @@ FL_S = 11.0            # s per floor on stairs at good pace
 FAST_PEN = 0.15
 PRIOR_FL = 1.5
 PRIOR_REP = 1.0
+PRIOR_INTENT = 4.0     # a long, lost leg: prefer the way a runner would have meant to go first
 
 # ------------------------------------------------------------------ inputs
 def parse_splits(text, n_legs=None):
@@ -134,6 +135,75 @@ class Recon:
         self.E = E; self._graph = graph
         self.px_s = px_s
 
+    def intended(self, a, b):
+        """The way a runner reading the map would plan: as if every one-way lane could be run either way
+        (the arrows are easy to miss; they find out only when they get there)."""
+        if not hasattr(self, 'Gn'):
+            # one-way lanes as if they could be run either way (arrows are easy to miss when planning)
+            extra = [(b_, a_, px_, 0, True) for a_, b_, px_, fl_, _ in self.E if not fl_ and '_ow' in a_ + b_]
+            self.Gn = self._graph(self.N, list(self.E) + extra, self.px_s or 0.045, FL_S)
+        try: return nx.shortest_path(self.Gn, a, b, weight='t')
+        except (nx.NetworkXNoPath, nx.NodeNotFound): return None
+
+    def trace(self, p, step=10.0):
+        """Points along a path on the map: (x, y, floor)."""
+        out = []
+        for u, v in zip(p, p[1:]):
+            if self.N[u][0] != self.N[v][0]: continue
+            poly = self.POLY.get((u, v)) or [self.N[u][1:], self.N[v][1:]]
+            for (x0, y0), (x1, y1) in zip(poly, poly[1:]):
+                n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
+                for k in range(n): out.append((x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n, self.N[u][0]))
+        return out
+
+    def floor_path(self, a, b, t0, T, obs, ele_of):
+        """The quickest route that goes through the floors in the order the watch altitude shows
+        (for a leg with many floor changes: lost, back and forth). None if it cannot be followed."""
+        floors = sorted({v[0] for v in self.N.values()})
+        lv = {f: ele_of(f) for f in floors}
+        seq = []
+        pts = [(t - t0, e) for t, e, h in obs if t0 <= t <= t0 + T]
+        if len(pts) < 20: return None
+        es = np.array([e for _, e in pts]); es = np.convolve(es, np.ones(5) / 5, mode='same')
+        fl = [min(floors, key=lambda f: abs(lv[f] - e)) for e in es]
+        run_f, run_n = fl[0], 0
+        for f in fl + [None]:
+            if f == run_f: run_n += 1; continue
+            if run_n >= 20 and (not seq or seq[-1] != run_f): seq.append(run_f)   # 20 s on a floor: really there (passing on the stairs takes ~10 s)
+            run_f, run_n = f, 1
+        fa, fb = self.N[a][0], self.N[b][0]
+        if not seq or seq[0] != fa: seq.insert(0, fa)
+        if seq[-1] != fb: seq.append(fb)
+        if len(seq) <= 2: return None
+        # quickest walk through the floors in that order: a search over (place, how far along the order)
+        import heapq
+        K = len(seq) - 1; G = self.G
+        dist = {(a, 0): 0.0}; prev = {}; hq = [(0.0, a, 0)]
+        while hq:
+            d, u, k = heapq.heappop(hq)
+            if d > dist.get((u, k), 1e18): continue
+            if u == b and k == K: break
+            for v in G.successors(u):
+                e = G[u][v]; k2 = k; pen = 0.0
+                if e['fl']:
+                    fu, fv = self.N[u][0], self.N[v][0]
+                    nxt = seq[k + 1] if k < K else None
+                    if nxt is not None and fv == nxt: k2 = k + 1
+                    else:
+                        # the altitude is never perfect: a floor of the order may be skipped, or a stair
+                        # taken that is not towards the next floor, but each such step costs a minute
+                        later = [j for j in range(k + 2, min(K, k + 3) + 1) if seq[j] == fv]
+                        if later: k2 = later[0]; pen = 60.0 * (k2 - k - 1)
+                        elif nxt is not None and min(fu, nxt) <= fv <= max(fu, nxt) and fv != fu: pen = 0.0   # passing on the way
+                        else: pen = 60.0
+                d2 = d + e['t'] + pen
+                if d2 < dist.get((v, k2), 1e18):
+                    dist[(v, k2)] = d2; prev[(v, k2)] = (u, k); heapq.heappush(hq, (d2, v, k2))
+        if (b, K) not in prev: return None
+        path, st = [b], (b, K)
+        while st in prev: st = prev[st]; path.append(st[0])
+        return path[::-1]
+
     def calibrate(self, legs):
         G = self._graph(self.N, self.E, 1.0, 40.0)
         rates = []
@@ -235,7 +305,7 @@ class Recon:
                 pts.append((round(t0 + s + q, 2), round(x, 1), round(y, 1), fl))
         return pts
 
-    def run(self, legs, obs=None, ctrl_floors=None, progress=None, levels=None):
+    def run(self, legs, obs=None, ctrl_floors=None, progress=None, levels=None, leader=None):
         cum = [0]
         for l in legs: cum.append(cum[-1] + l)
         obs = obs or []
@@ -250,12 +320,31 @@ class Recon:
             cands = self.candidates(a, b, T)
             if not cands:
                 out.append({'leg': li + 1, 'T': T, 'error': 'no route found between these controls'}); continue
+            if ele_of and obs:
+                fp = self.floor_path(a, b, t0, T, obs, ele_of)
+                if fp and fp not in cands: cands.append(fp)
             fls = [sum(self.G[u][v]['fl'] for u, v in zip(p, p[1:])) for p in cands]; minfl = min(fls)
+            # a leg far slower than its fastest way: the runner was lost. They most likely first set off
+            # the way that looked right on the map and turned back when they hit a closed stairwell,
+            # rather than wandering off somewhere unrelated. Prefer routes that start out that way.
+            intent = None
+            fast_t = min(self.ptime(p) for p in cands)
+            if T > 1.4 * fast_t:
+                pn = self.intended(a, b)
+                if pn:
+                    from scipy.spatial import cKDTree
+                    tn = self.trace(pn); trees = {}
+                    for fl in {q[2] for q in tn}: trees[fl] = cKDTree([(q[0], q[1]) for q in tn if q[2] == fl])
+                    def intent(p):
+                        tp = self.trace(p); tp = tp[:max(1, len(tp) // 2)]       # how the leg was begun
+                        hit = sum(1 for x, y, fl in tp if fl in trees and trees[fl].query((x, y))[0] < 45)
+                        return hit / max(1, len(tp))
             rows = []
             for p, nfl in zip(cands, fls):
                 al = self.align(p, t0, T, obs, ele_of) if ele_of else self.align(p, t0, T, [], None)
                 if not al: continue
                 prior = PRIOR_FL * (nfl - minfl) + PRIOR_REP * (len(p) - len(set(p)))
+                if intent: prior += PRIOR_INTENT * (1 - intent(p))
                 rows.append([al['cost'], prior, al['M'], p, al])
             if not rows:
                 out.append({'leg': li + 1, 'T': T, 'error': 'every route is much longer than the split'}); continue
@@ -268,11 +357,15 @@ class Recon:
             z = sum(math.exp(-(r[0] - g[0][0]) / 2) for r in g)
             fastest = min(rows, key=lambda r: r[3])
             best = g[0]
-            k = min(1.0, (T - 1) / fastest[3]) if fastest[3] else 1
-            ghost_al = {'pos': np.array([min(fastest[3], int(round(s / k))) for s in range(T + 1)]), 'where': self.samples(fastest[4], lambda f: 0)[1]}
+            M = fastest[3]
+            # the ghost: the split leader of this leg (best split in the results) on the fastest route;
+            # without results, the fastest route at this runner's best pace. It waits at the control.
+            lead_t = leader[li] if leader and li < len(leader) and leader[li] else None
+            L_ = max(1, min(T, int(round(lead_t)))) if lead_t else max(1, min(T - 1, int(round(M))))
+            ghost_al = {'pos': np.array([min(M, int(round(s * M / L_))) for s in range(T + 1)]), 'where': self.samples(fastest[4], lambda f: 0)[1]}
             out.append({'leg': li + 1, 'T': T, 'route': self.describe(best[4]), 'path': best[4],
                         'fit': round(best[1], 1), 'nobs': best[5]['nobs'],
-                        'fastest': self.describe(fastest[4]), 'fastestT': int(min(T, round(fastest[3]))),
+                        'fastest': self.describe(fastest[4]), 'fastestT': int(L_), 'leader': bool(lead_t),
                         'alts': [{'route': self.describe(r[4]), 'p': round(math.exp(-(r[0] - g[0][0]) / 2) / z, 2)} for r in g[:4]],
                         'pts': self.dump(best[4], best[5], t0), 'ghost': self.dump(fastest[4], ghost_al, t0)})
         return {'legs': out, 'floors_fit': fit, 'px_s': self.px_s, 'cum': cum}
