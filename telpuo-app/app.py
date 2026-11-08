@@ -115,6 +115,9 @@ def api_server():
 @app.get('/')
 def index(): return send_from_directory(app.static_folder, 'index.html')
 
+@app.get('/favicon.ico')
+def favicon(): return send_from_directory(app.static_folder, 'favicon.ico')
+
 @app.get('/replay')
 def replay_page(): return send_from_directory(app.static_folder, 'replay.html')
 
