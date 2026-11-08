@@ -1,1 +1,1 @@
-{"commit": "226c672", "date": "2026-11-08T19:14:07+02:00", "change": "Route options: leave out ways that walk to a staircase and away again without taking it"}
+{"commit": "9d4e84f", "date": "2026-11-08T19:25:07+02:00", "change": "Results: import straight from a lof.lv link (all groups, splits and start times from lof.lv's own CSV), no PDF needed"}
