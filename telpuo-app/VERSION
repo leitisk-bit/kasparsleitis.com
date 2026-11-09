@@ -1,1 +1,1 @@
-{"commit": "98d9a06", "date": "2026-11-09T21:39:37+02:00", "change": "Map library: a folder per stage (RK 2026 4. posms, 3. posms, …) holding its maps, newest first, foldable; admin can set or change a map's folder in Info"}
+{"commit": "cb3adc2", "date": "2026-11-09T23:33:07+02:00", "change": "Map list loads fast: small thumbnails (about 13 KB instead of the 1.1 MB map image), only the fields the cards show, and run counts from one quick pass over the run files"}
