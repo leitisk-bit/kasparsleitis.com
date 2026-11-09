@@ -441,6 +441,32 @@ def build(img, features, progress=None):
     # (4. posms: one half goes down to -1, the other up to 2) they are separate: you cannot walk in
     # through one and out through the other. When a half has no door of its own (walled in, or its door
     # closed by a purple bar), it is reached through the other half inside the stairwell: join them.
+    # Once on the stairs you change floor: a route never gets from one half of a stairwell to the other
+    # half of the same stairwell on that floor by going round the drawing over its landing (U on floor 3
+    # of 4. posms B). Where the stairwell is closed at that floor its halves are joined below, so it can
+    # be passed there.
+    def _same_well(a_, b_):
+        p_, q_ = a_.split('_'), b_.split('_')
+        return len(p_) == 3 and len(q_) == 3 and p_[2] in ('up', 'dn') and q_[2] in ('up', 'dn') \
+            and p_[:2] == q_[:2] and p_[2] != q_[2]
+    # (walking out of one door and in at the other through the corridor in front of the stairs is fine;
+    # what is not is getting round over the stairs' own orange landing)
+    land_px = cls == k['landing']
+    def _over_landing(key):
+        poly = POLY.get(key) or []
+        for (x1_, y1_), (x2_, y2_) in zip(poly, poly[1:]):
+            n_ = int(math.hypot(x2_ - x1_, y2_ - y1_)) + 1
+            for t_ in range(n_ + 1):
+                xx = int(round(x1_ + (x2_ - x1_) * t_ / n_)); yy = int(round(y1_ + (y2_ - y1_) * t_ / n_))
+                if 0 <= yy < land_px.shape[0] and 0 <= xx < land_px.shape[1] and \
+                   land_px[max(0, yy - 3):yy + 4, max(0, xx - 3):xx + 4].any():
+                    return True
+        return False
+    # (only where a half opens onto this floor: in a stairwell closed at this floor the landing is how
+    # the stairwell is passed, as Č on floor 3 of 4. posms B)
+    opens = collections.Counter(a_ for a_, b_, px_, fl_, _ in E if not fl_ and not _same_well(a_, b_))
+    E[:] = [e for e in E if e[3] or not _same_well(e[0], e[1]) or not (opens[e[0]] or opens[e[1]])
+            or not _over_landing((e[0], e[1]))]
     has_door = collections.Counter(a_ for a_, b_, px_, fl_, _ in E if not fl_)
     for n in list(N):
         parts = n.split('_')
