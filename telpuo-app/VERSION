@@ -1,1 +1,1 @@
-{"commit": "dd2aee0", "date": "2026-11-09T12:01:47+02:00", "change": "Easy map: its stair letters (a slightly different violet) are read again; strict stairs only for lettered staircases on real floors (unlettered steps and outline-floor stair tops keep the general reading)"}
+{"commit": "095aa22", "date": "2026-11-09T14:23:05+02:00", "change": "Route options: the fastest way is always listed, and walking on past a staircase's door is not a detour (4. posms A leg 10 showed no route)"}
