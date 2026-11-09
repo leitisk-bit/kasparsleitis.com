@@ -256,6 +256,59 @@ def snap_big(walk, x, y, r=60, min_area=1500):
             if d2[j] <= r * r: return int(xs[j] + x0), int(ys[j] + y0)
     return snap(walk, x, y)
 
+def strict_stairs(walk, cls, k, FL):
+    """Strict stairs (switched on per map; 4. posms). Go into blue and you go down, into red and you go
+    up: no part of a stair drawing is floor. The black lines round a staircase are walls; a flight is
+    got on only where its coloured steps meet the floor directly. Only the slanted black line inside a
+    staircase, between its red and blue part, may be crossed: it just divides the stairs. The orange
+    landing at a staircase is plain floor (it can't be used to get from one half to the other: build())."""
+    red, blue = cls == k['red'], cls == k['blue']
+    black, land = cls == k['black'], cls == k['landing']
+    sym = ndi.binary_fill_holes(ndi.binary_closing(red | blue, iterations=3))
+    lab, n = ndi.label(sym)
+    if not n: return walk, FL, set()
+    sz = ndi.sum(sym, lab, range(1, n + 1))
+    small = np.isin(lab, [i + 1 for i in range(n) if sz[i] < 4000])
+    # the orange landing by a staircase is just floor; but the black lines round the stairs and round
+    # their landings are walls again (the general reading widens stairs a little into black so routes
+    # can reach them; here a flight is reached only where it meets the floor)
+    llab, _ = ndi.label(land)
+    near = ndi.binary_dilation(small, iterations=3)
+    stl = np.isin(llab, [t_ for t_ in np.unique(llab[near & land]) if t_])
+    icon = small | (ndi.binary_dilation(small | stl, iterations=6) & black)
+    floor = walk & ~icon
+    flab, _ = ndi.label(floor)
+    fsz = np.bincount(flab.ravel()); fsz[0] = 0
+    out, doors = {}, set()
+    for name, (fl, x, y) in FL.items():
+        H_, W_ = icon.shape
+        if not (0 <= y < H_ and 0 <= x < W_) or not small[max(0, y - 4):y + 5, max(0, x - 4):x + 5].any():
+            out[name] = (fl, x, y); continue                    # not a small stair drawing: as before
+        col = red if name.endswith('_up') else blue
+        R = 50; y0, x0 = max(0, y - R), max(0, x - R)
+        cw = col[y0:y + R, x0:x + R]
+        # the whole flight: its coloured stripes joined across white step lines and across the slanted
+        # dividing line, never across the straight black outline
+        joined = ndi.binary_closing(cw, iterations=3) & small[y0:y + R, x0:x + R]
+        cl, _ = ndi.label(joined)
+        ys_, xs_ = np.nonzero((cl > 0) & cw)
+        if not len(xs_): out[name] = (fl, x, y); continue
+        j = int(np.argmin((xs_ + x0 - x) ** 2 + (ys_ + y0 - y) ** 2))
+        own = np.zeros_like(red); own[y0:y0 + cl.shape[0], x0:x0 + cl.shape[1]] = cl == cl[ys_[j], xs_[j]]
+        door = ndi.binary_dilation(own & col, iterations=3) & floor          # meets the floor directly
+        dy, dx = np.nonzero(door)
+        if len(dx):                                             # onto the biggest floor it meets, not a sliver
+            best = fsz[flab[dy, dx]]
+            keep = (best == best.max()) & (best >= 400)
+            dy, dx = dy[keep], dx[keep]
+        if not len(dx): out[name] = (fl, int(xs_[j] + x0), int(ys_[j] + y0)); continue
+        oy, ox = np.nonzero(own)
+        j = int(np.argmin((dx - ox.mean()) ** 2 + (dy - oy.mean()) ** 2))
+        out[name] = (fl, int(dx[j]), int(dy[j])); doors.add(name)
+    for name, (fl, x, y) in out.items():
+        floor[y, x] = True
+    return floor, out, doors
+
 def snap(walk, x, y, r=45):
     y0, x0 = max(0, y - r), max(0, x - r)
     ys, xs = np.nonzero(walk[y0:y + r, x0:x + r])
@@ -328,8 +381,10 @@ def build(img, features, progress=None):
     """Returns N (name -> (floor, x, y)), E (a, b, px, floors, directed), POLY, info."""
     walk, cls, k = walk_mask(img, features)
     FL = flights(cls, k, features)
-    if features.get('stair_rule') == 'legend':                # per map, switched on in the Stairs tab
-        walk, FL = stair_symbols(walk, cls, k, FL)
+    doors = set()                      # strict stairs: flights with a door of their own, even into a dead end
+    strict = features.get('stair_rule') == 'legend'
+    if strict:                                                 # per map, switched on in the Stairs tab
+        walk, FL, doors = strict_stairs(walk, cls, k, FL)
     else:                                                      # the legend rule, on every map
         walk, FL, _ = stair_open(walk, cls, k, FL)
     N = dict(FL)
@@ -474,10 +529,13 @@ def build(img, features, progress=None):
         o = f'{parts[0]}_{parts[1]}_dn'
         if o not in N: continue
         d = math.hypot(N[n][1] - N[o][1], N[n][2] - N[o][2])
-        if d >= 150 or (has_door[n] and has_door[o]): continue
+        if d >= 150 or ((has_door[n] or n in doors) and (has_door[o] or o in doors)): continue
         # a straight purple bar at the stairwell closes it at this floor: no way past either
         mx, my = (N[n][1] + N[o][1]) / 2, (N[n][2] + N[o][2]) / 2
-        if any(math.hypot(bx - mx, by - my) < 75 for bx, by, _ in features.get('stair_bars', [])): continue
+        # (strict stairs: only a bar across the whole stairwell; one over a single half closes just that
+        # half's way out, and the stairwell is still passed inside, as Č on floor 3 of 4. posms B)
+        if any(math.hypot(bx - mx, by - my) < 75 and (not strict or ln_ >= 40)
+               for bx, by, ln_ in features.get('stair_bars', [])): continue
         add(n, o, d, 0); add(o, n, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():

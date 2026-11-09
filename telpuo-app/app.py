@@ -37,7 +37,7 @@ def _seen(mid):
     return m
 
 NEED_ADMIN = 'This needs the admin password.'
-OPT_VER = 8               # bump when route options are worked out differently (old saved ones are ignored)
+OPT_VER = 9               # bump when route options are worked out differently (old saved ones are ignored)
 DEFAULT_PX_S = 0.045      # standard pace for suggestions: seconds per map pixel (about 1.9 m/s with turns)
 WORK = threading.Semaphore(1)        # one heavy job at a time: map reading and route finding are CPU-bound
 
@@ -296,8 +296,8 @@ def api_options(mid):
 
 @app.post('/api/maps/<mid>/stair_rule')
 def api_stair_rule(mid):
-    """How this map's stair symbols are read: 'legend' (each flight got on only at its open end, the
-    orange landing ignored) or the standard reading. Rebuilds the routes."""
+    """How this map's stair symbols are read: 'legend' (strict: into red only up, into blue only down,
+    the black lines round the stairs are walls) or the standard reading. Rebuilds the routes."""
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     if not store.get_meta(mid): abort(404)
     rule = 'legend' if (request.get_json(silent=True) or {}).get('legend') else None

@@ -332,6 +332,7 @@ function renderStatus(){
   s.innerHTML = pubBox + `<div>${head}</div>${warn}<ol class="steps">${rows.map(([k,t,d])=>`<li class="${k}">${icon(k)}<b>${t}</b><span class="muted">${d}</span></li>`).join('')}</ol>`
     + (working ? `<div class="muted">Last activity ${ago(M.updated)} ago${stale?' · <span class="bad">no progress for a while: the job may have stopped. Try “Read the map again”.</span>':''}</div>` : '')
     + legs
+    + `<label class="muted" style="display:block;margin:6px 0"><input type="checkbox" id="stairLegend" ${working?'disabled':''}> Strict stairs: into red only up, into blue only down; black lines round the stairs are walls (4. posms style)</label>`
     + `<div class="jobbtns"><button class="btn small" data-job="reread" ${working?'disabled':''}>Read the map again</button><button class="btn small" data-job="rebuild" ${working?'disabled':''}>Rebuild routes</button><button class="btn small" data-job="rerun" ${working||!runs.length?'disabled':''}>Redo all runs</button></div>`
     + `<div class="muted">Read again: reads the PDF from scratch (replaces manual fixes). Rebuild: keeps your fixes, builds routes again. Both redo the saved runs afterwards.</div>`;
   $('#pubBtn').onclick = async () => { const on = M.published===false; $('#pubBtn').disabled = true;
@@ -341,7 +342,7 @@ function renderStatus(){
   if ($('#stairLegend')) { $('#stairLegend').checked = M.stair_rule === 'legend';
     $('#stairLegend').onchange = async e => { const on = e.target.checked; e.target.disabled = true;
       try { await api('maps/'+M.id+'/stair_rule', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({legend:on})});
-        toast(on ? 'Stairs read by the legend. Rebuilding the routes…' : 'Standard stair reading. Rebuilding the routes…'); openMap(M.id); }
+        toast(on ? 'Strict stairs on. Rebuilding the routes…' : 'Standard stair reading. Rebuilding the routes…'); openMap(M.id); }
       catch(err){ toast(err.message); e.target.checked = !on; } e.target.disabled = false; }; }
   s.querySelectorAll('[data-job]').forEach(b=>b.onclick=async()=>{ const k=b.dataset.job; b.disabled=true;
     try { const r=await api('maps/'+M.id+'/'+k,{method:'POST'}); toast(k==='rerun' ? `Working out ${r.runs} run${r.runs===1?'':'s'} again.` : k==='rebuild' ? 'Rebuilding the routes.' : 'Reading the map again.'); openMap(M.id); }
