@@ -84,6 +84,13 @@ body:not(.is-admin) .admin-only{display:none!important}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 @media (max-width:980px){.layout{grid-template-columns:1fr}.stage{height:60vh}}
 .btn.danger{background:#c0392b;color:#fff;border-color:#c0392b}
+.folders{display:flex;flex-direction:column;gap:10px}
+.folder{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.folder>summary{cursor:pointer;display:flex;gap:8px;align-items:baseline;padding:2px 0;list-style:none}
+.folder>summary::-webkit-details-marker{display:none}
+.folder>summary::before{content:'▸';color:var(--muted,#888);transition:transform .15s}
+.folder[open]>summary::before{transform:rotate(90deg)}
+.folder>.grid{margin-top:10px}
 </style></head><body>
 <div class="wrap">
   <header>
@@ -105,7 +112,7 @@ body:not(.is-admin) .admin-only{display:none!important}
     </div>
     <div class="card">
       <h2>Maps</h2>
-      <div class="grid" id="mapList"></div>
+      <div id="mapList" class="folders"></div>
       <div class="muted" id="noMaps" hidden>No maps yet.</div>
     </div>
     <details class="card admin-only" id="checkCard" hidden>
@@ -223,6 +230,7 @@ body:not(.is-admin) .admin-only{display:none!important}
           <div data-pane="info" hidden>
             <label class="lbl">Name<input class="field" id="iName"></label>
             <label class="lbl">Event / place<input class="field" id="iEvent"></label>
+            <label class="lbl">Folder<input class="field" id="iFolder" list="folderList" placeholder="by the name, e.g. RK 2026 4. posms"><datalist id="folderList"></datalist></label>
             <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label>
             <div class="muted" id="iFloors"></div>
             <label style="display:flex;gap:6px;align-items:center" class="muted"><input type="checkbox" id="showLegs" checked> Show the fastest route of every leg</label>
@@ -265,13 +273,24 @@ async function openLib(){
   $('#lib').hidden=false; $('#mapPage').hidden=true; stopPoll();
   const maps = await api('maps'); const box=$('#mapList'); box.innerHTML='';
   $('#noMaps').hidden = maps.length>0;
-  for (const m of maps){
+  // one folder per stage ("RK 2026 4. posms"), newest stage first; maps without one at the end
+  const nat=(x,y)=>x.localeCompare(y,'lv',{numeric:true});
+  const byF={}; for (const m of maps) (byF[m.folder||'']=byF[m.folder||'']||[]).push(m);
+  const names=Object.keys(byF).filter(Boolean).sort((x,y)=>nat(y,x)); if (byF['']) names.push('');
+  let shut={}; try{ shut=JSON.parse(localStorage.getItem('ior.shut')||'{}'); }catch(e){}
+  $('#folderList').innerHTML=Object.keys(byF).filter(Boolean).map(f=>`<option value="${esc(f)}">`).join('');
+  for (const fname of names){
+    const det=document.createElement('details'); det.className='folder'; det.open=!shut[fname];
+    det.innerHTML=`<summary><span class="fic">📁</span> <b>${esc(fname||'Other maps')}</b> <span class="muted">${byF[fname].length} map${byF[fname].length===1?'':'s'}</span></summary><div class="grid"></div>`;
+    det.ontoggle=()=>{ try{ if(det.open) delete shut[fname]; else shut[fname]=1; localStorage.setItem('ior.shut',JSON.stringify(shut)); }catch(e){} };
+    box.appendChild(det); const inner=det.querySelector('.grid');
+  for (const m of byF[fname].sort((x,y)=>nat(x.name||'',y.name||''))){
     const a=document.createElement('a'); a.className='card mapcard'; a.href='#map-'+m.id;
     const st = m.status==='ready' ? ((m.problems||[]).length ? `<span class="pill bad">check</span> <span class="muted">${(m.problems||[]).length} leg(s) without a route</span>` : '<span class="pill ok">ready</span>') : m.status==='error' ? '<span class="pill bad">error</span>' : `<span class="pill work">working</span> <span class="muted">${esc(m.message||'')}</span>`;
     const draft = m.published===false ? ' <span class="pill draft" title="Only you can see this map. Publish it on the map page.">draft</span>' : '';
     a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b>${draft}<div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
-    box.appendChild(a);
-  }
+    inner.appendChild(a);
+  } }
   if (maps.some(m=>m.status!=='ready'&&m.status!=='error')){ stopPoll(); pollT=setTimeout(()=>{ if (!$('#lib').hidden) openLib(); }, 3000); }
 }
 $('#upForm').onsubmit = async e => { e.preventDefault(); const f=$('#upPdf').files[0]; if (!f) return;
@@ -288,7 +307,7 @@ async function openMap(id){
   $('#lib').hidden=true; $('#mapPage').hidden=false; stopPoll();
   const j = await api('maps/'+id); M=j.meta; F=j.features; RUNS=j.runs||[]; CLOCK=(j.now||Date.now()/1000)-Date.now()/1000; dirty=false; $('#saveCard').hidden=true;
   $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
-  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iScale').value=M.scale||1000;
+  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iFolder').value=(M.folder!=null?M.folder:''); $('#iScale').value=M.scale||1000;
   if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2000);
   renderStatus(); renderSugg();
   const v = String(M.display_scale ? (M.built||'r') : 'none');
@@ -525,6 +544,7 @@ $('#addOneway').onclick=()=>setPick({t:'oneway1', hint:'Click where the one-way 
 $('#addCross').onclick=()=>setPick({t:'cross', hint:'Click the centre of the four-way crossing sign.'});
 $('#showLegs').onchange=draw;
 $('#saveBtn').onclick=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({features:{controls:F.controls,stair_labels:F.stair_labels,oneways:F.oneways,crossings:F.crossings,pockets:F.pockets,floors:F.floors}})}); toast('Saved. Rebuilding the route network…'); openMap(M.id); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message); } };
+$('#iFolder').onchange=async()=>{ const v=$('#iFolder').value.trim(); try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder: v||null})}); M.folder=v||null; toast(v?'Moved to folder '+v:'Folder from the name again'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} };
 ['iName','iEvent','iScale'].forEach(id=>$('#'+id).onchange=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#iName').value,event:$('#iEvent').value,scale:+$('#iScale').value})}); toast('Saved'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} });
 $('#reread').onclick=async()=>{ try { await api('maps/'+M.id+'/reread',{method:'POST'}); toast('Reading the map again. About a minute; saved runs are redone after.'); openMap(M.id); } catch(e){ toast(e.message); } };
 $('#delMap').onclick=async()=>{ if ($('#delMap').dataset.armed!=='1'){ $('#delMap').dataset.armed='1'; $('#delMap').textContent='Click again to delete for good'; return; }

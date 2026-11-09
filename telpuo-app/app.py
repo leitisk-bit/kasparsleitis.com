@@ -130,8 +130,15 @@ def favicon(): return send_from_directory(app.static_folder, 'favicon.ico')
 def replay_page(): return send_from_directory(app.static_folder, 'replay.html')
 
 # ------------------------------------------------------------------ maps
+def map_folder(m):
+    """The folder a map is listed in: the one the admin set, else its stage from the name
+    ("RK 2026 4. posms A" → "RK 2026 4. posms"), else none."""
+    if m.get('folder') is not None: return m['folder']
+    x = re.match(r'^\s*(.*?\d+\.\s*posms)\b', m.get('name') or '', re.I)
+    return re.sub(r'\s+', ' ', x.group(1)).strip() if x else ''
+
 @app.get('/api/maps')
-def api_maps(): return jsonify([m for m in store.list_maps() if can_see(m)])
+def api_maps(): return jsonify([dict(m, folder=map_folder(m)) for m in store.list_maps() if can_see(m)])
 
 @app.post('/api/maps')
 def api_new_map():
@@ -383,6 +390,8 @@ def api_save_map(mid):
     m = store.get_meta(mid)
     if not m: abort(404)
     body = request.get_json(force=True)
+    if 'folder' in body:                       # '' = no folder; null = by the name again
+        store.set_meta(mid, folder=None if body['folder'] is None else str(body['folder']).strip()[:120])
     if 'name' in body or 'event' in body:
         store.set_meta(mid, name=body.get('name', m['name'])[:120], event=body.get('event', m.get('event', ''))[:160],
                        scale=int(body.get('scale') or m.get('scale') or 1000))
