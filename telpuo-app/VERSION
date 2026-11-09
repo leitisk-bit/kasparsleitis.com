@@ -1,1 +1,1 @@
-{"commit": "f0fa8a8", "date": "2026-11-09T09:53:58+02:00", "change": "One-way arrows: chevrons are one row only when they follow each other in the way they point; two lanes side by side (4. posms B floor 4) are read as two vertical one-ways, not one horizontal"}
+{"commit": "b3bea97", "date": "2026-11-09T10:29:59+02:00", "change": "Results: a results page with several courses (4. posms A, Bērni A, Easy) gives each map the groups whose control codes match the codes printed on that map (\"2-44\"); the map reader now reads those codes"}
