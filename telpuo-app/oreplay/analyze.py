@@ -382,12 +382,15 @@ def analyze(pdf_path, page=0):
                     if dd < 900 and (best is None or dd < best[0]): best = (dd, lb['floor'])
                 if best: fl = best[1]; outline_stairs.append((fl, x, y))
             if fl is None: continue
-        elif not any(b0 <= x <= b2 and b1 <= y <= b3 for b0, b1, b2, b3 in floors[fl]):
-            outline_stairs.append((fl, x, y))                  # outside its floor's drawn area: give it one
+        elif min(math.hypot(max(b0 - x, 0, x - b2), max(b1 - y, 0, y - b3))
+                 for b0, b1, b2, b3 in floors[fl]) > 200:
+            outline_stairs.append((fl, x, y))                  # far from its floor's drawn area: give it one
+                                                               # (a letter just beside the building is not)
         stairs.append({'letter': ch, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': round(float(conf), 2)})
     # floors drawn only as an outline get a small area round each such staircase
     for fl, x, y in outline_stairs:
         box = [round(x - 90), round(y - 70), round(x + 90), round(y + 70)]
+        if box in floors.get(fl, []): continue                # the same letter read twice
         ent = next((e for e in f['floors'] if e['floor'] == fl), None)
         if ent is None:
             ent = {'floor': fl, 'boxes': []}; f['floors'].append(ent)

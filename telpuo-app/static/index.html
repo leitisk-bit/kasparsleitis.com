@@ -552,8 +552,8 @@ function draw(){
   ctx.drawImage(img,0,0);
   ctx.lineJoin=ctx.lineCap='round';
   // floors
-  (F.floors||[]).forEach(f=>{ const c=FC[(f.floor-1)%FC.length]; f.boxes.forEach(b=>{ ctx.strokeStyle=c; ctx.globalAlpha=.55; ctx.lineWidth=2.5*lw; ctx.setLineDash([8*lw,6*lw]); ctx.strokeRect(b[0]*k,b[1]*k,(b[2]-b[0])*k,(b[3]-b[1])*k); ctx.setLineDash([]);
-    ctx.globalAlpha=1; ctx.fillStyle=c; ctx.font=`700 ${14*lw}px IBM Plex Sans, sans-serif`; ctx.fillText('Floor '+f.floor, b[0]*k+4*lw, b[1]*k-5*lw); }); });
+  (F.floors||[]).forEach(f=>{ const c=FC[(f.floor-1)%FC.length]; f.boxes.forEach(b=>{ ctx.strokeStyle=c; ctx.globalAlpha=.55; ctx.lineWidth=2.5*lw; ctx.setLineDash([8*lw,6*lw]); const P=12; ctx.strokeRect((b[0]-P)*k,(b[1]-P)*k,(b[2]-b[0]+2*P)*k,(b[3]-b[1]+2*P)*k); /* just outside the walls, so a box drawn on a building's walls still shows */ ctx.setLineDash([]);
+    ctx.globalAlpha=1; ctx.fillStyle=c; ctx.font=`700 ${14*lw}px IBM Plex Sans, sans-serif`; ctx.fillText('Floor '+f.floor, (b[0]-12)*k+4*lw, (b[1]-12)*k-5*lw); }); });
   // leg preview
   if ($('#showLegs').checked && M.legs_preview){ ctx.strokeStyle='#1F6FE0'; ctx.globalAlpha=.8; ctx.lineWidth=3*lw;
     M.legs_preview.forEach(L=>L.lines.forEach(seg=>{ ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke(); })); ctx.globalAlpha=1; }
