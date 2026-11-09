@@ -694,6 +694,11 @@ def admin_cornerscheck(n: int = 25):
                              "prob": round(p["prob"], 3), "made": p["made_at"][5:16], "corners": (p["hc"], p["ac"]),
                              "result": p["result"], "bet365": lad("Bet365"), "pinnacle": lad("Pinnacle")})
     try:
+        out["names"] = [dict(x) for x in c.execute("SELECT bookmaker, bet_id, name, mapped, seen, example FROM odds_names "
+                                                    "WHERE name LIKE '%orner%' ORDER BY bookmaker, bet_id")]
+    except Exception:
+        pass
+    try:
         from apifootball import Client
         fx = c.execute("SELECT DISTINCT o.match_id FROM odds o JOIN matches m ON m.id=o.match_id WHERE o.bookmaker='Bet365' "
                        "AND o.market='corners' AND m.status='NS' ORDER BY m.date_utc LIMIT 1").fetchone()

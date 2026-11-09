@@ -37,6 +37,8 @@ CONF_MIN = 0.80
 SURE_MIN, SURE_TOP, SURE_MAX = 0.80, 0.90, 0.995
 EASY_MIN = 0.40
 BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.55, 1.30, 0.02
+BET_MAX_GAP = 0.30      # model vs bookmaker chance further apart than this: a misread market, skipped
+BET_MODEL_W = 0.5       # weight of the model when Pinnacle prices the same selection
 
 
 def now_iso():
@@ -454,11 +456,21 @@ def make_picks(pred, odds_rows=None, rat=None):
             else:
                 o = ref[key]; book_price = o["price"]
                 price = betsafe_price(rat or {}, market, book_price); label = "Betsafe est."
-            p = prob(pred, market, scope, side, line)
-            if p is None or p < BET_MIN_P or price < BET_MIN_PRICE or p * price - 1 < BET_MIN_EV:
+            pm = prob(pred, market, scope, side, line)
+            if pm is None:
+                continue
+            # sanity: a price far from the model AND from its own pair is another market filed under this key
+            # (a corner market with "Under 23.5" at 2.00 was read as total corners) - never bet on it
+            own = market_prob(odds_rows, o)
+            if abs(pm - (own if own is not None else 1 / o["price"])) > BET_MAX_GAP:
                 continue
             # the market's view: Pinnacle (sharpest) without its margin, else the bookmaker's own price
             mp = market_prob(odds_rows, pin[key]) if key in pin else None
+            # live check (value report): half model + half Pinnacle beats either alone, so where Pinnacle prices
+            # the selection the bet is judged on that mix, not on the model alone
+            p = BET_MODEL_W * pm + (1 - BET_MODEL_W) * mp if mp is not None else pm
+            if p < BET_MIN_P or price < BET_MIN_PRICE or p * price - 1 < BET_MIN_EV:
+                continue
             picks.append(dict(tab="bet_on", market=market, scope=scope, side=side, line=line, prob=p,
                               price=price, book_price=book_price, bookmaker=label,
                               market_prob=mp if mp is not None else market_prob(odds_rows, o)))

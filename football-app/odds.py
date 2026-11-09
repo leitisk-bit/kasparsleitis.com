@@ -114,6 +114,12 @@ def store_fixture_odds(con, item, now):
                        DO UPDATE SET price=excluded.price, last_seen=excluded.last_seen""",
                     (mid, name, market, scope, side, line, price, price, now, now))
                 n += 1
+            ex = ", ".join(f"{v.get('value')}@{v.get('odd')}" for v in (bet.get("values") or [])[:6])
+            mapped = sorted({"/".join(map(str, classify(bet.get("name", ""), v.get("value", "")) or ()))[:40]
+                             for v in (bet.get("values") or [])} - {""})[:3]
+            con.execute("INSERT INTO odds_names(bookmaker, bet_id, name, mapped, seen, example) VALUES (?,?,?,?,1,?) "
+                        "ON CONFLICT(bookmaker, name) DO UPDATE SET seen=seen+1, example=excluded.example, mapped=excluded.mapped",
+                        (name, bet.get("id"), bet.get("name", ""), ", ".join(mapped), ex))
             if not known:
                 ex = ", ".join(str(v.get("value")) for v in (bet.get("values") or [])[:3])
                 con.execute("INSERT INTO odds_unknown(name, seen, example) VALUES (?,1,?) "

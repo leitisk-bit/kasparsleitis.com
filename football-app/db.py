@@ -141,8 +141,18 @@ def _fix_ah_away(con):
         con.execute("DELETE FROM picks WHERE kind='live' AND tab='bet_on' AND (market='ah' OR scope='ah')")
 
 
+def _drop_misread_picks(con):
+    """Bet on picks priced from a market misread as another (e.g. corners "Under 23.5" @2.00 at 99.9%):
+    the chance the model gave and the price are far apart. They never were real bets."""
+    if con.execute("SELECT name FROM sqlite_master WHERE name='picks'").fetchone():
+        con.execute("DELETE FROM picks WHERE kind='live' AND tab='bet_on' AND price > 1 AND abs(prob - 1.0/price) > 0.30")
+
+
 def _migrate(con) -> None:
     _once(con, "fix_ah_away_sign", _fix_ah_away)
+    _once(con, "drop_misread_picks", _drop_misread_picks)
+    con.execute("""CREATE TABLE IF NOT EXISTS odds_names (bookmaker TEXT, bet_id INTEGER, name TEXT, mapped TEXT,
+                   seen INTEGER DEFAULT 1, example TEXT, PRIMARY KEY (bookmaker, name))""")
     cols = {r[1] for r in con.execute("PRAGMA table_info(matches)")}
     if "ft_home" not in cols:
         # 90-minute score (goals markets are settled on it; 'home_goals' includes extra time)
