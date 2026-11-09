@@ -49,6 +49,14 @@ def build(img, feat, N, out_dir):
             keep = np.isin(lab, 1 + np.where(sz > 20000)[0])
         else:
             keep = core
+        # a floor drawn only as an outline round its staircases (4. posms: T and P on floor 6, the top of D
+        # on floor 5) gets small 180 x 140 areas round each staircase from the map reader; everything
+        # drawn there is kept, however small, so those stair tops show in 3D
+        for bx in fl['boxes']:
+            if (bx[2] - bx[0], bx[3] - bx[1]) == (180, 140):
+                X0, Y0, X1, Y1 = bx[0] - x0, bx[1] - y0, bx[2] - x0, bx[3] - y0
+                part = solid[max(0, Y0):Y1, max(0, X0):X1]
+                keep[max(0, Y0):Y1, max(0, X0):X1] |= ndi.binary_dilation(part, iterations=2) & part
         keep = ndi.binary_fill_holes(keep)
         rgba = np.dstack([c.astype(np.uint8), (keep * 255).astype(np.uint8)])
         I = Image.fromarray(rgba, 'RGBA')
