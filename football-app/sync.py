@@ -68,28 +68,64 @@ def fetch_missing_details(con, client, limit=None):
     return done
 
 
+NIGHT_ROUNDS = 3
+
+
 def weekly(con, model):
     """Every night (01-07 UTC): search for new patterns, re-tune with everything collected (new matches,
     factors, other games, promoted patterns), re-test, and save a fresh factor analysis.
     Skipped if done in the last 20 hours. (Name kept: it used to be weekly.)"""
     now = datetime.now(timezone.utc)
     last = con.execute("SELECT MAX(created_at) FROM model_runs WHERE kind='tune'").fetchone()[0]
-    if not (1 <= now.hour < 7) or (last and last > (now - timedelta(hours=20)).isoformat()):
+    # starts with the 00:17 UTC run (02:17 Riga); three rounds of search + re-tune, each logged in improve_rounds
+    if not (0 <= now.hour < 7) or (last and last > (now - timedelta(hours=12)).isoformat()):
         return
     try:
         import histodds                          # this season's football-data.co.uk prices (free files, once a night)
         histodds.fetch(con, only_current=True)
     except Exception as e:  # noqa
         print("  historical odds failed:", e, flush=True)
-    print("Nightly: searching for new patterns", flush=True)
-    try:
-        import discover
-        discover.run(con)
-    except Exception as e:  # noqa
-        print("  pattern search failed:", e, flush=True)
-    print("Nightly: improving the model", flush=True)
-    if model.improve(con):
-        model.backtest(con)
+    con.execute("""CREATE TABLE IF NOT EXISTS improve_rounds (id INTEGER PRIMARY KEY AUTOINCREMENT, night TEXT,
+                   round INTEGER, started_at TEXT, finished_at TEXT, before TEXT, after TEXT, adopted INTEGER,
+                   score_before REAL, score_after REAL, waiting TEXT, promoted TEXT, backtest TEXT, note TEXT)""")
+    night = now.date().isoformat()
+    for k in range(1, NIGHT_ROUNDS + 1):
+        t0 = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        before = (con.execute("SELECT version FROM model_runs WHERE active=1").fetchone() or [None])[0]
+        print(f"Nightly round {k}/{NIGHT_ROUNDS}: searching for new patterns", flush=True)
+        promoted, note = None, ""
+        try:
+            import discover
+            discover.run(con)
+            promoted = json.dumps([r[0] for r in con.execute("SELECT candidate FROM promoted")])
+        except Exception as e:  # noqa
+            note += f"pattern search failed: {e}; "
+            print("  pattern search failed:", e, flush=True)
+        print(f"Nightly round {k}/{NIGHT_ROUNDS}: improving the model", flush=True)
+        bt = None
+        try:
+            adopted = model.improve(con)
+            if adopted:
+                model.backtest(con)
+                r = con.execute("SELECT metrics FROM model_runs WHERE version=?", (adopted,)).fetchone()
+                bt = json.dumps((json.loads(r[0] or "{}")).get("backtest")) if r else None
+        except Exception as e:  # noqa
+            adopted = None; note += f"improve failed: {e}"
+            print("  improve failed:", e, flush=True)
+        tune = con.execute("SELECT version, metrics FROM model_runs WHERE kind='tune' ORDER BY id DESC LIMIT 1").fetchone()
+        sb = sa = waiting = None
+        if tune:
+            m = json.loads(tune[1] or "{}")
+            tot = lambda sc: round(sum(v["log_score"] for v in (sc or {}).values() if isinstance(v, dict) and "log_score" in v), 4)
+            sa, sb = tot(m.get("tuning")), tot((m.get("previous") or {}).get("tuning"))
+            waiting = json.dumps(m.get("waiting"))
+        after = (con.execute("SELECT version FROM model_runs WHERE active=1").fetchone() or [None])[0]
+        con.execute("INSERT INTO improve_rounds(night, round, started_at, finished_at, before, after, adopted, score_before, "
+                    "score_after, waiting, promoted, backtest, note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (night, k, t0, datetime.now(timezone.utc).isoformat(timespec="seconds"), before, after,
+                     1 if adopted else 0, sb, sa, waiting, promoted, bt, note))
+        con.commit()
+        print(f"Nightly round {k}: {before} -> {after} ({'improved' if adopted else 'no improvement'}), score {sb} -> {sa}", flush=True)
     model.predict(con); model.settle(con)
     try:
         import factors

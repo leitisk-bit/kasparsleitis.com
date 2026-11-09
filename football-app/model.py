@@ -39,6 +39,9 @@ EASY_MIN = 0.40
 BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.55, 1.30, 0.02
 BET_MAX_GAP = 0.30      # model vs bookmaker chance further apart than this: a misread market, skipped
 BET_MODEL_W = 0.5       # weight of the model when Pinnacle prices the same selection
+# 5-year test against football-data.co.uk prices (8,400 league matches): on the match result and goals markets the
+# model is less accurate than Pinnacle, and mixing it in makes Pinnacle worse; betting them lost 7% (+-2%). No Bet on there.
+BET_SKIP = {"1x2", "dc", "ah", "goals"}
 
 
 def now_iso():
@@ -456,6 +459,8 @@ def make_picks(pred, odds_rows=None, rat=None):
             else:
                 o = ref[key]; book_price = o["price"]
                 price = betsafe_price(rat or {}, market, book_price); label = "Betsafe est."
+            if market in BET_SKIP:
+                continue
             pm = prob(pred, market, scope, side, line)
             if pm is None:
                 continue

@@ -25,7 +25,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue, rounds]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -78,6 +78,13 @@ jobs:
                   print(f"\n== {s}: {v['teams_both_periods']} teams in both periods | lasting trait? spread r={v['spread_lasting_r']}  bias r={v['bias_lasting_r']}")
                   print("   steadiest:   ", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["steadiest"][:6]))
                   print("   most erratic:", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["most_erratic"][:6]))
+              sys.exit(0)
+          if ACTION == "rounds":
+              for x in call("/admin/rounds"):
+                  print(f"{x['night']} round {x['round']} {x['started_at'][11:16]}-{(x['finished_at'] or '')[11:16]} "
+                        f"{x['before']} -> {x['after']} {'IMPROVED' if x['adopted'] else 'no change'} "
+                        f"score {x['score_before']} -> {x['score_after']} waiting {x['waiting']} {x['note'] or ''}")
+                  if x["backtest"]: print("   backtest", x["backtest"][:600])
               sys.exit(0)
           if ACTION == "histvalue":
               print(json.dumps(call("/admin/histvalue", timeout=120), indent=1, ensure_ascii=False))

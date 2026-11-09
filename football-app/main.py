@@ -675,6 +675,15 @@ def admin_oddscheck(n: int = 6):
     return out
 
 
+@r.get("/api/admin/rounds")
+def admin_rounds(n: int = 15):
+    """The nightly search + re-tune rounds (sync.weekly), newest first."""
+    try:
+        return [dict(r) for r in con().execute("SELECT * FROM improve_rounds ORDER BY id DESC LIMIT ?", (n,))]
+    except Exception:
+        return []
+
+
 @r.get("/api/admin/histvalue")
 def admin_histvalue():
     """The last 5-year test against football-data.co.uk prices (histodds.py), as saved."""
