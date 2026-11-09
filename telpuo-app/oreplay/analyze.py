@@ -584,8 +584,15 @@ def _oneway_rows(chev, img, floor_at):
             a = chev[todo.pop()]
             for j, b in enumerate(chev):
                 if j in used: continue
-                if math.hypot(a['x'] - b['x'], a['y'] - b['y']) < 3.2 * max(a['w'], a['h']):
-                    used.add(j); grp.append(j); todo.append(j)
+                size = max(a['w'], a['h'])
+                if math.hypot(a['x'] - b['x'], a['y'] - b['y']) >= 3.2 * size: continue
+                # one lane = chevrons one after another in the way they point; two lanes side by side
+                # (4. posms floor 4: two vertical lanes either side of a void) are not one row
+                ax, ay = a['dv']; n_ = math.hypot(ax, ay)
+                if n_ > 1e-6:
+                    across = abs((b['x'] - a['x']) * ay - (b['y'] - a['y']) * ax) / n_
+                    if across > 0.8 * size: continue
+                used.add(j); grp.append(j); todo.append(j)
         if len(grp) < 2: continue
         g = [chev[k] for k in grp]
         xs = [c_['x'] for c_ in g]; ys = [c_['y'] for c_ in g]
