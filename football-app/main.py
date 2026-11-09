@@ -681,6 +681,13 @@ def admin_discoveries():
     return discover.report(con())
 
 
+@r.get("/api/admin/value")
+def admin_value():
+    """Is there value? Bet on record with Pinnacle closing-line check, and model vs Pinnacle on everything priced."""
+    import value
+    return value.analyse(con())
+
+
 @r.get("/api/admin/teams_predictability")
 def admin_teams_predictability():
     import teams_analysis

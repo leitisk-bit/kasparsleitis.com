@@ -10,6 +10,7 @@
 #   other     fetch all other games of our teams (domestic league, cups), every season, with details
 #   injuries  injured / suspended players for every competition and season (history), then current every update
 #   discover  search for new patterns now (also runs every night); discoveries = show the last search
+#   value     is there value? Bet on record vs Pinnacle closing prices, model vs Pinnacle on everything priced
 #   teams     how predictable each team is per statistic, and whether that lasts (older years vs last year)
 #   collected what has been collected so far (details, weather, other games)
 #   collect   extract all stored match details, fetch stadiums and weather (history + forecast)
@@ -24,7 +25,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -77,6 +78,22 @@ jobs:
                   print(f"\n== {s}: {v['teams_both_periods']} teams in both periods | lasting trait? spread r={v['spread_lasting_r']}  bias r={v['bias_lasting_r']}")
                   print("   steadiest:   ", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["steadiest"][:6]))
                   print("   most erratic:", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["most_erratic"][:6]))
+              sys.exit(0)
+          if ACTION == "value":
+              v = call("/admin/value", timeout=300)
+              b = v["bet_on"]
+              cols = ["bets", "won", "hit", "said", "avg_price", "profit", "roi_pct", "with_pinnacle", "pinnacle_ev_pct", "beat_pinnacle_share"]
+              row = lambda name, a: print("   %-26s" % name[:26] + "".join("%10s" % (a or {}).get(c, "-") for c in cols))
+              print(f"BET ON (one model version per match, {b['matches']} matches)")
+              print("   %-26s" % "" + "".join("%10s" % c[:10] for c in cols))
+              row("all picks", b["all"]); row("best pick per match", b["one_per_match"])
+              for g, rows in b["groups"].items():
+                  print(f"  by {g}")
+                  for k, a in rows.items(): row(str(k), a)
+              print("\nMODEL vs PINNACLE closing (log loss, lower = better)")
+              for fam, c in v["model_vs_pinnacle"].items():
+                  print(f"   {fam[:28]:<28} n={c['n']:<6} model {c['model']:.4f}  pinnacle {c['pinnacle']:.4f}  mix {c['mix']:.4f}  -> {c['verdict']}")
+              print("\nprofit by day:", b["by_day"][-30:])
               sys.exit(0)
           if ACTION == "discoveries":
               d = call("/admin/discoveries")
