@@ -1,1 +1,1 @@
-{"commit": "b3ad078", "date": "2026-11-09T11:53:09+02:00", "change": "Map reader: a course line cut short by a staircase drawn over it still reaches its control (4. posms A read only 2 of 12 controls); controls on a floor drawn only as an outline get that floor (3-33 by D on floor 5, Bērni maps)"}
+{"commit": "dd2aee0", "date": "2026-11-09T12:01:47+02:00", "change": "Easy map: its stair letters (a slightly different violet) are read again; strict stairs only for lettered staircases on real floors (unlettered steps and outline-floor stair tops keep the general reading)"}
