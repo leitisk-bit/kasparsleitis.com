@@ -1,1 +1,1 @@
-{"commit": "027638b", "date": "2026-11-09T02:19:55+02:00", "change": "Map reader: floors drawn only as an outline (4. posms floor 6 with T and P, the top of D on floor 5): their staircases join the nearest floor number"}
+{"commit": "0c5594d", "date": "2026-11-09T04:21:02+02:00", "change": "Strict stairs for 4. posms B: into red only up, into blue only down, black lines round stairs are walls"}
