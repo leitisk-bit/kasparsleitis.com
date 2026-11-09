@@ -3,7 +3,7 @@
 Run:  python3 app.py            (dev, port 8090)
       gunicorn -w 1 --threads 4 -b 127.0.0.1:8090 app:app   (production behind nginx)
 """
-import os, time, json, math, re, traceback, threading, hmac
+import os, time, json, math, re, traceback, threading, hmac, hashlib
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
 from oreplay import store, analyze, walk, results, three, serverinfo
@@ -588,6 +588,21 @@ def api_new_run(mid):
         if dur - sum(legs) > 20:          # watch ran longer than the race: find where the race starts in it
             off = find_offset(obs, legs, [c.get('floor') for c in feat['controls']])
         obs = [(t - off, e, h) for t, e, h in obs]
+    sha = None
+    if f and f.filename and obs:
+        try: f.stream.seek(0); sha = hashlib.sha256(f.read()).hexdigest()
+        except Exception: sha = None
+    if entry:
+        # the very same watch file (or the same recording) already given to this person: refuse
+        start = (t0 + int(off * 1000)) if t0 else None
+        for old in store.list_runs(mid):
+            if old.get('group') != group or old.get('name') != who: continue
+            o = store.get_run(old['id']) or {}
+            osha = o.get('track_sha')
+            if not osha and o.get('track_file'):
+                data = store.load_track(o['track_file']); osha = data and hashlib.sha256(data).hexdigest()
+            if (sha and osha == sha) or (start and o.get('start_ms') == start and o.get('legs_in') == legs and o.get('status') != 'error'):
+                return jsonify(error=f'An identical run is already assigned to {who} ({group}). Nothing was added.'), 409
     rid = store.new_id()
     if entry:
         # one run per person: a new upload replaces their earlier one
@@ -598,7 +613,7 @@ def api_new_run(mid):
            'created': time.time(), 'legs_in': legs, 'splits_read_as': how, 'total': sum(legs), 'offset': off,
            'start_ms': (t0 + int(off * 1000)) if t0 else None, 'has_track': bool(obs), 'status': 'working', 'message': 'Waiting for its turn…'}
     if f and f.filename and obs:
-        try: f.stream.seek(0); run['track_file'] = store.save_track(rid, f.read(), f.filename)
+        try: f.stream.seek(0); run['track_file'] = store.save_track(rid, f.read(), f.filename); run['track_sha'] = sha
         except Exception: traceback.print_exc()
     store.set_run(rid, run)
     store.background(_reconstruct, rid, mid, legs, obs, on_error=lambda e: (run.update(status='error', error=e), store.set_run(rid, run)))

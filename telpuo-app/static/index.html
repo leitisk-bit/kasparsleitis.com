@@ -83,6 +83,7 @@ body:not(.is-admin) .admin-only{display:none!important}
 .drop.over{border-color:var(--accent);color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:calc(100% - 32px)}
 @media (max-width:980px){.layout{grid-template-columns:1fr}.stage{height:60vh}}
+.btn.danger{background:#c0392b;color:#fff;border-color:#c0392b}
 </style></head><body>
 <div class="wrap">
   <header>
@@ -190,7 +191,7 @@ body:not(.is-admin) .admin-only{display:none!important}
             </form>
             <h2 style="margin-top:6px">Runs on this map</h2>
             <div class="list runs" id="runList"></div>
-            <div class="row" style="padding:0;grid-template-columns:1fr auto;border:0"><span class="muted">Tick runs to compare them in one replay.</span><a class="btn small" id="cmpBtn">Compare</a></div>
+            <div class="row" style="padding:0;grid-template-columns:1fr auto;border:0"><span class="muted">Tick runs to compare them in one replay.</span><span><a class="btn small" id="cmpBtn">Compare</a> <button class="btn small" id="delRunsBtn" hidden title="Admin: delete the ticked runs">Delete ticked runs</button></span></div>
           </div>
 
           <div data-pane="controls" hidden>
@@ -361,12 +362,22 @@ function renderRuns(runs){
   if (!runs.length) box.innerHTML='<div class="muted">No runs yet.</div>';
   for (const r of runs){ const d=document.createElement('div'); d.className='row';
     const st = r.status==='done' ? (r.legs_missing ? `<a class="btn small" href="replay?run=${r.id}" title="${r.legs_missing} leg(s) without a route">Replay ⚠</a>` : `<a class="btn small" href="replay?run=${r.id}">Replay</a>`) : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : `<span class="warn" title="${esc(r.message||'')}">${esc((r.message||'working…').replace('Working out the route: ',''))}</span>`;
-    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'?'':'disabled'} aria-label="Compare"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div>${r.status==='working'?`<div class="warn waitnote">${/turn/i.test(r.message||'') ? 'Waiting for its turn.' : 'Analyzing this run.'} Please wait until it is done; the <b>Replay</b> button appears here.</div>`:''}</div>${st}${ADMIN?`<button class="ic" title="Delete" data-del="${r.id}">×</button>`:'<span></span>'}`;
+    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'||ADMIN?'':'disabled'} aria-label="Select"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div>${r.status==='working'?`<div class="warn waitnote">${/turn/i.test(r.message||'') ? 'Waiting for its turn.' : 'Analyzing this run.'} Please wait until it is done; the <b>Replay</b> button appears here.</div>`:''}</div>${st}${ADMIN?`<button class="btn small" title="Delete this run" data-del="${r.id}">Delete</button>`:'<span></span>'}`;
     box.appendChild(d); }
-  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ try{ await api('runs/'+b.dataset.del,{method:'DELETE'}); openMap(M.id);}catch(e){toast(e.message);} });
+  // admin: Delete asks once more on the button itself (Delete → Sure? delete), then removes the run
+  box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if (!b.dataset.sure){ b.dataset.sure='1'; b.textContent='Sure? delete'; b.classList.add('danger'); setTimeout(()=>{ if(b.isConnected){ delete b.dataset.sure; b.textContent='Delete'; b.classList.remove('danger'); } }, 4000); return; }
+    try{ await api('runs/'+b.dataset.del,{method:'DELETE'}); toast('Run deleted.'); openMap(M.id);}catch(e){toast(e.message);} });
+  const bulk=$('#delRunsBtn'); if (bulk){ bulk.hidden=!ADMIN || !runs.length; delete bulk.dataset.sure; bulk.textContent='Delete ticked runs'; }
   if (runs.some(r=>r.status==='working')) { stopPoll(); pollT=setTimeout(()=>openMap(M.id), 3000); }
 }
-$('#cmpBtn').onclick = () => { const ids=$$('#runList input:checked').map(i=>i.value); if (ids.length<1){ toast('Tick one or more runs first.'); return; } location.href='replay?run='+ids.join(',')+(ids.length>1?'':'' ); };
+$('#delRunsBtn').onclick = async () => {
+  const b=$('#delRunsBtn'), ids=$$('#runList input:checked').map(i=>i.value);
+  if (!ids.length){ toast('Tick the runs to delete first.'); return; }
+  if (!b.dataset.sure){ b.dataset.sure='1'; b.textContent=`Sure? delete ${ids.length} run${ids.length>1?'s':''}`; b.classList.add('danger'); setTimeout(()=>{ delete b.dataset.sure; b.textContent='Delete ticked runs'; b.classList.remove('danger'); }, 4000); return; }
+  let n=0; for (const id of ids){ try{ await api('runs/'+id,{method:'DELETE'}); n++; }catch(e){ toast(e.message); } }
+  toast(`${n} run${n===1?'':'s'} deleted.`); openMap(M.id); };
+$('#cmpBtn').onclick = () => { if ($$('#runList input:checked').some(i=>!i.closest('.row').querySelector('a[href^="replay?run"]'))){ toast('Only finished runs can be compared: untick the others.'); return; } const ids=$$('#runList input:checked').map(i=>i.value); if (ids.length<1){ toast('Tick one or more runs first.'); return; } location.href='replay?run='+ids.join(',')+(ids.length>1?'':'' ); };
 $('#rSplits').oninput = () => { const t=$('#rSplits').value.replace(/\([^)]*\)/g,' ').match(/\d+(?::\d{1,2}){0,2}/g)||[]; const n=(F?.controls?.length||1)-1;
   $('#rSplitInfo').textContent = t.length ? `${t.length} times found; this course has ${n} legs (controls + finish).` : `This course has ${n} legs.`; };
 /* ---------- add a run: TCX first, then whose run ---------- */
