@@ -1,1 +1,1 @@
-{"commit": "095aa22", "date": "2026-11-09T14:23:05+02:00", "change": "Route options: the fastest way is always listed, and walking on past a staircase's door is not a detour (4. posms A leg 10 showed no route)"}
+{"commit": "63643ec", "date": "2026-11-09T17:52:32+02:00", "change": "Runs: admin Delete button (asks once more) and 'Delete ticked runs'; uploading the very same watch file again for the same person is refused: 'An identical run is already assigned to …'"}
