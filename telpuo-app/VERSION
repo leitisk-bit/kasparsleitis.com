@@ -1,1 +1,1 @@
-{"commit": "63643ec", "date": "2026-11-09T17:52:32+02:00", "change": "Runs: admin Delete button (asks once more) and 'Delete ticked runs'; uploading the very same watch file again for the same person is refused: 'An identical run is already assigned to …'"}
+{"commit": "98d9a06", "date": "2026-11-09T21:39:37+02:00", "change": "Map library: a folder per stage (RK 2026 4. posms, 3. posms, …) holding its maps, newest first, foldable; admin can set or change a map's folder in Info"}
