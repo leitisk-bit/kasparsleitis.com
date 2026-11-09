@@ -1,1 +1,1 @@
-{"commit": "31fcecb", "date": "2026-11-08T23:47:35+02:00", "change": "Stairs by the legend on every map: red/blue entered only where they meet the floor; no changing halves inside the stair drawing (steps or an orange landing between them); closed halves can only be passed"}
+{"commit": "a8b5894", "date": "2026-11-09T02:07:57+02:00", "change": "Stairs: on a floor a route never goes from one half of a stairwell round over its landing to the other half (U on floor 3, 4. posms B); a stairwell closed at that floor can still be passed"}
