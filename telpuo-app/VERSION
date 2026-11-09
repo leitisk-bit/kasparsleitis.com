@@ -1,1 +1,1 @@
-{"commit": "8d3cc9f", "date": "2026-11-09T09:20:14+02:00", "change": "Floor areas: no extra small boxes for a stair letter printed just beside its building (D and Č on floor 4 and others); the same letter read twice adds no second box; floor boxes drawn just outside the walls so they show"}
+{"commit": "f0fa8a8", "date": "2026-11-09T09:53:58+02:00", "change": "One-way arrows: chevrons are one row only when they follow each other in the way they point; two lanes side by side (4. posms B floor 4) are read as two vertical one-ways, not one horizontal"}
