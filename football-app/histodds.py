@@ -24,7 +24,8 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 
-import requests
+import urllib.request
+import urllib.error
 
 import db
 
@@ -120,15 +121,17 @@ def fetch(con, seasons=None, only_current=False):
     now = datetime.now(timezone.utc)
     cur = now.year if now.month >= 7 else now.year - 1
     seasons = seasons or ([cur] if only_current else list(range(FIRST_SEASON, cur + 1)))
-    s = requests.Session(); s.headers["User-Agent"] = "football-stats/1.0"
     for season in seasons:
         code = f"{season % 100:02d}{(season + 1) % 100:02d}"
         for lid, div in DIVS.items():
             try:
-                r = s.get(URL.format(code=code, div=div), timeout=60)
-                if r.status_code != 200:
-                    print(f"  {season} {div}: HTTP {r.status_code}", flush=True); continue
-                text = r.content.decode("utf-8-sig", errors="replace")
+                req = urllib.request.Request(URL.format(code=code, div=div), headers={"User-Agent": "football-stats/1.0"})
+                try:
+                    with urllib.request.urlopen(req, timeout=60) as r:
+                        raw = r.read()
+                except urllib.error.HTTPError as e:
+                    print(f"  {season} {div}: HTTP {e.code}", flush=True); continue
+                text = raw.decode("utf-8-sig", errors="replace")
                 rows = list(csv.DictReader(io.StringIO(text)))
                 con.execute("INSERT OR REPLACE INTO hist_files VALUES (?,?,?,?,?)",
                             (season, div, now.isoformat(timespec="seconds"), len(rows), text))
