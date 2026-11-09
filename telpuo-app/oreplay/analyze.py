@@ -361,19 +361,38 @@ def analyze(pdf_path, page=0):
     for c in f['controls']: c['floor'] = floor_at(c['x'], c['y'])
 
     # ---- stairwell letters
-    stairs = []
+    stairs = []; outline_stairs = []
     for d in drawings:
         fc = _rgb(d.get('fill')); r = d['rect']
         if not _is_violet(fc) or not (5 < r.height < 20 and r.width < 20): continue
         x, y = (r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S
-        if in_ignore(x, y) and floor_at(x, y) is None: continue
         m = path_mask(d)
         if m is None: continue
         ch, conf = classify_glyph(m, 'ABCDEFGHIJKLMNOPRSTUVXYZČŠŽ')
         fl = floor_at(x, y)
         if fl is None: fl = floor_of_point(x, y)
-        if fl is None or fl not in floors: continue
+        if fl is None or fl not in floors:
+            # a staircase drawn outside every floor (a top floor drawn only as a white outline: T and P
+            # on floor 6, D on floor 5 of 4. posms): it belongs to the nearest floor number
+            fl = None; best = None
+            if conf >= 0.6:
+                for lb in f.get('floor_labels', []):
+                    bx, by = (lb['box'][0] + lb['box'][2]) / 2, (lb['box'][1] + lb['box'][3]) / 2
+                    dd = math.hypot(bx - x, by - y)
+                    if dd < 900 and (best is None or dd < best[0]): best = (dd, lb['floor'])
+                if best: fl = best[1]; outline_stairs.append((fl, x, y))
+            if fl is None: continue
+        elif not any(b0 <= x <= b2 and b1 <= y <= b3 for b0, b1, b2, b3 in floors[fl]):
+            outline_stairs.append((fl, x, y))                  # outside its floor's drawn area: give it one
         stairs.append({'letter': ch, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': round(float(conf), 2)})
+    # floors drawn only as an outline get a small area round each such staircase
+    for fl, x, y in outline_stairs:
+        box = [round(x - 90), round(y - 70), round(x + 90), round(y + 70)]
+        ent = next((e for e in f['floors'] if e['floor'] == fl), None)
+        if ent is None:
+            ent = {'floor': fl, 'boxes': []}; f['floors'].append(ent)
+            f['notes'].append(f'floor {fl}: only staircases drawn (outline floor)')
+        ent['boxes'].append(box); floors[fl].append(box)
     # the same letter on several floors should be the same physical stairwell: majority vote per
     # glyph outline signature fixes single misreads
     f['stair_labels'] = stairs
