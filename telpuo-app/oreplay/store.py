@@ -1,5 +1,5 @@
 """File storage: data/maps/<id>/{map.pdf, map.jpg, features.json, graph.pkl, meta.json}, data/runs/<id>.json"""
-import os, json, uuid, time, pickle, threading, traceback
+import os, re, json, uuid, time, pickle, threading, traceback
 import numpy as np
 from PIL import Image
 
@@ -29,8 +29,26 @@ def list_maps():
         m = _r(os.path.join(MAPS, mid, 'meta.json'))
         if m: out.append(m)
     out.sort(key=lambda m: m.get('created', 0), reverse=True)
-    for m in out: m['runs'] = len([r for r in list_runs(m['id'])])
+    n = run_counts()
+    for m in out: m['runs'] = n.get(m['id'], 0)
     return out
+
+_MAP_RE = re.compile(rb'"map":"([^"]*)"')
+def run_counts():
+    """How many runs each map has, in one pass over the run files. Only the start of each file is read
+    (where the map id is), not the whole route."""
+    n = {}
+    for fn in os.listdir(RUNS):
+        if not fn.endswith('.json'): continue
+        p = os.path.join(RUNS, fn)
+        try:
+            with open(p, 'rb') as f: head = f.read(400)
+        except OSError: continue
+        x = _MAP_RE.search(head)
+        if x: mid = x.group(1).decode('utf-8', 'replace')
+        else: mid = (_r(p) or {}).get('map')          # an unusual file: read it all
+        if mid: n[mid] = n.get(mid, 0) + 1
+    return n
 
 def get_meta(mid): return _r(os.path.join(map_dir(mid), 'meta.json'))
 def set_meta(mid, **kw):
@@ -47,7 +65,20 @@ def save_render(mid, img):
     Image.fromarray(img).save(os.path.join(map_dir(mid), 'render.png'))
     h, w = img.shape[:2]; k = min(1.0, DISPLAY_MAX / max(h, w))
     Image.fromarray(img).resize((int(w * k), int(h * k)), Image.LANCZOS).save(os.path.join(map_dir(mid), 'map.jpg'), quality=84)
+    try: os.remove(os.path.join(map_dir(mid), 'thumb.jpg'))       # made again from the new image
+    except OSError: pass
     return k
+
+THUMB = 240                 # the small picture on the map list (shown at 96 px; sharp on retina screens)
+def thumb(mid):
+    """Path of the map's small picture for the map list, made from map.jpg the first time it is asked for."""
+    d = map_dir(mid); t, src = os.path.join(d, 'thumb.jpg'), os.path.join(d, 'map.jpg')
+    if not os.path.exists(src): return None
+    if not os.path.exists(t) or os.path.getmtime(t) < os.path.getmtime(src):
+        with Image.open(src) as im:
+            im = im.convert('RGB'); im.thumbnail((THUMB, THUMB), Image.LANCZOS)
+            tmp = t + '.tmp.jpg'; im.save(tmp, quality=82); os.replace(tmp, t)
+    return t
 
 def load_render(mid): return np.array(Image.open(os.path.join(map_dir(mid), 'render.png')).convert('RGB'))
 

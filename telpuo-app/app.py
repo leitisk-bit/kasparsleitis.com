@@ -138,7 +138,16 @@ def map_folder(m):
     return re.sub(r'\s+', ' ', x.group(1)).strip() if x else ''
 
 @app.get('/api/maps')
-def api_maps(): return jsonify([dict(m, folder=map_folder(m)) for m in store.list_maps() if can_see(m)])
+def api_maps():
+    # only what the map list shows (the full map details come with each map's own page)
+    keep = ('id', 'name', 'event', 'status', 'message', 'published', 'created', 'updated', 'built', 'runs')
+    out = []
+    for m in store.list_maps():
+        if not can_see(m): continue
+        o = {k: m.get(k) for k in keep}
+        o.update(folder=map_folder(m), problems=m.get('problems') or [], floors=m.get('floors') or [], controls=m.get('controls') or 0)
+        out.append(o)
+    return jsonify(out)
 
 @app.post('/api/maps')
 def api_new_map():
@@ -273,6 +282,14 @@ def api_map_image(mid):
     _seen(mid)
     p = os.path.join(store.map_dir(mid), 'map.jpg')
     if not os.path.exists(p): abort(404)
+    return send_file(p, mimetype='image/jpeg', max_age=3600)
+
+@app.get('/api/maps/<mid>/thumb')
+def api_map_thumb(mid):
+    _seen(mid)
+    try: p = store.thumb(mid)
+    except Exception: traceback.print_exc(); p = None
+    if not p: abort(404)
     return send_file(p, mimetype='image/jpeg', max_age=3600)
 
 @app.get('/api/maps/<mid>/pdf')

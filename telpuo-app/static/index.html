@@ -288,7 +288,7 @@ async function openLib(){
     const a=document.createElement('a'); a.className='card mapcard'; a.href='#map-'+m.id;
     const st = m.status==='ready' ? ((m.problems||[]).length ? `<span class="pill bad">check</span> <span class="muted">${(m.problems||[]).length} leg(s) without a route</span>` : '<span class="pill ok">ready</span>') : m.status==='error' ? '<span class="pill bad">error</span>' : `<span class="pill work">working</span> <span class="muted">${esc(m.message||'')}</span>`;
     const draft = m.published===false ? ' <span class="pill draft" title="Only you can see this map. Publish it on the map page.">draft</span>' : '';
-    a.innerHTML=`<img alt="" src="api/maps/${m.id}/image" loading="lazy"><div style="min-width:0"><b>${esc(m.name)}</b>${draft}<div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
+    a.innerHTML=`<img alt="" src="api/maps/${m.id}/thumb?${m.built||''}" loading="lazy" width="96" height="96"><div style="min-width:0"><b>${esc(m.name)}</b>${draft}<div class="muted">${esc(m.event||'')}</div><div class="muted">${(m.floors||[]).length} floors · ${m.controls||0} controls · ${m.runs||0} run${m.runs===1?'':'s'}</div>${st}</div>`;
     inner.appendChild(a);
   } }
   if (maps.some(m=>m.status!=='ready'&&m.status!=='error')){ stopPoll(); pollT=setTimeout(()=>{ if (!$('#lib').hidden) openLib(); }, 3000); }
