@@ -418,6 +418,12 @@ def analyze(pdf_path, page=0):
             ent = {'floor': fl, 'boxes': []}; f['floors'].append(ent)
             f['notes'].append(f'floor {fl}: only staircases drawn (outline floor)')
         ent['boxes'].append(box); floors[fl].append(box)
+    for c in f['controls']:                                  # a control on such a floor (3-33 by D on floor 5)
+        if c.get('floor') is None:
+            near = [(math.hypot(max(b0 - c['x'], 0, c['x'] - b2), max(b1 - c['y'], 0, c['y'] - b3)), fl)
+                    for fl, x, y in outline_stairs
+                    for b0, b1, b2, b3 in [(x - 90, y - 70, x + 90, y + 70)]]
+            if near and min(near)[0] < 150: c['floor'] = min(near)[1]
     # the same letter on several floors should be the same physical stairwell: majority vote per
     # glyph outline signature fixes single misreads
     f['stair_labels'] = stairs
@@ -540,11 +546,13 @@ def _course_order(nodes, lines):
         best = None
         for i, (_, x, y, r) in enumerate(nodes):
             dist = math.hypot(p1[0] - x, p1[1] - y); dd = dist - r      # outside the symbol edge
-            if dd >= 70: continue
+            if dd >= 120: continue
             od = outdir(k1, p1)
             head = (od[0] * (x - p1[0]) + od[1] * (y - p1[1])) / (dist or 1)
             if dd > 6 and head < 0.5: continue                     # must head into it
             if dd >= 36 and head < 0.95: continue                  # further off only when aimed straight at it
+            if dd >= 70 and head < 0.995: continue                 # a line cut short by a staircase drawn over it
+                                                                   # (3-33 by D, 4. posms A): aimed dead at it
             if best is None or dd < best[1]: best = (i, dd)
         if best: link(k1, P + best[0]); at_sym[e1] = best[0]
     for e1 in range(len(ends)):
