@@ -679,7 +679,7 @@ def admin_oddscheck(n: int = 6):
 def admin_histvalue():
     """The last 5-year test against football-data.co.uk prices (histodds.py), as saved."""
     row = con().execute("SELECT made_at, data FROM analysis_runs WHERE kind='histvalue' ORDER BY id DESC LIMIT 1").fetchone()
-    return {"made_at": row[0], **json.loads(row[1])} if row else {"error": "not run yet"}
+    return {"made_at": row[0], **_json.loads(row[1])} if row else {"error": "not run yet"}
 
 
 @r.get("/api/admin/cornerscheck")
