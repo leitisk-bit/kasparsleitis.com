@@ -1,1 +1,1 @@
-{"commit": "2873668", "date": "2026-11-09T11:18:04+02:00", "change": "3D: floors drawn only as an outline (T and P on floor 6, the top of D on floor 5) show their staircase areas instead of nothing"}
+{"commit": "b3ad078", "date": "2026-11-09T11:53:09+02:00", "change": "Map reader: a course line cut short by a staircase drawn over it still reaches its control (4. posms A read only 2 of 12 controls); controls on a floor drawn only as an outline get that floor (3-33 by D on floor 5, Bērni maps)"}
