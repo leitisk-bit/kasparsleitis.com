@@ -1,1 +1,1 @@
-{"commit": "0c5594d", "date": "2026-11-09T04:21:02+02:00", "change": "Strict stairs for 4. posms B: into red only up, into blue only down, black lines round stairs are walls"}
+{"commit": "8d3cc9f", "date": "2026-11-09T09:20:14+02:00", "change": "Floor areas: no extra small boxes for a stair letter printed just beside its building (D and Č on floor 4 and others); the same letter read twice adds no second box; floor boxes drawn just outside the walls so they show"}
