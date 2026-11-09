@@ -56,14 +56,18 @@ def _trace(G, N, POLY, p, step=8.0):
     return out
 
 
-def _visits_stairs(G, p):
-    """Does the route walk up to a staircase and away again without taking it (a pointless detour)?"""
+def _visits_stairs(G, p, N=None):
+    """Does the route walk up to a staircase and away again without taking it (a pointless detour)?
+    Walking on past a staircase's door, along the corridor, is not that."""
     for u, n, v in zip(p, p[1:], p[2:]):
         q = n.split('_')
         if len(q) != 3 or q[2] not in ('up', 'dn'): continue
         if G[u][n]['fl'] or G[n][v]['fl']: continue           # arrives or leaves by the stairs: fine
         partner = lambda x: x.split('_')[:2] == q[:2]          # the other half of the same stairwell
         if partner(u) or partner(v): continue
+        if N is not None and u in N and v in N and N[u][0] == N[v][0] == N[n][0]:
+            d_ = lambda a_, b_: math.hypot(N[a_][1] - N[b_][1], N[a_][2] - N[b_][2])
+            if d_(u, v) >= 0.75 * (d_(u, n) + d_(n, v)): continue   # carries on past the door
         return True
     return False
 
@@ -111,7 +115,8 @@ def leg_options(graph, leg, px_s=0.04, floor_s=11.0, mpp=0.0847, limit=600, max_
             t = sum(G[u][v]['t'] for u, v in zip(p, p[1:]))
             if best is None: best = t
             if t > best * 1.5 + 30: break             # half as slow again: nobody would choose it
-            if _visits_stairs(G, p): continue
+            if best == t and not kept: pass                 # the fastest way is always listed
+            elif _visits_stairs(G, p, N): continue
             tr = _trace(G, N, POLY, p)
             if kept:
                 if _doubles_back(tr) or _same_as(tr, [k[2] for k in kept]): continue
