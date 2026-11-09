@@ -1,1 +1,1 @@
-{"commit": "b3bea97", "date": "2026-11-09T10:29:59+02:00", "change": "Results: a results page with several courses (4. posms A, Bērni A, Easy) gives each map the groups whose control codes match the codes printed on that map (\"2-44\"); the map reader now reads those codes"}
+{"commit": "2873668", "date": "2026-11-09T11:18:04+02:00", "change": "3D: floors drawn only as an outline (T and P on floor 6, the top of D on floor 5) show their staircase areas instead of nothing"}
