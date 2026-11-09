@@ -171,6 +171,25 @@ def render(pdf_path, page=0):
         img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).copy()
     return doc, p, img
 
+def control_codes(pdf, page=0):
+    """{control number: code} from the list printed on the map ("1-31", "2-33", …). The map font is
+    often stored with its own character numbering (digits as \x14-\x1d, the dash as \x11), so every
+    shift of the characters is tried and the one that reads 1, 2, 3, … in order is kept."""
+    doc = fitz.open(pdf) if isinstance(pdf, str) else pdf
+    try: text = doc[page].get_text()
+    except Exception: return {}
+    best = {}
+    for shift in range(-64, 65):
+        t = ''.join(chr(ord(ch) + shift) if ord(ch) < 0x30 and ch not in '\n\r\t ' and 0 < ord(ch) + shift < 0x110000 else ch
+                    for ch in text) if shift else text
+        got = {}
+        for m in re.finditer(r'(?m)^\s*(\d{1,2})\s*-\s*(\d{2,3})\s*$', t):
+            got.setdefault(int(m.group(1)), m.group(2))
+        n = 0
+        while n + 1 in got: n += 1
+        if n > len(best): best = {k: v for k, v in got.items() if k <= n}
+    return best
+
 def analyze(pdf_path, page=0):
     doc, p, img = render(pdf_path, page)
     drawings = p.get_drawings()
@@ -359,6 +378,9 @@ def analyze(pdf_path, page=0):
         return best[0] if best else None
 
     for c in f['controls']: c['floor'] = floor_at(c['x'], c['y'])
+    codes = control_codes(doc, page)                         # "2-44": control 2 has code 44
+    for c in f['controls']:
+        if c['kind'] == 'control' and c['n'] in codes: c['code'] = codes[c['n']]
 
     # ---- stairwell letters
     stairs = []; outline_stairs = []

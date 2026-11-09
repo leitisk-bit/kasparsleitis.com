@@ -443,6 +443,18 @@ def api_results(mid):
     courses = [c for c in results.courses(res) if len(c['codes']) == n_legs]
     if not res['groups']:
         return jsonify(error="No groups with split times found in this file. On lof.lv open the race, choose the Split view, and save that page as PDF (or copy the whole page and paste it)."), 400
+    # one results page often holds several courses on different maps (4. posms A, Bērni A, Easy):
+    # keep the groups whose control codes are the ones printed on this map ("2-44")
+    mcodes = _map_codes(mid, feat)
+    if mcodes:
+        def fits(c):
+            cc = [x for x in c['codes'] if x != 'F']
+            return len(cc) == len(mcodes) and all(m_ is None or m_.lstrip('0') == x.lstrip('0') for m_, x in zip(mcodes, cc))
+        same = [c for c in results.courses(res) if fits(c)]
+        if same: courses = same
+        elif courses or results.courses(res):
+            found = '; '.join(f"{'/'.join(c['groups'])}: {'-'.join(x for x in c['codes'] if x != 'F')}" for c in results.courses(res))
+            return jsonify(error=f"No group in these results ran this map's course ({'-'.join(m_ or '?' for m_ in mcodes)}). Found {found}."), 400
     if not courses:
         found = ', '.join(f"{'/'.join(c['groups'])}: {len(c['codes'])} legs" for c in results.courses(res)) or 'no groups'
         return jsonify(error=f'No group in these results ran this course ({n_legs} legs). Found {found}.'), 400
@@ -460,6 +472,19 @@ def api_results(mid):
     store.set_meta(mid, results={'event': res['event'], 'groups': [g['name'] for g in groups], 'runners': n_run,
                                  'other_courses': len(courses) - 1})
     return jsonify(ok=True, event=res['event'], groups=[g['name'] for g in groups], runners=n_run)
+
+def _map_codes(mid, feat):
+    """The control codes in course order, as printed on the map ("2-44"), or None if the map has no
+    such list. Maps read before codes were read get them from the stored PDF now."""
+    ctrls = [c for c in feat['controls'] if c['kind'] == 'control']
+    if not any('code' in c for c in ctrls):
+        try: codes = analyze.control_codes(os.path.join(store.map_dir(mid), 'map.pdf'), feat.get('page', 0))
+        except Exception: codes = {}
+        if not codes: return None
+        for c in ctrls:
+            if c['n'] in codes: c['code'] = codes[c['n']]
+    out = [c.get('code') for c in ctrls]
+    return out if sum(1 for x in out if x) >= max(2, len(out) // 2) else None
 
 def _html_text(html):
     import html as H
