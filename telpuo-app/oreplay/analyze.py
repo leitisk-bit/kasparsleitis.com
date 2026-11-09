@@ -31,10 +31,10 @@ SOFT_LETTER = (152, 80, 159)
 SOFT_TAPE = (113, 82, 162)
 
 def _is_course(c):   # magenta / purple overprint (not the bluer violet tape)
-    return c is not None and 130 < c[0] < 215 and 30 < c[1] < 115 and 110 < c[2] < 205 and not _near(c, SOFT_LETTER, 14)
+    return c is not None and 130 < c[0] < 215 and 30 < c[1] < 115 and 110 < c[2] < 205 and not _near(c, SOFT_LETTER, 20)
 
 def _is_violet(c):   # letters (violet, brighter blue component than course magenta)
-    return c is not None and ((c[1] < 60 and c[2] > 220 and c[0] > 150) or _near(c, SOFT_LETTER, 14))
+    return c is not None and ((c[1] < 60 and c[2] > 220 and c[0] > 150) or _near(c, SOFT_LETTER, 20))
 
 def _is_blue(c):
     return c is not None and c[2] > 200 and 120 < c[1] < 200 and c[0] < 120

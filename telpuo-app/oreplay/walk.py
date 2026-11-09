@@ -256,7 +256,7 @@ def snap_big(walk, x, y, r=60, min_area=1500):
             if d2[j] <= r * r: return int(xs[j] + x0), int(ys[j] + y0)
     return snap(walk, x, y)
 
-def strict_stairs(walk, cls, k, FL):
+def strict_stairs(walk, cls, k, FL, loose=()):
     """Strict stairs (switched on per map; 4. posms). Go into blue and you go down, into red and you go
     up: no part of a stair drawing is floor. The black lines round a staircase are walls; a flight is
     got on only where its coloured steps meet the floor directly. Only the slanted black line inside a
@@ -268,7 +268,15 @@ def strict_stairs(walk, cls, k, FL):
     lab, n = ndi.label(sym)
     if not n: return walk, FL, set()
     sz = ndi.sum(sym, lab, range(1, n + 1))
-    small = np.isin(lab, [i + 1 for i in range(n) if sz[i] < 4000])
+    # only lettered staircases: a few steps on the same floor with no letter stay as they are; and a
+    # staircase on a floor drawn only as an outline (its box is all there is of that floor) keeps the
+    # general reading, or nothing on that floor could be reached
+    ids = set()
+    for fl_, x_, y_ in FL.values():
+        if not (0 <= y_ < lab.shape[0] and 0 <= x_ < lab.shape[1]): continue
+        if any(b0 <= x_ <= b2 and b1 <= y_ <= b3 for b0, b1, b2, b3 in loose): continue
+        ids |= {int(v) for v in np.unique(lab[max(0, y_ - 6):y_ + 7, max(0, x_ - 6):x_ + 7]) if v}
+    small = np.isin(lab, [i + 1 for i in range(n) if sz[i] < 4000 and (i + 1) in ids])
     # the orange landing by a staircase is just floor; but the black lines round the stairs and round
     # their landings are walls again (the general reading widens stairs a little into black so routes
     # can reach them; here a flight is reached only where it meets the floor)
@@ -384,7 +392,8 @@ def build(img, features, progress=None):
     doors = set()                      # strict stairs: flights with a door of their own, even into a dead end
     strict = features.get('stair_rule') == 'legend'
     if strict:                                                 # per map, switched on in the Stairs tab
-        walk, FL, doors = strict_stairs(walk, cls, k, FL)
+        loose = [b_ for f_ in features.get('floors', []) for b_ in f_['boxes'] if (b_[2] - b_[0], b_[3] - b_[1]) == (180, 140)]
+        walk, FL, doors = strict_stairs(walk, cls, k, FL, loose)
     else:                                                      # the legend rule, on every map
         walk, FL, _ = stair_open(walk, cls, k, FL)
     N = dict(FL)
