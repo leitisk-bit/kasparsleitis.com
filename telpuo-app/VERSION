@@ -1,1 +1,1 @@
-{"commit": "a8b5894", "date": "2026-11-09T02:07:57+02:00", "change": "Stairs: on a floor a route never goes from one half of a stairwell round over its landing to the other half (U on floor 3, 4. posms B); a stairwell closed at that floor can still be passed"}
+{"commit": "027638b", "date": "2026-11-09T02:19:55+02:00", "change": "Map reader: floors drawn only as an outline (4. posms floor 6 with T and P, the top of D on floor 5): their staircases join the nearest floor number"}
