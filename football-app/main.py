@@ -675,6 +675,45 @@ def admin_oddscheck(n: int = 6):
     return out
 
 
+@r.get("/api/admin/cornerscheck")
+def admin_cornerscheck(n: int = 25):
+    """Corner over/under Bet on picks next to the real corner count and both books' ladders, plus the raw corner
+    bet names Bet365 sends for one upcoming match (1 API call) - to see whether two markets share one key."""
+    c = con()
+    out = {"picks": [], "raw": {}}
+    for p in c.execute("""SELECT p.*, th.name home, ta.name away, m.date_utc, h.corners hc, a.corners ac FROM picks p
+                          JOIN matches m ON m.id=p.match_id JOIN teams th ON th.id=m.home_id JOIN teams ta ON ta.id=m.away_id
+                          LEFT JOIN team_stats h ON h.match_id=m.id AND h.is_home=1 LEFT JOIN team_stats a ON a.match_id=m.id AND a.is_home=0
+                          WHERE p.kind='live' AND p.tab='bet_on' AND p.market='corners' AND p.scope='total'
+                          AND p.result IN ('won','lost') ORDER BY p.prob*p.price DESC LIMIT ?""", (n,)):
+        lad = lambda b: [(x["side"], x["line"], x["price"], x["first_seen"][5:16], x["last_seen"][5:16]) for x in c.execute(
+            "SELECT side, line, price, first_seen, last_seen FROM odds WHERE match_id=? AND bookmaker=? AND market='corners' "
+            "AND scope='total' ORDER BY line, side", (p["match_id"], b))]
+        out["picks"].append({"match": f"{p['home']} - {p['away']}", "date": p["date_utc"][:16], "version": p["version"],
+                             "pick": f"{p['side']} {p['line']}", "price": p["price"], "book": p["bookmaker"],
+                             "prob": round(p["prob"], 3), "made": p["made_at"][5:16], "corners": (p["hc"], p["ac"]),
+                             "result": p["result"], "bet365": lad("Bet365"), "pinnacle": lad("Pinnacle")})
+    try:
+        from apifootball import Client
+        fx = c.execute("SELECT DISTINCT o.match_id FROM odds o JOIN matches m ON m.id=o.match_id WHERE o.bookmaker='Bet365' "
+                       "AND o.market='corners' AND m.status='NS' ORDER BY m.date_utc LIMIT 1").fetchone()
+        if fx:
+            js = Client().get("/odds", fixture=fx[0])
+            for it in js.get("response") or []:
+                for bk in it.get("bookmakers") or []:
+                    if bk.get("name") not in ("Bet365", "Pinnacle"):
+                        continue
+                    for bet in bk.get("bets") or []:
+                        if "orner" in bet.get("name", ""):
+                            out["raw"].setdefault(bk["name"], []).append(
+                                {"id": bet.get("id"), "name": bet["name"],
+                                 "values": [(v.get("value"), v.get("odd")) for v in bet.get("values") or []][:14]})
+            out["raw_fixture"] = fx[0]
+    except Exception as e:
+        out["raw_error"] = repr(e)
+    return out
+
+
 @r.get("/api/admin/discoveries")
 def admin_discoveries():
     import discover

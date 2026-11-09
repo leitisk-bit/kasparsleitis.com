@@ -25,7 +25,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
@@ -78,6 +78,9 @@ jobs:
                   print(f"\n== {s}: {v['teams_both_periods']} teams in both periods | lasting trait? spread r={v['spread_lasting_r']}  bias r={v['bias_lasting_r']}")
                   print("   steadiest:   ", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["steadiest"][:6]))
                   print("   most erratic:", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["most_erratic"][:6]))
+              sys.exit(0)
+          if ACTION == "cornerscheck":
+              print(json.dumps(call("/admin/cornerscheck", timeout=120), indent=1, ensure_ascii=False))
               sys.exit(0)
           if ACTION == "value":
               v = call("/admin/value", timeout=300)
