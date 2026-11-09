@@ -768,6 +768,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "other.py"), "--all"]
     elif kind == "discover":
         cmd = [sys.executable, str(BASE_DIR / "discover.py")]
+    elif kind == "histodds":
+        cmd = [sys.executable, str(BASE_DIR / "histodds.py")]
     elif kind == "injuries":
         cmd = [sys.executable, str(BASE_DIR / "players.py"), "injuries", "--all"]
     else:

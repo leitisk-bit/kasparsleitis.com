@@ -76,6 +76,11 @@ def weekly(con, model):
     last = con.execute("SELECT MAX(created_at) FROM model_runs WHERE kind='tune'").fetchone()[0]
     if not (1 <= now.hour < 7) or (last and last > (now - timedelta(hours=20)).isoformat()):
         return
+    try:
+        import histodds                          # this season's football-data.co.uk prices (free files, once a night)
+        histodds.fetch(con, only_current=True)
+    except Exception as e:  # noqa
+        print("  historical odds failed:", e, flush=True)
     print("Nightly: searching for new patterns", flush=True)
     try:
         import discover
