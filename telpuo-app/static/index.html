@@ -91,7 +91,8 @@ body:not(.is-admin) .admin-only{display:none!important}
 .folder>summary::before{content:'▸';color:var(--muted,#888);transition:transform .15s}
 .folder[open]>summary::before{transform:rotate(90deg)}
 .folder>.grid{margin-top:10px}
-</style></head><body>
+</style><script src="static/i18n.js?v=1" defer></script>
+</head><body>
 <div class="wrap">
   <header>
     <a class="brand" href="#"><div class="flag" aria-hidden="true"></div><div><h1>Indoor O Replay</h1><small>Telpu orientēšanās · map library</small></div></a>
@@ -584,7 +585,7 @@ function draw(){
   ctx.lineJoin=ctx.lineCap='round';
   // floors
   (F.floors||[]).forEach(f=>{ const c=FC[(f.floor-1)%FC.length]; f.boxes.forEach(b=>{ ctx.strokeStyle=c; ctx.globalAlpha=.55; ctx.lineWidth=2.5*lw; ctx.setLineDash([8*lw,6*lw]); const P=12; ctx.strokeRect((b[0]-P)*k,(b[1]-P)*k,(b[2]-b[0]+2*P)*k,(b[3]-b[1]+2*P)*k); /* just outside the walls, so a box drawn on a building's walls still shows */ ctx.setLineDash([]);
-    ctx.globalAlpha=1; ctx.fillStyle=c; ctx.font=`700 ${14*lw}px IBM Plex Sans, sans-serif`; ctx.fillText('Floor '+f.floor, (b[0]-12)*k+4*lw, (b[1]-12)*k-5*lw); }); });
+    ctx.globalAlpha=1; ctx.fillStyle=c; ctx.font=`700 ${14*lw}px IBM Plex Sans, sans-serif`; ctx.fillText((window.T?T('Floor '+f.floor):'Floor '+f.floor), (b[0]-12)*k+4*lw, (b[1]-12)*k-5*lw); }); });
   // leg preview
   if ($('#showLegs').checked && M.legs_preview){ ctx.strokeStyle='#1F6FE0'; ctx.globalAlpha=.8; ctx.lineWidth=3*lw;
     M.legs_preview.forEach(L=>L.lines.forEach(seg=>{ ctx.beginPath(); seg.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.stroke(); })); ctx.globalAlpha=1; }
