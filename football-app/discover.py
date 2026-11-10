@@ -23,6 +23,8 @@ import db
 
 UEFA = (2, 3, 848)
 TOP5 = (39, 140, 135, 78, 61)
+LG_IDS = TOP5 + UEFA
+LG_TREND = {"goals": ("ft_home", "ft_away"), "corners": ("hco", "aco"), "cards": ("hc", "ac"), "shots": ("hs", "as_")}
 STATS = ["goals", "corners", "total_shots", "shots_on_goal", "offsides", "subs", "cards"]
 
 # name -> (description, kind) ; kind "side" = a value for each team, "match" = one value for the match
@@ -52,6 +54,24 @@ CANDIDATES = {
     "h2h_corners": ("Head-to-head: corners in earlier meetings vs the teams' usual", "match"),
     "h2h_shots":   ("Head-to-head: shots in earlier meetings vs the teams' usual", "match"),
     "h2h_cards":   ("Head-to-head: cards in earlier meetings vs the teams' usual", "match"),
+    # playing-style match-ups: how the two styles meet, beyond each team's own strengths
+    "poss_gap":     ("Style match-up: own possession minus the opponent's (last 10 games each)", "side"),
+    "poss_clash":   ("Style match-up: both teams possession-heavy (product of the two, /100)", "match"),
+    "foul_vs_pass": ("Style match-up: own fouling x opponent's passing game", "side"),
+    "box_vs_poss":  ("Style match-up: own box-shot share x opponent's possession", "side"),
+    # leagues change over time (rule changes, added time): the league's last 60 games vs its last 600
+    "lg_trend_goals":   ("League trend: goals per game, last 60 vs last 600 games of the competition", "match"),
+    "lg_trend_corners": ("League trend: corners per game, last 60 vs last 600", "match"),
+    "lg_trend_cards":   ("League trend: cards per game, last 60 vs last 600", "match"),
+    "lg_trend_shots":   ("League trend: shots per game, last 60 vs last 600", "match"),
+    "home_lg39":   ("Home advantage different in Premier League", "side"),
+    "home_lg140":   ("Home advantage different in La Liga", "side"),
+    "home_lg135":   ("Home advantage different in Serie A", "side"),
+    "home_lg78":   ("Home advantage different in Bundesliga", "side"),
+    "home_lg61":   ("Home advantage different in Ligue 1", "side"),
+    "home_lg2":   ("Home advantage different in Champions League", "side"),
+    "home_lg3":   ("Home advantage different in Europa League", "side"),
+    "home_lg848":   ("Home advantage different in Conference League", "side"),
 }
 H2H = {"h2h_goals": ("ft_home", "ft_away"), "h2h_corners": ("hco", "aco"), "h2h_shots": ("hs", "as_"), "h2h_cards": ("hc", "ac")}
 
@@ -120,6 +140,7 @@ def compute(con):
     meet = defaultdict(lambda: defaultdict(lambda: deque(maxlen=6)))     # pair -> candidate -> meeting deviations
     usual = defaultdict(lambda: defaultdict(lambda: deque(maxlen=20)))   # team -> candidate -> match totals
 
+    lg_short, lg_long = defaultdict(lambda: deque(maxlen=60)), defaultdict(lambda: deque(maxlen=600))
     out = {}
     for r in rows:
         t = datetime.fromisoformat(r["date_utc"].replace("Z", "+00:00"))
@@ -143,6 +164,20 @@ def compute(con):
                                         and tid not in league_teams[prev])
             lf = last_form.get(tid)
             f[f"back_three_{side}"] = None if lf is None else int(lf.startswith("3"))
+        ph, pa = f.get("possession_h"), f.get("possession_a")
+        if ph is not None and pa is not None:
+            f["poss_gap_h"], f["poss_gap_a"] = ph - pa, pa - ph
+            f["poss_clash"] = (ph + 50) * (pa + 50) / 100 - 25
+        for sd, o in (("h", "a"), ("a", "h")):
+            ag, po = f.get(f"aggression_{sd}"), f.get(f"passing_{o}")
+            f[f"foul_vs_pass_{sd}"] = ag * po if ag is not None and po is not None else None
+            bx, pp = f.get(f"box_share_{sd}"), f.get(f"possession_{o}")
+            f[f"box_vs_poss_{sd}"] = bx * pp if bx is not None and pp is not None else None
+        for lg in LG_IDS:
+            f[f"home_lg{lg}_h"], f[f"home_lg{lg}_a"] = int(bool(r["main"]) and r["league_id"] == lg), 0
+        for k in LG_TREND:
+            sh_, lo_ = lg_short[(r["league_id"], k)], lg_long[(r["league_id"], k)]
+            f[f"lg_trend_{k}"] = (mean(sh_) - mean(lo_)) if len(sh_) >= 40 and len(lo_) >= 200 else None
         ref = (r["referee"] or "").split(",")[0].strip().lower() or None
         if ref and len(ref_c[ref]) >= 8 and all_c:
             f["ref_cards"] = mean(ref_c[ref]) - mean(all_c[-5000:])
@@ -195,6 +230,9 @@ def compute(con):
             co = r["hco"] if side == "h" else r["aco"]
             if co is not None: cfor[tid].append(co)
             if sh is not None: sfor[tid].append(sh)
+        for k, (x, y) in LG_TREND.items():
+            if r[x] is not None and r[y] is not None:
+                lg_short[(r["league_id"], k)].append(r[x] + r[y]); lg_long[(r["league_id"], k)].append(r[x] + r[y])
         if ref and r["hc"] is not None and r["ac"] is not None:
             ref_c[ref].append(r["hc"] + r["ac"]); all_c.append(r["hc"] + r["ac"])
         if ref and r["hf"] is not None and r["af"] is not None:
