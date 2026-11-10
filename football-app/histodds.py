@@ -32,6 +32,7 @@ import db
 URL = "https://www.football-data.co.uk/mmz4281/{code}/{div}.csv"
 DIVS = {39: "E0", 140: "SP1", 135: "I1", 78: "D1", 61: "F1"}
 FIRST_SEASON = 2021
+SURE_P = 0.75           # Bet on rule: model this sure first, then the price must pay for it
 
 # file columns: (bookmaker, timing) -> {(market, side): column}; AH line columns separately
 COLS = {
@@ -289,8 +290,10 @@ def value_report(con, min_ev=0.02, min_p=0.0):
                 if not b:
                     continue
                 price = b[1]
-                for strat in ("model", "mix"):
+                for strat in ("model", "mix", "sure"):
                     p = mdl[mk][s]
+                    if strat == "sure" and p < SURE_P:
+                        continue
                     if strat == "mix":
                         if not pin_e:
                             continue
@@ -311,8 +314,12 @@ def value_report(con, min_ev=0.02, min_p=0.0):
             pe = o.get(("Pinnacle", "early", "ah", s)); pe_o = o.get(("Pinnacle", "early", "ah", "away" if s == "home" else "home"))
             pc = o.get(("Pinnacle", "close", "ah", s)); pc_o = o.get(("Pinnacle", "close", "ah", "away" if s == "home" else "home"))
             ev_model = _ah_return(dp, s, line, price)
-            for strat in ("model", "mix"):
+            sgn = 1 if s == "home" else -1
+            p_half = sum(p for d, p in dp.items() if sgn * d + line > 0) if round(line * 4) % 2 == 0 and round(line * 2) % 2 else None
+            for strat in ("model", "mix", "sure"):
                 ev = ev_model
+                if strat == "sure" and (p_half is None or p_half < SURE_P):
+                    continue
                 if strat == "mix":
                     if not (pe and pe_o and pe[0] == line):
                         continue
@@ -344,7 +351,7 @@ def value_report(con, min_ev=0.02, min_p=0.0):
            "log_loss": {mk: {who: {"n": len(v), "ll": round(sum(v) / len(v), 4)} for who, v in d.items() if v}
                         for mk, d in ll.items()},
            "bets": {}}
-    for strat in ("model", "mix"):
+    for strat in ("model", "mix", "sure"):
         bs = [b for b in bets if b["strat"] == strat]
         out["bets"][strat] = {"all": summ(bs),
                               "by_market": {m: summ([b for b in bs if b["market"] == m]) for m in sorted({b["market"] for b in bs})},
@@ -360,7 +367,8 @@ def print_report(rep):
     for mk, d in rep["log_loss"].items():
         print(f"   {mk:<4} " + "  ".join(f"{who} {v['ll']} (n={v['n']})" for who, v in d.items()))
     for strat, d in rep["bets"].items():
-        label = "model alone" if strat == "model" else "half model + half Pinnacle (early)"
+        label = {"model": "model alone", "mix": "half model + half Pinnacle (early)",
+                 "sure": f"model alone, only when it is {int(SURE_P*100)}%+ sure"}[strat]
         print(f"\nBETS at Bet365's early price, chosen by {label}")
         print(f"   {'':<22}{'bets':>6}{'won':>6}{'price':>7}{'profit':>9}{'ROI%':>7}{'±95%':>7}{'CLV%':>7}{'beat close':>11}")
         rowsp = [("all", d["all"])] + [(k, v) for k, v in d["by_market"].items()] + [("  " + k, v) for k, v in d["by_year"].items()]

@@ -36,9 +36,8 @@ DAY = 86400.0
 CONF_MIN = 0.80
 SURE_MIN, SURE_TOP, SURE_MAX = 0.80, 0.90, 0.995
 EASY_MIN = 0.40
-BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.55, 1.30, 0.02
+BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.75, 1.10, 0.02   # model sure first; the price only has to pay for it
 BET_MAX_GAP = 0.30      # model vs bookmaker chance further apart than this: a misread market, skipped
-BET_MODEL_W = 0.5       # weight of the model when Pinnacle prices the same selection
 # 5-year test against football-data.co.uk prices (8,400 league matches): on the match result and goals markets the
 # model is less accurate than Pinnacle, and mixing it in makes Pinnacle worse; betting them lost 7% (+-2%). No Bet on there.
 BET_SKIP = {"1x2", "dc", "ah", "goals"}
@@ -445,40 +444,44 @@ def make_picks(pred, odds_rows=None, rat=None):
                 for l, p in unders:
                     if min(hi) <= l <= hi_line and ok(p):
                         picks.append(dict(tab="sure", market=s, scope=scope, side="under", line=l, prob=p))
-    # Bet on: model sure enough and Betsafe pays more than the model's fair price. Betsafe's price: Betsson's
-    # (same platform) where The Odds API has it, else Bet365's price adjusted by the measured Betsson/Bet365 ratio.
+    # Bet on: our own view first, odds second. Only outcomes the model is sure of (BET_MIN_P) are considered -
+    # sure of ~6 corners -> over 5, never "under 9 looks cheap". Then the price is checked: Betsafe must pay at
+    # least the model's fair price (+2%). Per match and statistic only the surest line that pays is kept.
+    # Pinnacle's view is stored next to it for the record but never chooses the bet.
+    # Betsafe's price: Betsson's (same platform) where The Odds API has it, else Bet365's x measured ratio.
     if odds_rows:
         from betsson import BOOK, REF, betsafe_price
         real = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == BOOK}
         ref = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == REF}
         pin = {(o["market"], o["scope"], o["side"], o["line"]): o for o in odds_rows if o["bookmaker"] == "Pinnacle"}
+        best = {}
         for key in set(real) | set(ref):
             market, scope, side, line = key
+            if market in BET_SKIP:
+                continue
+            pm = prob(pred, market, scope, side, line)
+            if pm is None or pm < BET_MIN_P:
+                continue
             if key in real:
                 o = real[key]; price, book_price, label = o["price"], ref.get(key, {}).get("price"), "Betsafe"
             else:
                 o = ref[key]; book_price = o["price"]
                 price = betsafe_price(rat or {}, market, book_price); label = "Betsafe est."
-            if market in BET_SKIP:
-                continue
-            pm = prob(pred, market, scope, side, line)
-            if pm is None:
-                continue
             # sanity: a price far from the model AND from its own pair is another market filed under this key
             # (a corner market with "Under 23.5" at 2.00 was read as total corners) - never bet on it
             own = market_prob(odds_rows, o)
             if abs(pm - (own if own is not None else 1 / o["price"])) > BET_MAX_GAP:
                 continue
-            # the market's view: Pinnacle (sharpest) without its margin, else the bookmaker's own price
-            mp = market_prob(odds_rows, pin[key]) if key in pin else None
-            # live check (value report): half model + half Pinnacle beats either alone, so where Pinnacle prices
-            # the selection the bet is judged on that mix, not on the model alone
-            p = BET_MODEL_W * pm + (1 - BET_MODEL_W) * mp if mp is not None else pm
-            if p < BET_MIN_P or price < BET_MIN_PRICE or p * price - 1 < BET_MIN_EV:
+            if price < BET_MIN_PRICE or pm * price - 1 < BET_MIN_EV:
                 continue
-            picks.append(dict(tab="bet_on", market=market, scope=scope, side=side, line=line, prob=p,
-                              price=price, book_price=book_price, bookmaker=label,
-                              market_prob=mp if mp is not None else market_prob(odds_rows, o)))
+            mp = market_prob(odds_rows, pin[key]) if key in pin else None
+            cand = dict(tab="bet_on", market=market, scope=scope, side=side, line=line, prob=pm,
+                        price=price, book_price=book_price, bookmaker=label,
+                        market_prob=mp if mp is not None else market_prob(odds_rows, o))
+            k = (market, scope)
+            if k not in best or pm > best[k]["prob"]:
+                best[k] = cand
+        picks.extend(best.values())
     for p in picks:
         p["prob"] = round(float(p["prob"]), 5)
     return picks
