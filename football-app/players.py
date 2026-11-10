@@ -221,3 +221,81 @@ if __name__ == "__main__":
             print("Another data or model job is running — not starting a second one."); sys.exit(0)
         injuries(c, Client(), "--all" in sys.argv)
     print(json.dumps(summary(c), indent=1, ensure_ascii=False))
+
+
+STYLE = {"shots": "shots", "shots_on": "shots_on", "fouls": "fouls", "cards": "yellow", "offsides": "offsides",
+         "keypass": "key_passes", "dribbles": "dribbles"}
+
+
+def style_build(con):
+    """Line-up style: what today's starting XI usually does, from each player's own last 15 games (any team, so a
+    new signing brings his numbers from his old club), against the team's usual XI of its last 5 games.
+    match id -> {"xi_<stat>_h/a": per-90 sum of the XI minus the team's usual, "xi_new_h/a": share of the XI not in
+    the team's last 10 line-ups, "signings_h/a": share of the XI whose first game for this team was < 75 days ago}."""
+    has = lambda t: con.execute("SELECT 1 FROM sqlite_master WHERE name=?", (t,)).fetchone() is not None
+    if not has("player_stats"):
+        return {}
+    q = "SELECT id, date_utc, status, home_id, away_id FROM matches"
+    if has("other_matches"):
+        from other import COMPETITIVE
+        q += " UNION ALL SELECT id, date_utc, status, home_id, away_id FROM other_matches WHERE " + COMPETITIVE
+    games = sorted(con.execute(q).fetchall(), key=lambda r: r["date_utc"])
+    xi = defaultdict(dict)
+    if has("lineups"):
+        for mid, tid, s in con.execute("SELECT match_id, team_id, start_xi FROM lineups"):
+            xi[mid][tid] = [p["id"] for p in json.loads(s or "[]") if p.get("id")]
+    if has("prematch_lineups"):
+        for mid, tid, s in con.execute("SELECT match_id, team_id, start_xi FROM prematch_lineups"):
+            if tid not in xi.get(mid, {}):
+                xi[mid][tid] = [p["id"] for p in json.loads(s or "[]") if p.get("id")]
+    cols = ", ".join(f"COALESCE({c},0)" for c in STYLE.values())
+    played = defaultdict(list)
+    for r in con.execute(f"SELECT match_id, team_id, player_id, minutes, {cols} FROM player_stats WHERE minutes > 0"):
+        played[r[0]].append(tuple(r[1:]))
+    hist = defaultdict(lambda: deque(maxlen=15))           # player -> (minutes, (stat values...))
+    team_style = defaultdict(lambda: deque(maxlen=5))      # team -> recent XI style vectors
+    team_seen = defaultdict(lambda: deque(maxlen=10))      # team -> recent XIs (sets)
+    first = {}                                             # (team, player) -> first game date
+    team_first = {}                                        # team -> first game we hold (data start)
+    K = len(STYLE)
+
+    def rate(pid):
+        h = hist.get(pid)
+        if not h:
+            return None
+        m = sum(x[0] for x in h)
+        return [sum(x[1][i] for x in h) * 90.0 / m for i in range(K)] if m >= 180 else None
+
+    out = {}
+    for g in games:
+        mid, t = g["id"], g["date_utc"][:10]
+        f = {}
+        for side, tid in (("h", g["home_id"]), ("a", g["away_id"])):
+            players = xi.get(mid, {}).get(tid)
+            if not players or len(players) < 9:
+                continue
+            rs = [r for r in (rate(p) for p in players) if r is not None]
+            if len(rs) >= 8:
+                vec = [sum(r[i] for r in rs) * 11.0 / len(rs) for i in range(K)]
+                if len(team_style[tid]) >= 3:
+                    for i, name in enumerate(STYLE):
+                        f[f"xi_{name}_{side}"] = round(vec[i] - sum(v[i] for v in team_style[tid]) / len(team_style[tid]), 3)
+                team_style[tid].append(vec)
+            team_first.setdefault(tid, t)
+            if len(team_seen[tid]) >= 5:
+                seen = set().union(*team_seen[tid])
+                f[f"xi_new_{side}"] = round(sum(1 for p in players if p not in seen) / len(players), 3)
+                if (datetime.fromisoformat(t) - datetime.fromisoformat(team_first[tid])).days >= 120:
+                    f[f"signings_{side}"] = round(sum(1 for p in players if (tid, p) not in first or
+                                                      (datetime.fromisoformat(t) - datetime.fromisoformat(first[(tid, p)])).days < 75)
+                                                  / len(players), 3)
+            team_seen[tid].append(set(players))
+            for p in players:
+                first.setdefault((tid, p), t)
+        out[mid] = f
+        if g["status"] in ("FT", "AET", "PEN"):
+            for row in played.get(mid, ()):
+                tid, pid, m = row[0], row[1], row[2]
+                hist[pid].append((float(m), row[3:]))
+                first.setdefault((tid, pid), t)
+    return out

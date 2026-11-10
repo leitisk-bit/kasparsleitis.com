@@ -59,6 +59,15 @@ CANDIDATES = {
     "poss_clash":   ("Style match-up: both teams possession-heavy (product of the two, /100)", "match"),
     "foul_vs_pass": ("Style match-up: own fouling x opponent's passing game", "side"),
     "box_vs_poss":  ("Style match-up: own box-shot share x opponent's possession", "side"),
+    "xi_shots":     ("Line-up style: the starting XI's own shots per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_shots_on":  ("Line-up style: the starting XI's own shots on target per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_fouls":     ("Line-up style: the starting XI's own fouls per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_cards":     ("Line-up style: the starting XI's own yellow cards per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_offsides":  ("Line-up style: the starting XI's own offsides per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_keypass":   ("Line-up style: the starting XI's own key passes per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_dribbles":  ("Line-up style: the starting XI's own dribbles per 90 (each player's last 15 games, any club) vs the team's usual XI", "side"),
+    "xi_new":       ("Line-up change: share of the XI not in the team's last 10 line-ups", "side"),
+    "signings":     ("New players: share of the XI whose first game for this team was under 75 days ago", "side"),
     # leagues change over time (rule changes, added time): the league's last 60 games vs its last 600
     "lg_trend_goals":   ("League trend: goals per game, last 60 vs last 600 games of the competition", "match"),
     "lg_trend_corners": ("League trend: corners per game, last 60 vs last 600", "match"),
@@ -141,6 +150,11 @@ def compute(con):
     usual = defaultdict(lambda: defaultdict(lambda: deque(maxlen=20)))   # team -> candidate -> match totals
 
     lg_short, lg_long = defaultdict(lambda: deque(maxlen=60)), defaultdict(lambda: deque(maxlen=600))
+    try:
+        import players as _pl
+        xi_style = _pl.style_build(con)
+    except Exception as e:  # noqa
+        log("line-up style failed:", e); xi_style = {}
     out = {}
     for r in rows:
         t = datetime.fromisoformat(r["date_utc"].replace("Z", "+00:00"))
@@ -193,6 +207,7 @@ def compute(con):
         for c in H2H:
             d = meet[pair][c]
             f[c] = sum(d) / len(d) if len(d) >= 2 else None
+        f.update(xi_style.get(r["id"], {}))
         out[r["id"]] = f
         if r["status"] in ("FT", "AET", "PEN"):
             for c, (x, y) in H2H.items():
