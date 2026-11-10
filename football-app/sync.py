@@ -128,6 +128,14 @@ def weekly(con, model):
         print(f"Nightly round {k}: {before} -> {after} ({'improved' if adopted else 'no improvement'}), score {sb} -> {sa}", flush=True)
     model.predict(con); model.settle(con)
     try:
+        import experiments                       # betting-rule experiments on the price history (found old, checked new)
+        rep = experiments.run(con)
+        con.execute("CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, made_at TEXT, kind TEXT, data TEXT)")
+        con.execute("INSERT INTO analysis_runs(made_at, kind, data) VALUES (?,?,?)", (rep.get("made_at"), "experiments", json.dumps(rep)))
+        con.commit()
+    except Exception as e:  # noqa
+        print("  experiments failed:", e, flush=True)
+    try:
         import factors
         con.execute("CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, made_at TEXT, kind TEXT, data TEXT)")
         con.execute("INSERT INTO analysis_runs(made_at, kind, data) VALUES (?,?,?)",

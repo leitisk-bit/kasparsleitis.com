@@ -684,6 +684,13 @@ def admin_rounds(n: int = 15):
         return []
 
 
+@r.get("/api/admin/analysis/{kind}")
+def admin_analysis(kind: str):
+    """The last saved analysis of a kind (experiments, histvalue, factors, teams ...)."""
+    row = con().execute("SELECT made_at, data FROM analysis_runs WHERE kind=? ORDER BY id DESC LIMIT 1", (kind,)).fetchone()
+    return {"made_at": row[0], **_json.loads(row[1])} if row else {"error": "not run yet"}
+
+
 @r.get("/api/admin/histvalue")
 def admin_histvalue():
     """The last 5-year test against football-data.co.uk prices (histodds.py), as saved."""
@@ -784,6 +791,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "other.py"), "--all"]
     elif kind == "discover":
         cmd = [sys.executable, str(BASE_DIR / "discover.py")]
+    elif kind == "experiments":
+        cmd = [sys.executable, str(BASE_DIR / "experiments.py")]
     elif kind == "histodds":
         cmd = [sys.executable, str(BASE_DIR / "histodds.py")]
     elif kind == "injuries":
