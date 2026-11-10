@@ -1,1 +1,1 @@
-{"commit": "cb3adc2", "date": "2026-11-09T23:33:07+02:00", "change": "Map list loads fast: small thumbnails (about 13 KB instead of the 1.1 MB map image), only the fields the cards show, and run counts from one quick pass over the run files"}
+{"commit": "2f67880", "date": "2026-11-10T12:00:19+02:00", "change": "Latvian and English: Latvian by default, flags in the top right switch (remembered per browser); covers the map library, map pages, replay and messages from the server"}
