@@ -25,7 +25,7 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue, rounds, experiments, experimentsreport]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue, rounds, experiments, experimentsreport, calib]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"

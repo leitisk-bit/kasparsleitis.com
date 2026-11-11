@@ -37,6 +37,7 @@ CONF_MIN = 0.80
 SURE_MIN, SURE_TOP, SURE_MAX = 0.80, 0.90, 0.995
 EASY_MIN = 0.40
 BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.75, 1.10, 0.02   # model sure first; the price only has to pay for it
+CALIB = {}              # (stat, scope) -> (a, b) correction of over/under chances, set by calib.load
 BET_MAX_GAP = 0.30      # model vs bookmaker chance further apart than this: a misread market, skipped
 # 5-year test against football-data.co.uk prices (8,400 league matches): on the match result and goals markets the
 # model is less accurate than Pinnacle, and mixing it in makes Pinnacle worse; betting them lost 7% (+-2%). No Bet on there.
@@ -393,6 +394,9 @@ def prob(pred, market, scope, side, line):
             if abs(line - round(line)) < 1e-9:            # whole lines can push: not priced
                 return None
             po = p_over(scope_pmf(pred, market, scope), line)
+            if CALIB:                                      # learnt from past mistakes (calib.py)
+                from calib import apply
+                po = apply(CALIB.get((market, scope)), po)
             return po if side == "over" else 1 - po
     except (KeyError, IndexError):
         return None
@@ -751,6 +755,8 @@ def ensure_version(con):
 def backtest(con, data=None):
     """Walk-forward over all seasons with the active version: every match predicted only from earlier matches.
     Saves predictions and picks (kind='backtest') and the metrics, so the tabs can show what history says."""
+    global CALIB
+    CALIB = {}                                   # the walk-forward test is always graded uncorrected
     data = data or Data(con)
     run = ensure_version(con)
     v, params = run["version"], params_of(run)
@@ -802,6 +808,9 @@ def predict(con, data=None):
     run = ensure_version(con)
     v, params = run["version"], params_of(run)
     fits = current_fits(con, data, params)
+    import calib
+    if calib.load(con):
+        log("Using the learnt percentage correction for: " + ", ".join("/".join(k) for k in CALIB))
     if all(f is None for f in fits.values()):
         log("Not enough data to predict.")
         return 0

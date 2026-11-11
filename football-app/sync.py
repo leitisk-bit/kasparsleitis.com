@@ -126,6 +126,12 @@ def weekly(con, model):
                      1 if adopted else 0, sb, sa, waiting, promoted, bt, note))
         con.commit()
         print(f"Nightly round {k}: {before} -> {after} ({'improved' if adopted else 'no improvement'}), score {sb} -> {sa}", flush=True)
+    try:
+        import calib                             # learn from past mistakes: correct over/under percentages
+        r = calib.fit(con)
+        print("  percentage correction kept for:", ", ".join(r.get("kept", [])) or "nothing", flush=True)
+    except Exception as e:  # noqa
+        print("  calibration failed:", e, flush=True)
     model.predict(con); model.settle(con)
     try:
         import experiments                       # betting-rule experiments on the price history (found old, checked new)
