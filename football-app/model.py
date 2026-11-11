@@ -809,7 +809,9 @@ def predict(con, data=None):
     v, params = run["version"], params_of(run)
     fits = current_fits(con, data, params)
     import calib
-    if calib.load(con):
+    global CALIB
+    CALIB = calib.load(con)                      # set here too: run as a script, "model" is a second module copy
+    if CALIB:
         log("Using the learnt percentage correction for: " + ", ".join("/".join(k) for k in CALIB))
     if all(f is None for f in fits.values()):
         log("Not enough data to predict.")

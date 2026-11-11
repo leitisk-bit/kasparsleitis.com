@@ -121,8 +121,12 @@ def fit(con, conf_days=365):
     con.execute("CREATE TABLE IF NOT EXISTS calibration (version TEXT PRIMARY KEY, made_at TEXT, data TEXT, report TEXT)")
     con.execute("INSERT OR REPLACE INTO calibration VALUES (?,?,?,?)",
                 (v, datetime.now(timezone.utc).isoformat(timespec="seconds"), json.dumps(keep), json.dumps(rep)))
+    out = {"version": v, "kept": sorted(keep), "report": rep}
+    con.execute("CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, made_at TEXT, kind TEXT, data TEXT)")
+    con.execute("INSERT INTO analysis_runs(made_at, kind, data) VALUES (?,?,?)",
+                (datetime.now(timezone.utc).isoformat(timespec="seconds"), "calib", json.dumps(out)))
     con.commit()
-    return {"version": v, "kept": sorted(keep), "report": rep}
+    return out
 
 
 def load(con):
@@ -130,10 +134,11 @@ def load(con):
     import model
     try:
         r = con.execute("SELECT c.data FROM calibration c JOIN model_runs m ON m.version=c.version WHERE m.active=1").fetchone()
-        model.CALIB = {tuple(k.split("|")): tuple(v) for k, v in json.loads(r[0]).items()} if r else {}
+        cal = {tuple(k.split("|")): tuple(v) for k, v in json.loads(r[0]).items()} if r else {}
     except Exception:
-        model.CALIB = {}
-    return model.CALIB
+        cal = {}
+    model.CALIB = cal
+    return cal
 
 
 if __name__ == "__main__":
