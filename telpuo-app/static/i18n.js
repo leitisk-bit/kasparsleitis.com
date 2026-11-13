@@ -276,6 +276,9 @@
     'Choose your watch file (TCX, FIT or GPX).': 'Izvēlies savu pulksteņa failu (TCX, FIT vai GPX).', 'Add your watch file (TCX, FIT or GPX).': 'Pievieno savu pulksteņa failu (TCX, FIT vai GPX).',
     'Choose your watch file and whose run it is.': 'Izvēlies savu pulksteņa failu un to, kura skrējiens tas ir.',
     'Stages': 'Sacensību posmi', 'Maps coming soon': 'Kartes drīzumā', 'Information': 'Informācija', 'Participants': 'Dalībnieki', 'Register': 'Pieteikties',
+    'Indoor orienteering races in Latvia. The joy of sport and adventures with friends and family.': 'Iekštelpu orientēšanās sacensības Latvijā. Sporta prieks un piedzīvojumi kopā ar draugiem un ģimeni.',
+    'Legal information': 'Juridiskā informācija', 'Terms of use': 'Lietošanas noteikumi', 'Privacy policy': 'Privātuma politika', 'Cookie policy': 'Sīkdatņu politika',
+    'Social networks': 'Sociālie tīkli', 'TELPO sākumlapa': 'TELPO sākumlapa',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',
@@ -296,6 +299,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^© (\d{4}) TELPO\. All rights reserved\.$/, '© $1 TELPO. Visas tiesības aizsargātas.'],
     [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your watch file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt pulksteņa failu” zem kartes.'],
 
     [/^⚠ Floor numbers read as (.*): one may be misread\. Check the Map tab\.$/, '⚠ Stāvu numuri nolasīti kā $1: kāds varētu būt nolasīts nepareizi. Pārbaudi cilni Karte.'],

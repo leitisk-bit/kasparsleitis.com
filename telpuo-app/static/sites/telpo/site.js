@@ -2,7 +2,7 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=3';
+  var V = '?v=4';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
@@ -64,8 +64,28 @@
     }).catch(function () {});
   }
 
+  // footer as on telpo.lv (not on the replay page, which fills the whole window)
+  function footer() {
+    if (!document.getElementById('lib') || document.getElementById('telpoFooter')) return;
+    var f = document.createElement('footer'); f.id = 'telpoFooter';
+    f.innerHTML =
+      '<div class="tf-in">' +
+        '<div class="tf-brand"><a href="https://telpo.lv/" aria-label="TELPO sākumlapa"><img src="static/sites/telpo/logo.svg' + V + '" alt="TELPO logo"></a>' +
+          '<p>Indoor orienteering races in Latvia. The joy of sport and adventures with friends and family.</p></div>' +
+        '<div class="tf-col"><h3>Legal information</h3>' +
+          '<a href="https://telpo.lv/lietosanas-noteikumi/" target="_blank" rel="noopener">Terms of use</a>' +
+          '<a href="https://telpo.lv/privatuma-politika/" target="_blank" rel="noopener">Privacy policy</a>' +
+          '<a href="https://telpo.lv/sikdatnu-politika/" target="_blank" rel="noopener">Cookie policy</a></div>' +
+        '<div class="tf-col"><h3>Social networks</h3>' +
+          '<a href="https://www.facebook.com/telpolv" target="_blank" rel="noopener">Facebook</a>' +
+          '<a href="https://www.instagram.com/telpolv" target="_blank" rel="noopener">Instagram</a></div>' +
+      '</div>' +
+      '<div class="tf-copy">© ' + new Date().getFullYear() + ' TELPO. All rights reserved.</div>';
+    document.body.appendChild(f);
+  }
+
   function start() {
-    brand();
+    brand(); footer();
     fetch('static/sites/telpo/events.json' + V).then(function (r) { return r.json(); }).then(function (j) {
       EV = j; stages();
       window.addEventListener('hashchange', function () { if (!location.hash || location.hash === '#') setTimeout(stages, 300); });

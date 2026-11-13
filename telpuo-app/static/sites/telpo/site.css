@@ -46,3 +46,15 @@
 .stage-maps,.stage-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .stage-links .btn{border-radius:999px;font-weight:600} .stage-links .stage-main{background:linear-gradient(135deg,#0B7BC1,#18B7C9);color:#fff;border-color:transparent}
 details.folder.flash{box-shadow:0 0 0 3px var(--accent-soft);transition:box-shadow .3s}
+
+/* footer as on telpo.lv */
+#telpoFooter{margin-top:40px;border-top:1px solid var(--line);background:linear-gradient(180deg,#fff 0%,#F6FBF8 100%);color:#173126;font-family:var(--f-body)}
+#telpoFooter .tf-in{max-width:1400px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-left,0px)) 24px;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:28px}
+#telpoFooter .tf-brand{display:flex;gap:18px;align-items:flex-start}
+#telpoFooter .tf-brand img{width:84px;height:84px;flex:none;margin:-8px 0}
+#telpoFooter .tf-brand p{margin:0;font-size:17px;line-height:1.6;color:#173126;max-width:440px}
+#telpoFooter h3{margin:0 0 12px;font:700 13px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#0B7BC1}
+#telpoFooter .tf-col{display:flex;flex-direction:column;gap:10px}
+#telpoFooter .tf-col a{color:#173126;text-decoration:none;font-weight:500;font-size:15px} #telpoFooter .tf-col a:hover{color:#0B7BC1}
+#telpoFooter .tf-copy{max-width:1400px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 28px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+@media (max-width:760px){ #telpoFooter .tf-in{grid-template-columns:1fr} #telpoFooter .tf-brand{flex-direction:column} }
