@@ -2,7 +2,7 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=7';
+  var V = '?v=8';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
@@ -131,8 +131,10 @@
           '<a href="https://www.facebook.com/telpolv" target="_blank" rel="noopener">Facebook</a>' +
           '<a href="https://www.instagram.com/telpolv" target="_blank" rel="noopener">Instagram</a></div>' +
       '</div>' +
-      '<div class="tf-copy">© ' + new Date().getFullYear() + ' TELPO. All rights reserved.</div>';
+      '<div class="tf-copy"><span>© ' + new Date().getFullYear() + ' TELPO. All rights reserved.</span></div>';
     document.body.appendChild(f);
+    // admin sign-in lives at the very bottom here, not in the header
+    var k = document.getElementById('keyBtn'); if (k) f.querySelector('.tf-copy').appendChild(k);
   }
 
   function start() {

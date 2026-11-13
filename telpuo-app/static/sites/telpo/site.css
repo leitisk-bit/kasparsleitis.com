@@ -74,3 +74,6 @@ details.folder.flash{box-shadow:0 0 0 3px var(--accent-soft);transition:box-shad
 
 .opt.up{cursor:pointer;border-style:dashed} .opt.up:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 6%,#fff)}
 .opt.up .opt-state::before{content:'⤒ '} .opt.busy{opacity:.6;pointer-events:none}
+
+#telpoFooter .tf-copy{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#telpoFooter #keyBtn{height:26px;font-size:12px;border-radius:999px;background:transparent;color:var(--muted);border-color:var(--line)}
