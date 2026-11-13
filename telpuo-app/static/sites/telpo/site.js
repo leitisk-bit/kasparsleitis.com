@@ -2,7 +2,7 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=4';
+  var V = '?v=5';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
@@ -17,49 +17,67 @@
     }
   }
 
-  var EV = null;
+  var EV = null, OPEN = {};
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
   function stageOf(folder) { var m = /(\d+)\.\s*posms/i.exec(folder || ''); return m ? +m[1] : null; }
+  // which of the stage's 5 maps this is, from its name: Garā / Vidējā / Vieglā (or Long / Medium / Easy) and A / B
+  function optionOf(name) {
+    var n = (name || '').toLowerCase(), d = null;
+    if (/gar[aā]|long/.test(n)) d = 'long'; else if (/vid[eē]j|medium/.test(n)) d = 'medium'; else if (/viegl|easy/.test(n)) d = 'easy';
+    if (!d) return null;
+    if (d === 'easy') return 'easy';
+    var r = /\b([ab])\s*$/.exec(n) || /\b([ab])\b(?!.*\b[ab]\b)/.exec(n.replace(/\d+\.\s*posms/, ''));
+    return r ? d + '-' + r[1].toUpperCase() : null;
+  }
 
   function stages() {
     var lib = document.getElementById('lib'); if (!lib || !EV) return;
     var box = document.getElementById('telpoStages');
+    var mapsCard = (document.getElementById('mapList') || {}).closest ? document.getElementById('mapList').closest('.card') : null;
     if (!box) {
       box = document.createElement('div'); box.id = 'telpoStages'; box.className = 'card';
-      var maps = document.getElementById('mapList'); var card = maps && maps.closest('.card');
-      lib.insertBefore(box, card || lib.firstChild);
+      lib.insertBefore(box, mapsCard || lib.firstChild);
+    }
+    // one list only: the stages. The plain map list stays for the admin (maps not in a stage), folded away
+    if (mapsCard) {
+      mapsCard.classList.add('admin-only'); mapsCard.classList.add('telpo-all');
+      var h = mapsCard.querySelector('h2'); if (h && !h.dataset.t) { h.dataset.t = '1'; h.textContent = 'All maps (admin)'; }
     }
     fetch('api/maps', {credentials: 'same-origin'}).then(function (r) { return r.json(); }).then(function (maps) {
       var by = {};
       (maps || []).forEach(function (m) { var n = stageOf(m.folder); if (n != null) (by[n] = by[n] || []).push(m); });
       var html = '<h2>' + esc(EV.title) + '</h2><div class="stages">';
       EV.events.forEach(function (e) {
-        var ms = by[e.n] || [], on = ms.length > 0;
-        html += '<div class="stage-c ' + (on ? 'on' : 'off') + '" data-n="' + e.n + '">' +
-          '<button type="button" class="stage-img" ' + (on ? '' : 'disabled') + ' aria-label="' + esc(e.n + '. posms') + '">' +
-            '<img src="' + esc(e.img) + '" alt="' + esc(e.place) + '" loading="lazy" referrerpolicy="no-referrer">' +
-            '<span class="stage-badge">' + (on ? esc(ms.length + (ms.length === 1 ? ' map' : ' maps')) : 'Maps coming soon') + '</span></button>' +
+        var ms = by[e.n] || [], on = ms.length > 0, open = on && OPEN[e.n];
+        var opt = {}, extra = [];
+        ms.forEach(function (m) { var k = optionOf(m.name); if (k && !opt[k]) opt[k] = m; else extra.push(m); });
+        var tiles = EV.options.map(function (o) {
+          var d = EV.distances[o.dist], m = opt[o.key];
+          return '<' + (m ? 'a href="#map-' + esc(m.id) + '"' : 'div') + ' class="opt ' + (m ? 'on' : 'off') + '" style="--c:' + d.color + '">' +
+            '<span class="opt-bar"></span><b class="opt-name">' + esc(d.name) + (o.run ? ' ' + o.run : '') + '</b>' +
+            '<span class="opt-who">' + esc(d.groups) + '</span>' +
+            '<span class="opt-state">' + (m ? 'Open map →' : 'Maps coming soon') + '</span></' + (m ? 'a' : 'div') + '>';
+        }).join('');
+        if (extra.length) tiles += extra.map(function (m) { return '<a href="#map-' + esc(m.id) + '" class="opt on" style="--c:#0B7BC1"><span class="opt-bar"></span><b class="opt-name">' + esc(m.name) + '</b><span class="opt-state">Open map →</span></a>'; }).join('');
+        html += '<div class="stage-c ' + (on ? 'on' : 'off') + (open ? ' open' : '') + '" data-n="' + e.n + '">' +
+          (open
+            ? '<div class="stage-opts"><div class="opts-head"><b>Choose a distance</b><button type="button" class="opts-x" aria-label="Back to the picture">×</button></div>' + tiles + '</div>'
+            : '<button type="button" class="stage-img" ' + (on ? '' : 'disabled') + ' aria-label="' + esc(e.n + '. posms') + '">' +
+                '<img src="' + esc(e.img) + '" alt="' + esc(e.place) + '" loading="lazy" referrerpolicy="no-referrer">' +
+                '<span class="stage-badge">' + (on ? 'Show maps' : 'Maps coming soon') + '</span></button>') +
           '<div class="stage-body"><div class="stage-date">' + esc(e.date) + '</div>' +
             '<b class="stage-name">' + esc(e.n + '. posms - ' + e.name) + '</b>' +
             '<div class="stage-place">' + esc(e.place) + '</div>' +
-            (on ? '<div class="stage-maps">' + ms.map(function (m) { return '<a class="btn small primary" href="#map-' + esc(m.id) + '">' + esc(m.name) + '</a>'; }).join('') + '</div>' : '') +
             '<div class="stage-links">' + EV.links.map(function (l) {
               return '<a class="btn small' + (l.main ? ' stage-main' : '') + '" href="' + esc(l.href) + '" target="_blank" rel="noopener">' + esc(l.text) + '</a>'; }).join('') + '</div>' +
           '</div></div>';
       });
-      box.innerHTML = html + '</div>';
+      box.innerHTML = html + '</div><div class="muted stage-rules">Long and Medium: two runs (A and B), the stage result is the sum of both times. Easy: one run. <a href="' + esc(EV.rules) + '" target="_blank" rel="noopener">Rules</a></div>';
       box.querySelectorAll('.stage-c.on .stage-img').forEach(function (b) {
-        b.onclick = function () {
-          var n = +b.closest('.stage-c').dataset.n, ms = by[n] || [];
-          if (ms.length === 1) { location.hash = '#map-' + ms[0].id; return; }
-          // open that stage's folder in the list below, close the others
-          var target = null;
-          document.querySelectorAll('#mapList details.folder').forEach(function (d) {
-            var name = (d.querySelector('summary b') || {}).textContent || '';
-            var hit = stageOf(name) === n; d.open = hit; if (hit && !target) target = d;
-          });
-          if (target) { target.scrollIntoView({behavior: 'smooth', block: 'start'}); target.classList.add('flash'); setTimeout(function () { target.classList.remove('flash'); }, 1500); }
-        };
+        b.onclick = function () { OPEN[+b.closest('.stage-c').dataset.n] = 1; stages(); };
+      });
+      box.querySelectorAll('.opts-x').forEach(function (b) {
+        b.onclick = function () { delete OPEN[+b.closest('.stage-c').dataset.n]; stages(); };
       });
     }).catch(function () {});
   }

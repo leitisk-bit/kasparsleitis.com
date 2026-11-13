@@ -58,3 +58,16 @@ details.folder.flash{box-shadow:0 0 0 3px var(--accent-soft);transition:box-shad
 #telpoFooter .tf-col a{color:#173126;text-decoration:none;font-weight:500;font-size:15px} #telpoFooter .tf-col a:hover{color:#0B7BC1}
 #telpoFooter .tf-copy{max-width:1400px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 28px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
 @media (max-width:760px){ #telpoFooter .tf-in{grid-template-columns:1fr} #telpoFooter .tf-brand{flex-direction:column} }
+
+/* a stage opened: the picture gives way to its 5 maps (Garā A/B, Vidējā A/B, Vieglā) */
+.stage-opts{display:flex;flex-direction:column;gap:6px;padding:10px;background:#F3F9FD}
+.opts-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 4px;font-size:13px;color:var(--telpo-navy)}
+.opts-x{border:1px solid var(--line);background:#fff;border-radius:999px;width:26px;height:26px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1}
+.opt{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"bar name" "bar who" "bar state";column-gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#fff;text-decoration:none;color:#173126}
+.opt-bar{grid-area:bar;width:5px;border-radius:3px;background:var(--c)}
+.opt-name{grid-area:name;font:700 14px var(--f-display);color:var(--c);text-transform:uppercase;letter-spacing:.03em}
+.opt-who{grid-area:who;font-size:11.5px;color:var(--muted)}
+.opt-state{grid-area:state;font-size:12px;font-weight:600;color:var(--c)}
+.opt.on:hover{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 20%,transparent)}
+.opt.off{filter:grayscale(1);opacity:.6} .opt.off .opt-state{color:var(--muted)}
+.stage-rules{margin-top:4px}
