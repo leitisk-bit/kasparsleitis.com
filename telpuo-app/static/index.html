@@ -243,7 +243,7 @@ body:not(.is-admin) .admin-only{display:none!important}
       </div>
     </div>
     <!-- how to get the watch file, per brand -->
-    <div class="card" id="tcxHelp">
+    <div class="card tcxhelp" id="tcxHelp">
       <h2>How to get your watch file</h2>
       <div class="muted">The route is worked out from your watch's <b>altitude</b> readings (they show which floor you were on), so the activity must record altitude. Choose your watch:</div>
       <div class="brands" role="tablist" aria-label="Watch brand">
@@ -449,11 +449,11 @@ function renderRuns(runs){
   const bulk=$('#delRunsBtn'); if (bulk){ bulk.hidden=!ADMIN || !runs.length; delete bulk.dataset.sure; bulk.textContent='Delete ticked runs'; }
   if (runs.some(r=>r.status==='working')) { stopPoll(); pollT=setTimeout(()=>openMap(M.id), 3000); }
 }
-// watch-brand instructions under the map
-$$('#tcxHelp .brand-b').forEach(b=>b.onclick=()=>{
-  $$('#tcxHelp .brand-b').forEach(x=>x.setAttribute('aria-selected', String(x===b)));
-  $$('#tcxHelp .bpane').forEach(p=>p.hidden = p.dataset.bpane!==b.dataset.brand);
-  try{ localStorage.setItem('ior.brand', b.dataset.brand); }catch(e){} });
+// watch-brand instructions (under the map; a site may show a copy elsewhere): one handler for all copies
+document.addEventListener('click', e=>{ const b=e.target.closest('.brand-b'); if (!b) return; const box=b.closest('.tcxhelp'); if (!box) return;
+  box.querySelectorAll('.brand-b').forEach(x=>x.setAttribute('aria-selected', String(x===b)));
+  box.querySelectorAll('.bpane').forEach(p=>p.hidden = p.dataset.bpane!==b.dataset.brand);
+  try{ localStorage.setItem('ior.brand', b.dataset.brand); }catch(err){} });
 try{ const k=localStorage.getItem('ior.brand'); const b=k && $('#tcxHelp .brand-b[data-brand="'+k+'"]'); if(b) b.click(); }catch(e){}
 $('#howLink').onclick=e=>{ e.preventDefault(); $('#tcxHelp').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#delRunsBtn').onclick = async () => {

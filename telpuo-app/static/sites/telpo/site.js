@@ -2,7 +2,7 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=6';
+  var V = '?v=7';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
@@ -42,6 +42,17 @@
     if (tile) { tile.classList.add('busy'); var st = tile.querySelector('.opt-state'); if (st) st.textContent = 'Uploading…'; }
     IOR.api('maps', {method: 'POST', body: fd}).then(function (r) { location.hash = '#map-' + r.id; })
       .catch(function (err) { IOR.toast(err.message); stages(); });
+  }
+
+  // the watch instructions: under the stages on the library, under the map on a map page (one card,
+  // moved to wherever the page is showing, so its language switch keeps working)
+  var HOME = null;
+  function howto() {
+    var c = document.getElementById('tcxHelp'), st = document.getElementById('telpoStages'); if (!c) return;
+    if (!HOME) HOME = c.parentNode;
+    var onLib = !location.hash.startsWith('#map-');
+    if (onLib && st) { if (c.previousSibling !== st) st.parentNode.insertBefore(c, st.nextSibling); }
+    else if (c.parentNode !== HOME) HOME.appendChild(c);
   }
 
   function stages() {
@@ -90,7 +101,8 @@
               return '<a class="btn small' + (l.main ? ' stage-main' : '') + '" href="' + esc(l.href) + '" target="_blank" rel="noopener">' + esc(l.text) + '</a>'; }).join('') + '</div>' +
           '</div></div>';
       });
-      box.innerHTML = html + '</div><div class="muted stage-rules">Long and Medium: two runs (A and B), the stage result is the sum of both times. Easy: one run. <a href="' + esc(EV.rules) + '" target="_blank" rel="noopener">Rules</a></div>';
+      box.innerHTML = html + '</div>';
+      howto();
       box.querySelectorAll('.stage-c.on .stage-img').forEach(function (b) {
         b.onclick = function () { OPEN[+b.closest('.stage-c').dataset.n] = 1; stages(); };
       });
@@ -129,7 +141,7 @@
       EV = j; stages();
       // signing in or out as admin changes what the stages offer
       new MutationObserver(function () { stages(); }).observe(document.body, {attributes: true, attributeFilter: ['class']});
-      window.addEventListener('hashchange', function () { if (!location.hash || location.hash === '#') setTimeout(stages, 300); });
+      window.addEventListener('hashchange', function () { howto(); if (!location.hash || location.hash === '#') setTimeout(stages, 300); });
     }).catch(function () {});
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

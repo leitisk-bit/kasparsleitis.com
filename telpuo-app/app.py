@@ -158,7 +158,7 @@ def _page(name):
     if request.host.split(':')[0] in ('127.0.0.1', 'localhost') and request.args.get('site') in SITES:
         r.set_cookie('ior_site', request.args['site'])            # testing on this computer
     return r
-SITE_V = 6                 # bump when a site's stylesheet, logo or script changes
+SITE_V = 7                 # bump when a site's stylesheet, logo or script changes
 
 @app.get('/')
 def index(): return _page('index.html')
