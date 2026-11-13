@@ -1,1 +1,1 @@
-{"commit": "1f9632c", "date": "2026-11-13T22:09:56+02:00", "change": "Watch instructions under the map: Garmin, Suunto, Polar, Apple Watch and Strava, each with the activity type that records altitude and how to get the TCX file (Latvian and English); clearer message when a file has no altitude"}
+{"commit": "4cc9399", "date": "2026-11-13T22:12:21+02:00", "change": "Runs: watch files as TCX, FIT or GPX (Suunto exports FIT straight from its app); instructions and messages updated in Latvian and English"}
