@@ -1,1 +1,1 @@
-{"commit": "5f73d4e", "date": "2026-11-13T22:40:18+02:00", "change": "TELPO site: one 'Posmi' list (the plain map list only for the admin); clicking a stage's picture shows its 5 maps per the TELPO rules: Garā A/B, Vidējā A/B, Vieglā with their groups, grey until uploaded"}
+{"commit": "38399d3", "date": "2026-11-13T22:43:50+02:00", "change": "TELPO site admin: every empty stage option (Garā A/B, Vidējā A/B, Vieglā) is an upload button; the map is named, placed in its stage and given the venue and date automatically"}
