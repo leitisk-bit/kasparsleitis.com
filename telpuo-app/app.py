@@ -36,7 +36,7 @@ def published(m): return bool(m) and m.get('published', True) is not False   # m
 SITES = {
     'main': {'name': 'Indoor O Replay', 'hosts': []},
     'telpo': {'name': 'TELPO maršruti',
-              'hosts': [h.strip().lower() for h in os.environ.get('TELPO_HOSTS', 'telpomarsruts.kasparsleitis.com,marsruts.telpo.lv').split(',') if h.strip()]},
+              'hosts': [h.strip().lower() for h in os.environ.get('TELPO_HOSTS', 'telpomarsruts.kasparsleitis.com,celi.telpo.lv').split(',') if h.strip()]},
 }
 def current_site():
     """The site this request is for, from the address it was opened on (?site= works only on this
