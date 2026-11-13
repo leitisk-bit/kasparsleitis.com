@@ -1,13 +1,32 @@
-/* TELPO site (telpomarsruts.kasparsleitis.com / marsruts.telpo.lv): TELPO's colours on the same pages.
-   The brand colours below are placeholders until they are taken from telpo.lv. */
+/* TELPO site (telpomarsruts.kasparsleitis.com / marsruts.telpo.lv): TELPO's look (from telpo.lv) on
+   the same pages: light blue background, dark green text, TELPO blue and cyan, Space Grotesk, round
+   corners, white header bar with the TELPO logo. Always light, like telpo.lv. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 :root[data-site="telpo"], :root[data-site="telpo"][data-theme="dark"]{
-  --accent:#E4572E; --accent-soft:#E4572E22; --flag:#E4572E;
-  --bg:#F4F5F7; --panel:#FFFFFF; --fg:#16181D; --muted:#5E6470; --line:#DADDE3; --stage:#E6E8EC;
+  --bg:#F3F9FD; --panel:#FFFFFF; --fg:#173126; --muted:#5A7367; --line:#C4DFEF; --stage:#E1F2FA;
+  --accent:#0B7BC1; --accent-soft:#0B7BC11F; --flag:#F58220; --ok:#1E7F4E; --warn:#B4540A; --bad:#DC2626;
+  --telpo-2:#18B7C9; --telpo-navy:#243F5A;
+  --f-display:"Space Grotesk",system-ui,sans-serif; --f-body:"Space Grotesk",system-ui,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){ :root[data-site="telpo"]:not([data-theme="light"]){
-  --accent:#E4572E; --accent-soft:#E4572E22; --flag:#E4572E;
-  --bg:#F4F5F7; --panel:#FFFFFF; --fg:#16181D; --muted:#5E6470; --line:#DADDE3; --stage:#E6E8EC; color-scheme:light } }
+  --bg:#F3F9FD; --panel:#FFFFFF; --fg:#173126; --muted:#5A7367; --line:#C4DFEF; --stage:#E1F2FA;
+  --accent:#0B7BC1; --accent-soft:#0B7BC11F; --flag:#F58220; --ok:#1E7F4E; --warn:#B4540A; --bad:#DC2626; color-scheme:light } }
+[data-site="telpo"] body{background:linear-gradient(180deg,#F3F9FD 0%,#E1F2FA 55%,#F3F9FD 100%) fixed}
+/* header: white rounded bar, as on telpo.lv */
+[data-site="telpo"] header{background:#fff;border:1px solid var(--line);border-radius:16px;padding:8px 14px;box-shadow:0 4px 18px #0B7BC114}
 [data-site="telpo"] .brand .flag{display:none}
-[data-site="telpo"] .brand .site-logo{height:34px;width:auto;display:block}
-[data-site="telpo"] .brand h1{letter-spacing:.04em}
+[data-site="telpo"] .brand .site-logo{height:46px;width:auto;display:block;margin:-6px 0}
+[data-site="telpo"] .brand h1{font:700 21px/1 var(--f-display);letter-spacing:0;text-transform:none;color:var(--telpo-navy)}
+[data-site="telpo"] .brand small{text-transform:none;letter-spacing:0;font-size:12px}
+[data-site="telpo"] h2{font-family:var(--f-display);letter-spacing:.02em;color:var(--telpo-navy)}
+/* buttons, cards, fields: rounder; main buttons in TELPO blue → cyan */
+[data-site="telpo"] .btn{border-radius:12px;font-family:var(--f-body)}
+[data-site="telpo"] .btn.primary{background:linear-gradient(135deg,#0B7BC1,#18B7C9);border-color:transparent;color:#fff}
+[data-site="telpo"] .btn.primary:hover{filter:brightness(1.05)}
+[data-site="telpo"] .card,[data-site="telpo"] .folder{border-radius:16px}
+[data-site="telpo"] .field{border-radius:10px;background:#fff}
+[data-site="telpo"] .mapcard img{border-radius:10px}
+[data-site="telpo"] .pill{border-radius:999px}
+[data-site="telpo"] a{color:var(--accent)}
+[data-site="telpo"] .brand,[data-site="telpo"] .mapcard{color:inherit}
