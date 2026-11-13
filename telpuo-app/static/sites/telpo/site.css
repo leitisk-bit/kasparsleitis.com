@@ -71,3 +71,6 @@ details.folder.flash{box-shadow:0 0 0 3px var(--accent-soft);transition:box-shad
 .opt.on:hover{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 20%,transparent)}
 .opt.off{filter:grayscale(1);opacity:.6} .opt.off .opt-state{color:var(--muted)}
 .stage-rules{margin-top:4px}
+
+.opt.up{cursor:pointer;border-style:dashed} .opt.up:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 6%,#fff)}
+.opt.up .opt-state::before{content:'⤒ '} .opt.busy{opacity:.6;pointer-events:none}

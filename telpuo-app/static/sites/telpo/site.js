@@ -2,7 +2,7 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=5';
+  var V = '?v=6';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
@@ -30,6 +30,20 @@
     return r ? d + '-' + r[1].toUpperCase() : null;
   }
 
+  // admin upload into a stage option: the name says stage, distance and A/B, so it lands in the right place
+  var NAMES = {'long-A': 'Garā A', 'long-B': 'Garā B', 'medium-A': 'Vidējā A', 'medium-B': 'Vidējā B', 'easy': 'Vieglā'};
+  function upload(file, n, key, tile) {
+    var e = EV.events.filter(function (x) { return x.n === n; })[0] || {};
+    var season = (EV.season || 'TELPO 2026');
+    var fd = new FormData();
+    fd.append('pdf', file);
+    fd.append('name', season + ' ' + n + '. posms ' + NAMES[key]);
+    fd.append('event', (e.name ? e.name + ', ' : '') + (e.place ? e.place + ', ' : '') + (e.date || ''));
+    if (tile) { tile.classList.add('busy'); var st = tile.querySelector('.opt-state'); if (st) st.textContent = 'Uploading…'; }
+    IOR.api('maps', {method: 'POST', body: fd}).then(function (r) { location.hash = '#map-' + r.id; })
+      .catch(function (err) { IOR.toast(err.message); stages(); });
+  }
+
   function stages() {
     var lib = document.getElementById('lib'); if (!lib || !EV) return;
     var box = document.getElementById('telpoStages');
@@ -48,15 +62,19 @@
       (maps || []).forEach(function (m) { var n = stageOf(m.folder); if (n != null) (by[n] = by[n] || []).push(m); });
       var html = '<h2>' + esc(EV.title) + '</h2><div class="stages">';
       EV.events.forEach(function (e) {
-        var ms = by[e.n] || [], on = ms.length > 0, open = on && OPEN[e.n];
+        var admin = window.IOR && IOR.admin();
+        var ms = by[e.n] || [], on = ms.length > 0 || admin, open = on && OPEN[e.n];
         var opt = {}, extra = [];
         ms.forEach(function (m) { var k = optionOf(m.name); if (k && !opt[k]) opt[k] = m; else extra.push(m); });
         var tiles = EV.options.map(function (o) {
           var d = EV.distances[o.dist], m = opt[o.key];
-          return '<' + (m ? 'a href="#map-' + esc(m.id) + '"' : 'div') + ' class="opt ' + (m ? 'on' : 'off') + '" style="--c:' + d.color + '">' +
+          var up = !m && admin;                       // admin: an empty option takes the PDF straight away
+          var tag = m ? 'a href="#map-' + esc(m.id) + '"' : up ? 'label' : 'div', end = m ? 'a' : up ? 'label' : 'div';
+          return '<' + tag + ' class="opt ' + (m ? 'on' : up ? 'up' : 'off') + '" style="--c:' + d.color + '">' +
             '<span class="opt-bar"></span><b class="opt-name">' + esc(d.name) + (o.run ? ' ' + o.run : '') + '</b>' +
             '<span class="opt-who">' + esc(d.groups) + '</span>' +
-            '<span class="opt-state">' + (m ? 'Open map →' : 'Maps coming soon') + '</span></' + (m ? 'a' : 'div') + '>';
+            '<span class="opt-state">' + (m ? 'Open map →' : up ? 'Upload the map PDF' : 'Maps coming soon') + '</span>' +
+            (up ? '<input type="file" accept=".pdf,application/pdf" hidden data-stage="' + e.n + '" data-opt="' + o.key + '">' : '') + '</' + end + '>';
         }).join('');
         if (extra.length) tiles += extra.map(function (m) { return '<a href="#map-' + esc(m.id) + '" class="opt on" style="--c:#0B7BC1"><span class="opt-bar"></span><b class="opt-name">' + esc(m.name) + '</b><span class="opt-state">Open map →</span></a>'; }).join('');
         html += '<div class="stage-c ' + (on ? 'on' : 'off') + (open ? ' open' : '') + '" data-n="' + e.n + '">' +
@@ -75,6 +93,9 @@
       box.innerHTML = html + '</div><div class="muted stage-rules">Long and Medium: two runs (A and B), the stage result is the sum of both times. Easy: one run. <a href="' + esc(EV.rules) + '" target="_blank" rel="noopener">Rules</a></div>';
       box.querySelectorAll('.stage-c.on .stage-img').forEach(function (b) {
         b.onclick = function () { OPEN[+b.closest('.stage-c').dataset.n] = 1; stages(); };
+      });
+      box.querySelectorAll('.opt.up input[type=file]').forEach(function (inp) {
+        inp.onchange = function () { if (inp.files[0]) upload(inp.files[0], +inp.dataset.stage, inp.dataset.opt, inp.closest('.opt')); };
       });
       box.querySelectorAll('.opts-x').forEach(function (b) {
         b.onclick = function () { delete OPEN[+b.closest('.stage-c').dataset.n]; stages(); };
@@ -106,6 +127,8 @@
     brand(); footer();
     fetch('static/sites/telpo/events.json' + V).then(function (r) { return r.json(); }).then(function (j) {
       EV = j; stages();
+      // signing in or out as admin changes what the stages offer
+      new MutationObserver(function () { stages(); }).observe(document.body, {attributes: true, attributeFilter: ['class']});
       window.addEventListener('hashchange', function () { if (!location.hash || location.hash === '#') setTimeout(stages, 300); });
     }).catch(function () {});
   }

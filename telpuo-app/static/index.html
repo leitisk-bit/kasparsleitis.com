@@ -320,6 +320,8 @@ let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.hidden=fa
 const fmt = s => { s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0'); };
 async function api(path, opt={}){ const r = await fetch('api/'+path, {...opt, headers:{...(opt.headers||{}), ...H()}}); const j = await r.json().catch(()=>({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// for a site's own script (static/sites/<site>/site.js): uploads with the admin key, and messages
+window.IOR = { api: (...a) => api(...a), admin: () => ADMIN, toast: m => toast(m) };
 
 /* ---------- routing ---------- */
 function route(){ const m = location.hash.match(/^#map-([a-z0-9]+)/); if (m) openMap(m[1]); else openLib(); }

@@ -283,6 +283,7 @@
     'Show maps': 'Rādīt kartes', 'Open map →': 'Atvērt karti →', 'Choose a distance': 'Izvēlies distanci', 'Back to the picture': 'Atpakaļ uz attēlu',
     'All maps (admin)': 'Visas kartes (administratoram)', 'Rules': 'Nolikums',
     'Long and Medium: two runs (A and B), the stage result is the sum of both times. Easy: one run.': 'Garā un Vidējā: divi skrējieni (A un B), posma rezultāts ir abu laiku summa. Vieglā: viens skrējiens.',
+    'Upload the map PDF': 'Augšupielādēt kartes PDF',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',
