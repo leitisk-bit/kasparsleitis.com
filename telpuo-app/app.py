@@ -29,7 +29,28 @@ def check_ok():
     return bool(CHECK_KEY and k) and hmac.compare_digest(k.encode(), CHECK_KEY.encode())
 
 def published(m): return bool(m) and m.get('published', True) is not False   # maps from before approval existed stay public
-def can_see(m): return bool(m) and (published(m) or admin_ok() or check_ok())
+# ------------------------------------------------------------------ sites
+# One app, several sites told apart by the address they are opened on. Each site lists and opens only
+# its own maps (and their runs and results); the admin key is the same. A map belongs to the site it
+# was uploaded on; the admin can move it. Maps from before sites existed belong to 'main'.
+SITES = {
+    'main': {'name': 'Indoor O Replay', 'hosts': []},
+    'telpo': {'name': 'TELPO maršruti',
+              'hosts': [h.strip().lower() for h in os.environ.get('TELPO_HOSTS', 'telpomarsruts.kasparsleitis.com,marsruts.telpo.lv').split(',') if h.strip()]},
+}
+def current_site():
+    """The site this request is for, from the address it was opened on (?site= works only on this
+    computer, for testing)."""
+    host = (request.headers.get('X-Forwarded-Host') or request.host or '').split(',')[0].split(':')[0].strip().lower()
+    for sid, s_ in SITES.items():
+        if host in s_['hosts']: return sid
+    if host in ('127.0.0.1', 'localhost') and request.args.get('site') in SITES: return request.args['site']
+    if host in ('127.0.0.1', 'localhost') and request.cookies.get('ior_site') in SITES: return request.cookies['ior_site']
+    return 'main'
+def site_of(m): return (m or {}).get('site') or 'main'
+def on_this_site(m): return bool(m) and (site_of(m) == current_site() or check_ok())
+
+def can_see(m): return on_this_site(m) and (published(m) or admin_ok() or check_ok())
 def _seen(mid):
     """The map's meta if this visitor may see it; otherwise a 404 (a draft map does not exist for the public)."""
     m = store.get_meta(mid)
@@ -120,14 +141,40 @@ def api_server():
     r = jsonify(serverinfo.overview(after)); r.headers['Cache-Control'] = 'no-store'; return r
 
 # ------------------------------------------------------------------ pages
+def _page(name):
+    """A page with the look of the site it is opened on: the 'main' site as it is; another site gets
+    its stylesheet, title and icon (static/sites/<site>/)."""
+    sid = current_site()
+    with open(os.path.join(app.static_folder, name), encoding='utf-8') as f: html = f.read()
+    if sid != 'main':
+        d = f'static/sites/{sid}'
+        html = html.replace('<html', f'<html data-site="{sid}"', 1)
+        html = re.sub(r'<link rel="icon"[^>]*>|<link rel="apple-touch-icon"[^>]*>', '', html)
+        html = html.replace('</head>', f'<link rel="stylesheet" href="{d}/site.css?v={SITE_V}">'
+                            f'<link rel="icon" href="{d}/icon.png?v={SITE_V}"><link rel="apple-touch-icon" href="{d}/icon.png?v={SITE_V}">'
+                            f'<script src="{d}/site.js?v={SITE_V}" defer></script>\n</head>', 1)
+        html = re.sub(r'<title>[^<]*</title>', f"<title>{SITES[sid]['name']}</title>", html, 1)
+    r = app.response_class(html, mimetype='text/html')
+    if request.host.split(':')[0] in ('127.0.0.1', 'localhost') and request.args.get('site') in SITES:
+        r.set_cookie('ior_site', request.args['site'])            # testing on this computer
+    return r
+SITE_V = 1                 # bump when a site's stylesheet, logo or script changes
+
 @app.get('/')
-def index(): return send_from_directory(app.static_folder, 'index.html')
+def index(): return _page('index.html')
 
 @app.get('/favicon.ico')
-def favicon(): return send_from_directory(app.static_folder, 'favicon.ico')
+def favicon():
+    sid = current_site()
+    if sid != 'main' and os.path.exists(os.path.join(app.static_folder, 'sites', sid, 'icon.png')):
+        return send_from_directory(os.path.join(app.static_folder, 'sites', sid), 'icon.png')
+    return send_from_directory(app.static_folder, 'favicon.ico')
 
 @app.get('/replay')
-def replay_page(): return send_from_directory(app.static_folder, 'replay.html')
+def replay_page(): return _page('replay.html')
+
+@app.get('/api/site')
+def api_site(): sid = current_site(); return jsonify(id=sid, name=SITES[sid]['name'], sites=list(SITES) if admin_ok() else None)
 
 # ------------------------------------------------------------------ maps
 def map_folder(m):
@@ -157,7 +204,7 @@ def api_new_map():
     mid = store.new_id(); d = store.map_dir(mid); os.makedirs(d)
     f.save(os.path.join(d, 'map.pdf'))
     name = (request.form.get('name') or f.filename.rsplit('.', 1)[0]).strip()[:120]
-    store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(), published=False,
+    store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(), published=False, site=current_site(),
                    page=int(request.form.get('page') or 0), status='analysing', message='Reading the map…')
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(id=mid)
@@ -407,6 +454,8 @@ def api_save_map(mid):
     m = store.get_meta(mid)
     if not m: abort(404)
     body = request.get_json(force=True)
+    if body.get('site') in SITES:              # move the map (with its runs and results) to another site
+        store.set_meta(mid, site=body['site'])
     if 'folder' in body:                       # '' = no folder; null = by the name again
         store.set_meta(mid, folder=None if body['folder'] is None else str(body['folder']).strip()[:120])
     if 'name' in body or 'event' in body:

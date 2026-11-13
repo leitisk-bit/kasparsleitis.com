@@ -221,6 +221,8 @@
     'Camera follows the runner': 'Kamera seko skrējējam', 'Look from the side': 'Skatīt no sāniem', 'Look from above': 'Skatīt no augšas',
     'Whole building': 'Visa ēka', 'Colour': 'Krāsa', 'of stairs': 'kāpņu',
     'Choose your name': 'Izvēlies savu vārdu', 'speed': 'ātrums', 'failed': 'neizdevās', 'done': 'gatavs', 'Done': 'Gatavs',
+    'Site': 'Vietne', 'Moved to the TELPO site. It now shows only there.': 'Pārvietota uz TELPO vietni. Tagad tā redzama tikai tur.',
+    'Moved to the main site. It now shows only there.': 'Pārvietota uz galveno vietni. Tagad tā redzama tikai tur.',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',

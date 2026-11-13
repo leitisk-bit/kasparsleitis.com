@@ -232,6 +232,7 @@ body:not(.is-admin) .admin-only{display:none!important}
             <label class="lbl">Name<input class="field" id="iName"></label>
             <label class="lbl">Event / place<input class="field" id="iEvent"></label>
             <label class="lbl">Folder<input class="field" id="iFolder" list="folderList" placeholder="by the name, e.g. RK 2026 4. posms"><datalist id="folderList"></datalist></label>
+            <label class="lbl admin-only" id="iSiteBox" hidden>Site<select class="field" id="iSite"><option value="main">kasparsleitis.com (Indoor O Replay)</option><option value="telpo">TELPO (telpomarsruts.kasparsleitis.com)</option></select></label>
             <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label>
             <div class="muted" id="iFloors"></div>
             <label style="display:flex;gap:6px;align-items:center" class="muted"><input type="checkbox" id="showLegs" checked> Show the fastest route of every leg</label>
@@ -308,7 +309,7 @@ async function openMap(id){
   $('#lib').hidden=true; $('#mapPage').hidden=false; stopPoll();
   const j = await api('maps/'+id); M=j.meta; F=j.features; RUNS=j.runs||[]; CLOCK=(j.now||Date.now()/1000)-Date.now()/1000; dirty=false; $('#saveCard').hidden=true;
   $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
-  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iFolder').value=(M.folder!=null?M.folder:''); $('#iScale').value=M.scale||1000;
+  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iFolder').value=(M.folder!=null?M.folder:''); $('#iSite').value=M.site||'main'; $('#iSiteBox').hidden=!ADMIN; $('#iScale').value=M.scale||1000;
   if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2000);
   renderStatus(); renderSugg();
   const v = String(M.display_scale ? (M.built||'r') : 'none');
@@ -545,6 +546,7 @@ $('#addOneway').onclick=()=>setPick({t:'oneway1', hint:'Click where the one-way 
 $('#addCross').onclick=()=>setPick({t:'cross', hint:'Click the centre of the four-way crossing sign.'});
 $('#showLegs').onchange=draw;
 $('#saveBtn').onclick=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({features:{controls:F.controls,stair_labels:F.stair_labels,oneways:F.oneways,crossings:F.crossings,pockets:F.pockets,floors:F.floors}})}); toast('Saved. Rebuilding the route network…'); openMap(M.id); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message); } };
+$('#iSite').onchange=async()=>{ const v=$('#iSite').value; try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({site:v})}); toast(v==='telpo'?'Moved to the TELPO site. It now shows only there.':'Moved to the main site. It now shows only there.'); setTimeout(()=>{ location.hash=''; }, 1200); } catch(e){ toast(e.message);} };
 $('#iFolder').onchange=async()=>{ const v=$('#iFolder').value.trim(); try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder: v||null})}); M.folder=v||null; toast(v?'Moved to folder '+v:'Folder from the name again'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} };
 ['iName','iEvent','iScale'].forEach(id=>$('#'+id).onchange=async()=>{ try { await api('maps/'+M.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#iName').value,event:$('#iEvent').value,scale:+$('#iScale').value})}); toast('Saved'); } catch(e){ if (/admin key/i.test(e.message)) askKey(); toast(e.message);} });
 $('#reread').onclick=async()=>{ try { await api('maps/'+M.id+'/reread',{method:'POST'}); toast('Reading the map again. About a minute; saved runs are redone after.'); openMap(M.id); } catch(e){ toast(e.message); } };

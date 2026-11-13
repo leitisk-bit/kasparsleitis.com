@@ -1,0 +1,13 @@
+/* TELPO site (telpomarsruts.kasparsleitis.com / marsruts.telpo.lv): TELPO's colours on the same pages.
+   The brand colours below are placeholders until they are taken from telpo.lv. */
+:root[data-site="telpo"], :root[data-site="telpo"][data-theme="dark"]{
+  --accent:#E4572E; --accent-soft:#E4572E22; --flag:#E4572E;
+  --bg:#F4F5F7; --panel:#FFFFFF; --fg:#16181D; --muted:#5E6470; --line:#DADDE3; --stage:#E6E8EC;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root[data-site="telpo"]:not([data-theme="light"]){
+  --accent:#E4572E; --accent-soft:#E4572E22; --flag:#E4572E;
+  --bg:#F4F5F7; --panel:#FFFFFF; --fg:#16181D; --muted:#5E6470; --line:#DADDE3; --stage:#E6E8EC; color-scheme:light } }
+[data-site="telpo"] .brand .flag{display:none}
+[data-site="telpo"] .brand .site-logo{height:34px;width:auto;display:block}
+[data-site="telpo"] .brand h1{letter-spacing:.04em}
