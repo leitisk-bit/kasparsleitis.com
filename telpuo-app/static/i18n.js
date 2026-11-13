@@ -223,6 +223,44 @@
     'Choose your name': 'Izvēlies savu vārdu', 'speed': 'ātrums', 'failed': 'neizdevās', 'done': 'gatavs', 'Done': 'Gatavs',
     'Site': 'Vietne', 'Moved to the TELPO site. It now shows only there.': 'Pārvietota uz TELPO vietni. Tagad tā redzama tikai tur.',
     'Moved to the main site. It now shows only there.': 'Pārvietota uz galveno vietni. Tagad tā redzama tikai tur.',
+
+    // watch instructions under the map
+    'How to get your TCX file': 'Kā iegūt savu TCX failu',
+    "The route is worked out from your watch's": 'Maršruts tiek aprēķināts no pulksteņa',
+    'altitude': 'augstuma', 'readings (they show which floor you were on), so the activity must record altitude. Choose your watch:':
+      'mērījumiem (pēc tiem redzams, kurā stāvā biji), tāpēc aktivitātei jāieraksta augstums. Izvēlies savu pulksteni:',
+    'Watch brand': 'Pulksteņa ražotājs', 'Tested': 'Pārbaudīts', 'Not tested yet': 'Vēl nav pārbaudīts', 'Any watch': 'Jebkurš pulkstenis',
+    'Start a': 'Sāc aktivitāti', 'Get the file on a computer': 'Faila iegūšana datorā', 'Get the file': 'Faila iegūšana', 'On a phone': 'Telefonā',
+    "The Garmin Connect app cannot export files. Open connect.garmin.com in your phone's browser (choose “desktop site” if needed) and follow the steps above.":
+      'Garmin Connect lietotne nevar eksportēt failus. Atver connect.garmin.com telefona pārlūkā (ja vajag, izvēlies “datora versija”) un izpildi soļus augstāk.',
+    'Use the': 'Izmanto', 'Running': 'Running',
+    'sport mode, not Treadmill or another indoor mode. Indoor modes may not record altitude.': 'sporta režīmu, nevis Treadmill vai citu telpu režīmu. Telpu režīmi var neierakstīt augstumu.',
+    'The Suunto app exports only FIT and GPX files, not TCX. The easiest way is through Strava:': 'Suunto lietotne eksportē tikai FIT un GPX failus, nevis TCX. Vienkāršākais ceļš ir caur Strava:',
+    'In the Suunto app connect Strava once (under': 'Suunto lietotnē vienreiz pievieno Strava (sadaļā', 'Partner services': 'Partner services', 'in the app settings).': 'lietotnes iestatījumos).',
+    'After the race the activity appears in Strava by itself.': 'Pēc sacensībām aktivitāte Strava parādīsies pati.',
+    'Get the TCX file from Strava (see the Strava tab).': 'Lejupielādē TCX failu no Strava (skat. cilni Strava).',
+    'Not tested with Suunto yet. If the site says the file has no altitude readings, the sport mode did not record altitude.': 'Ar Suunto vēl nav pārbaudīts. Ja vietne saka, ka failā nav augstuma mērījumu, sporta režīms neierakstīja augstumu.',
+    'sport profile, not Treadmill running or Indoor running. Indoor profiles may not record altitude. The watch must have a barometer (altitude sensor).':
+      'sporta profilu, nevis Treadmill running vai Indoor running. Telpu profili var neierakstīt augstumu. Pulkstenim jābūt barometram (augstuma sensoram).',
+    'and open': 'un atver', 'Diary': 'Diary', 'Click the training session.': 'Noklikšķini uz treniņa.', 'Open the': 'Atver', 'Export': 'Export',
+    'menu at the top right and choose': 'izvēlni augšā labajā stūrī un izvēlies', '. The file is saved to your Downloads.': '. Fails tiek saglabāts mapē Lejupielādes.',
+    'Not tested with Polar yet. If the site says the file has no altitude readings, the sport profile did not record altitude.': 'Ar Polar vēl nav pārbaudīts. Ja vietne saka, ka failā nav augstuma mērījumu, sporta profils neierakstīja augstumu.',
+    'In the Workout app choose': 'Lietotnē Workout izvēlies', 'Outdoor Run': 'Outdoor Run', ', not Indoor Run. Altitude is measured by Apple Watch Series 3 and newer, SE and Ultra.':
+      ', nevis Indoor Run. Augstumu mēra Apple Watch Series 3 un jaunāki, SE un Ultra.',
+    "Apple's Health and Fitness apps cannot export TCX files. The easiest way is through Strava:": 'Apple lietotnes Health un Fitness nevar eksportēt TCX failus. Vienkāršākais ceļš ir caur Strava:',
+    "In the Strava phone app connect Apple Health once (in Strava's settings), or record the run with the Strava app on the watch.":
+      'Strava telefona lietotnē vienreiz pievieno Apple Health (Strava iestatījumos) vai ieraksti skrējienu ar Strava lietotni pulkstenī.',
+    'After the race the run appears in Strava.': 'Pēc sacensībām skrējiens parādīsies Strava.',
+    'Not tested with Apple Watch yet. If the site says the file has no altitude readings, the workout did not record altitude.': 'Ar Apple Watch vēl nav pārbaudīts. Ja vietne saka, ka failā nav augstuma mērījumu, treniņš neierakstīja augstumu.',
+    'Works for any watch whose activities go to Strava (Suunto, Apple Watch, Coros, Polar, Garmin…). The activity type on the watch still matters: use the outdoor':
+      'Der jebkuram pulkstenim, kura aktivitātes nonāk Strava (Suunto, Apple Watch, Coros, Polar, Garmin…). Aktivitātes veids pulkstenī joprojām ir svarīgs: izmanto āra',
+    ', not an indoor or treadmill run.': ', nevis telpu vai skrejceliņa skrējienu.',
+    'Open your activity on': 'Atver savu aktivitāti', '(on a phone, open it in the browser, not the app).': '(telefonā atver to pārlūkā, nevis lietotnē).',
+    'to the end of the address, for example': 'adreses beigās, piemēram', ', and press Enter.': ', un spied Enter.',
+    'The TCX file is saved to your Downloads.': 'TCX fails tiek saglabāts mapē Lejupielādes.', 'Works only for your own activities.': 'Darbojas tikai ar tavām aktivitātēm.',
+    'Then add the file above under': 'Pēc tam pievieno failu augstāk sadaļā', ', step 1. The site checks the file and tells you straight away if it has no altitude readings.':
+      ', 1. solī. Vietne pārbauda failu un uzreiz pasaka, ja tajā nav augstuma mērījumu.',
+    'How do I get my TCX file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓': 'Kā iegūt savu TCX failu? Instrukcijas Garmin, Suunto, Polar, Apple Watch un Strava ↓',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',
@@ -243,6 +281,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your TCX file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt savu TCX failu” zem kartes.'],
 
     [/^⚠ Floor numbers read as (.*): one may be misread\. Check the Map tab\.$/, '⚠ Stāvu numuri nolasīti kā $1: kāds varētu būt nolasīts nepareizi. Pārbaudi cilni Karte.'],
     [/^(\d+) course symbol\(s\) could not be put in order; check the control list\.$/, '$1 distances zīmes neizdevās sakārtot; pārbaudi kontrolpunktu sarakstu.'],

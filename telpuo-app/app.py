@@ -588,7 +588,7 @@ def _event_date(res):
 def _read_track(f):
     try: t0, obs = parse_track(f.read(), f.filename)
     except Exception as e: raise ValueError(f'Could not read {f.filename}: {e}')
-    if not obs: raise ValueError(f'{f.filename} has no altitude readings. Export the activity from Garmin Connect as TCX (⋯ → Export to TCX).')
+    if not obs: raise ValueError(f'{f.filename} has no altitude readings. The activity must be an outdoor Run (not an indoor or treadmill run): see How to get your TCX file under the map.')
     return t0, obs
 
 def _match(summary, entry):

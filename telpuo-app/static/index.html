@@ -91,6 +91,13 @@ body:not(.is-admin) .admin-only{display:none!important}
 .folder>summary::before{content:'▸';color:var(--muted,#888);transition:transform .15s}
 .folder[open]>summary::before{transform:rotate(90deg)}
 .folder>.grid{margin-top:10px}
+#tcxHelp{margin-top:14px} .howlink{color:var(--accent);font-weight:600;font-size:13.5px;text-decoration:none}
+.brands{display:flex;gap:8px;flex-wrap:wrap}
+.brand-b{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--fg);cursor:pointer;text-align:left}
+.brand-b .bn{font:700 15px/1 var(--f-display);letter-spacing:.06em} .brand-b .bs{font-size:11px;color:var(--muted)}
+.brand-b[aria-selected=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)} .brand-b:hover{border-color:var(--muted)}
+.bpane{font-size:13.5px;line-height:1.5} .bpane ol{margin:4px 0 8px;padding-left:20px} .bpane p{margin:4px 0 8px}
+.bpane .must{color:var(--bad);font-weight:600;border-left:3px solid var(--bad);padding:4px 8px;background:color-mix(in srgb, var(--bad) 7%, transparent)}
 </style><script src="static/i18n.js?v=1" defer></script>
 </head><body>
 <div class="wrap">
@@ -166,20 +173,7 @@ body:not(.is-admin) .admin-only{display:none!important}
             <form id="runForm" style="display:flex;flex-direction:column;gap:8px">
               <h2 style="margin:0">Add your run</h2>
               <label class="lbl">1. Your watch file (TCX)<input class="field" type="file" id="rTrack" accept=".tcx"></label>
-              <details class="howto"><summary>How do I get my TCX file?</summary>
-                <p class="must">Garmin watches: start a <b>Run</b> activity, not Indoor Run, Treadmill or any other run. Only <b>Run</b> records the altitude that shows which floor you were on.</p>
-                <b>Garmin Connect (website, on a computer)</b>
-                <ol><li>Sign in at <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> and open the activity.</li>
-                  <li>Click the gear icon ⚙ at the top right of the activity.</li>
-                  <li>Choose <b>Export to TCX</b>. The file is saved to your Downloads.</li></ol>
-                <b>Garmin Connect app (phone)</b>
-                <p>The app cannot export files. Open <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> in your phone's browser instead (choose “desktop site” if needed) and follow the steps above.</p>
-                <b>Strava</b>
-                <p>Open your activity on strava.com and add <code>/export_tcx</code> to the end of its address, for example <code>strava.com/activities/123456789/export_tcx</code>. Works only for your own activities.</p>
-                <b>Suunto</b>
-                <p>Should work if you can get a TCX file (for example through Strava), but it has not been tested yet.</p>
-                <p class="muted">Tested with Garmin watches.</p>
-              </details>
+              <a class="howlink" href="#tcxHelp" id="howLink">How do I get my TCX file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓</a>
               <div id="rCheck" class="status" hidden></div>
               <div id="whoBox" hidden style="display:flex;flex-direction:column;gap:6px">
                 <div class="lbl">2. Whose run is this?</div>
@@ -247,6 +241,67 @@ body:not(.is-admin) .admin-only{display:none!important}
           <button class="btn primary" id="saveBtn">Save and rebuild</button>
         </div>
       </div>
+    </div>
+    <!-- how to get the watch file, per brand -->
+    <div class="card" id="tcxHelp">
+      <h2>How to get your TCX file</h2>
+      <div class="muted">The route is worked out from your watch's <b>altitude</b> readings (they show which floor you were on), so the activity must record altitude. Choose your watch:</div>
+      <div class="brands" role="tablist" aria-label="Watch brand">
+        <button class="brand-b" data-brand="garmin" aria-selected="true"><span class="bn">GARMIN</span><span class="bs">Tested</span></button>
+        <button class="brand-b" data-brand="suunto" aria-selected="false"><span class="bn">SUUNTO</span><span class="bs">Not tested yet</span></button>
+        <button class="brand-b" data-brand="polar" aria-selected="false"><span class="bn">POLAR</span><span class="bs">Not tested yet</span></button>
+        <button class="brand-b" data-brand="apple" aria-selected="false"><span class="bn">Apple Watch</span><span class="bs">Not tested yet</span></button>
+        <button class="brand-b" data-brand="strava" aria-selected="false"><span class="bn">STRAVA</span><span class="bs">Any watch</span></button>
+      </div>
+
+      <div class="bpane" data-bpane="garmin">
+        <p class="must">Start a <b>Run</b> activity, not Indoor Run, Treadmill or any other run. Only <b>Run</b> records the altitude that shows which floor you were on.</p>
+        <b>Get the file on a computer</b>
+        <ol><li>Sign in at <a href="https://connect.garmin.com/modern/activities" target="_blank" rel="noopener">connect.garmin.com</a> and open the activity.</li>
+          <li>Click the gear icon ⚙ at the top right of the activity.</li>
+          <li>Choose <b>Export to TCX</b>. The file is saved to your Downloads.</li></ol>
+        <b>On a phone</b>
+        <p>The Garmin Connect app cannot export files. Open connect.garmin.com in your phone's browser (choose “desktop site” if needed) and follow the steps above.</p>
+      </div>
+
+      <div class="bpane" data-bpane="suunto" hidden>
+        <p class="must">Use the <b>Running</b> sport mode, not Treadmill or another indoor mode. Indoor modes may not record altitude.</p>
+        <b>Get the file</b>
+        <p>The Suunto app exports only FIT and GPX files, not TCX. The easiest way is through Strava:</p>
+        <ol><li>In the Suunto app connect Strava once (under <b>Partner services</b> in the app settings).</li>
+          <li>After the race the activity appears in Strava by itself.</li>
+          <li>Get the TCX file from Strava (see the Strava tab).</li></ol>
+        <p class="muted">Not tested with Suunto yet. If the site says the file has no altitude readings, the sport mode did not record altitude.</p>
+      </div>
+
+      <div class="bpane" data-bpane="polar" hidden>
+        <p class="must">Use the <b>Running</b> sport profile, not Treadmill running or Indoor running. Indoor profiles may not record altitude. The watch must have a barometer (altitude sensor).</p>
+        <b>Get the file on a computer</b>
+        <ol><li>Sign in at <a href="https://flow.polar.com" target="_blank" rel="noopener">flow.polar.com</a> and open <b>Diary</b>.</li>
+          <li>Click the training session.</li>
+          <li>Open the <b>Export</b> menu at the top right and choose <b>TCX</b>. The file is saved to your Downloads.</li></ol>
+        <p class="muted">Not tested with Polar yet. If the site says the file has no altitude readings, the sport profile did not record altitude.</p>
+      </div>
+
+      <div class="bpane" data-bpane="apple" hidden>
+        <p class="must">In the Workout app choose <b>Outdoor Run</b>, not Indoor Run. Altitude is measured by Apple Watch Series 3 and newer, SE and Ultra.</p>
+        <b>Get the file</b>
+        <p>Apple's Health and Fitness apps cannot export TCX files. The easiest way is through Strava:</p>
+        <ol><li>In the Strava phone app connect Apple Health once (in Strava's settings), or record the run with the Strava app on the watch.</li>
+          <li>After the race the run appears in Strava.</li>
+          <li>Get the TCX file from Strava (see the Strava tab).</li></ol>
+        <p class="muted">Not tested with Apple Watch yet. If the site says the file has no altitude readings, the workout did not record altitude.</p>
+      </div>
+
+      <div class="bpane" data-bpane="strava" hidden>
+        <p>Works for any watch whose activities go to Strava (Suunto, Apple Watch, Coros, Polar, Garmin…). The activity type on the watch still matters: use the outdoor <b>Run</b>, not an indoor or treadmill run.</p>
+        <ol><li>Open your activity on <a href="https://www.strava.com/athlete/training" target="_blank" rel="noopener">strava.com</a> (on a phone, open it in the browser, not the app).</li>
+          <li>Add <code>/export_tcx</code> to the end of the address, for example <code>strava.com/activities/123456789/export_tcx</code>, and press Enter.</li>
+          <li>The TCX file is saved to your Downloads.</li></ol>
+        <p class="muted">Works only for your own activities.</p>
+      </div>
+
+      <div class="muted">Then add the file above under <b>Add your run</b>, step 1. The site checks the file and tells you straight away if it has no altitude readings.</div>
     </div>
   </section>
 </div>
@@ -392,6 +447,13 @@ function renderRuns(runs){
   const bulk=$('#delRunsBtn'); if (bulk){ bulk.hidden=!ADMIN || !runs.length; delete bulk.dataset.sure; bulk.textContent='Delete ticked runs'; }
   if (runs.some(r=>r.status==='working')) { stopPoll(); pollT=setTimeout(()=>openMap(M.id), 3000); }
 }
+// watch-brand instructions under the map
+$$('#tcxHelp .brand-b').forEach(b=>b.onclick=()=>{
+  $$('#tcxHelp .brand-b').forEach(x=>x.setAttribute('aria-selected', String(x===b)));
+  $$('#tcxHelp .bpane').forEach(p=>p.hidden = p.dataset.bpane!==b.dataset.brand);
+  try{ localStorage.setItem('ior.brand', b.dataset.brand); }catch(e){} });
+try{ const k=localStorage.getItem('ior.brand'); const b=k && $('#tcxHelp .brand-b[data-brand="'+k+'"]'); if(b) b.click(); }catch(e){}
+$('#howLink').onclick=e=>{ e.preventDefault(); $('#tcxHelp').scrollIntoView({behavior:'smooth', block:'start'}); };
 $('#delRunsBtn').onclick = async () => {
   const b=$('#delRunsBtn'), ids=$$('#runList input:checked').map(i=>i.value);
   if (!ids.length){ toast('Tick the runs to delete first.'); return; }
