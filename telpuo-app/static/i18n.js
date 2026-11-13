@@ -275,6 +275,7 @@
     'Choose your watch file first.': 'Vispirms izvēlies savu pulksteņa failu.',
     'Choose your watch file (TCX, FIT or GPX).': 'Izvēlies savu pulksteņa failu (TCX, FIT vai GPX).', 'Add your watch file (TCX, FIT or GPX).': 'Pievieno savu pulksteņa failu (TCX, FIT vai GPX).',
     'Choose your watch file and whose run it is.': 'Izvēlies savu pulksteņa failu un to, kura skrējiens tas ir.',
+    'Stages': 'Sacensību posmi', 'Maps coming soon': 'Kartes drīzumā', 'Information': 'Informācija', 'Participants': 'Dalībnieki', 'Register': 'Pieteikties',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',

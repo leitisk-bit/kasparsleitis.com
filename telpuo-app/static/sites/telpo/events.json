@@ -1,0 +1,21 @@
+{
+  "title": "Stages",
+  "source": "https://telpo.lv/posmi/",
+  "events": [
+    {"n": 1, "date": "21.11.2026", "name": "Jelgavas pils", "place": "Lielā iela 2, Jelgava",
+     "img": "https://telpo.lv/wp-content/uploads/2026/09/231732_large_preview.jpg"},
+    {"n": 2, "date": "22.11.2026", "name": "Mežaparka Lielā estrāde", "place": "Lūcijas Garūtas aleja 8, Rīga",
+     "img": "https://telpo.lv/wp-content/uploads/2026/10/Mezparka-estrade.jpg"},
+    {"n": 3, "date": "05.12.2026", "name": "Rīgas Mākslas un mediju tehnikums", "place": "Jūrmalas gatve 96, Rīga",
+     "img": "https://telpo.lv/wp-content/uploads/2026/10/default.jpg"},
+    {"n": 4, "date": "16.01.2027", "name": "Bulduru tehnikums", "place": "Viestura iela 6, Jūrmala",
+     "img": "https://telpo.lv/wp-content/uploads/2026/09/s1_6474.jpg"},
+    {"n": 5, "date": "20.02.2027", "name": "Ropažu vidusskola", "place": "Rīgas iela 5, Ropaži",
+     "img": "https://telpo.lv/wp-content/uploads/2026/09/Ropazu_vsk.jpg"}
+  ],
+  "links": [
+    {"text": "Information", "href": "https://telpo.lv/posmi/"},
+    {"text": "Participants", "href": "https://telpo.lv/dalibnieki/"},
+    {"text": "Register", "href": "https://telpo.lv/registracija", "main": true}
+  ]
+}

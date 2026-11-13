@@ -30,3 +30,19 @@
 [data-site="telpo"] .pill{border-radius:999px}
 [data-site="telpo"] a{color:var(--accent)}
 [data-site="telpo"] .brand,[data-site="telpo"] .mapcard{color:inherit}
+/* the season's stages on the map library (grey until their maps are uploaded) */
+#telpoStages .stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.stage-c{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.stage-img{position:relative;display:block;padding:0;border:0;margin:0;background:#E1F2FA;aspect-ratio:16/10;cursor:pointer;overflow:hidden}
+.stage-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s}
+.stage-c.on .stage-img:hover img{transform:scale(1.03)}
+.stage-c.off .stage-img{cursor:default} .stage-c.off .stage-img img{filter:grayscale(1);opacity:.55}
+.stage-badge{position:absolute;left:10px;top:10px;padding:3px 10px;border-radius:999px;font:700 11px var(--f-body);letter-spacing:.04em;text-transform:uppercase;background:linear-gradient(135deg,#0B7BC1,#18B7C9);color:#fff}
+.stage-c.off .stage-badge{background:#fff;color:var(--muted);border:1px solid var(--line)}
+.stage-body{display:flex;flex-direction:column;gap:4px;padding:12px 14px 14px}
+.stage-date{font:700 12px var(--f-body);color:var(--accent);letter-spacing:.03em}
+.stage-name{font:700 15px/1.25 var(--f-display);color:var(--telpo-navy)} .stage-place{font-size:12.5px;color:var(--muted)}
+.stage-c.off .stage-name,.stage-c.off .stage-date{color:var(--muted)}
+.stage-maps,.stage-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.stage-links .btn{border-radius:999px;font-weight:600} .stage-links .stage-main{background:linear-gradient(135deg,#0B7BC1,#18B7C9);color:#fff;border-color:transparent}
+details.folder.flash{box-shadow:0 0 0 3px var(--accent-soft);transition:box-shadow .3s}
