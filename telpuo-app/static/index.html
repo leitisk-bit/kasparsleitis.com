@@ -172,8 +172,8 @@ body:not(.is-admin) .admin-only{display:none!important}
             </div>
             <form id="runForm" style="display:flex;flex-direction:column;gap:8px">
               <h2 style="margin:0">Add your run</h2>
-              <label class="lbl">1. Your watch file (TCX)<input class="field" type="file" id="rTrack" accept=".tcx"></label>
-              <a class="howlink" href="#tcxHelp" id="howLink">How do I get my TCX file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓</a>
+              <label class="lbl">1. Your watch file (TCX, FIT or GPX)<input class="field" type="file" id="rTrack" accept=".tcx,.fit,.gpx"></label>
+              <a class="howlink" href="#tcxHelp" id="howLink">How do I get my watch file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓</a>
               <div id="rCheck" class="status" hidden></div>
               <div id="whoBox" hidden style="display:flex;flex-direction:column;gap:6px">
                 <div class="lbl">2. Whose run is this?</div>
@@ -188,7 +188,7 @@ body:not(.is-admin) .admin-only{display:none!important}
                 <div class="muted" id="rSplitInfo"></div>
               </div>
               <button class="btn primary" type="submit" id="rBtn" disabled>Save my run</button>
-              <div class="muted" id="rNote">Choose your TCX file first.</div>
+              <div class="muted" id="rNote">Choose your watch file first.</div>
               <div class="status" id="rSaved" hidden></div>
             </form>
             <h2 style="margin-top:6px">Runs on this map</h2>
@@ -244,7 +244,7 @@ body:not(.is-admin) .admin-only{display:none!important}
     </div>
     <!-- how to get the watch file, per brand -->
     <div class="card" id="tcxHelp">
-      <h2>How to get your TCX file</h2>
+      <h2>How to get your watch file</h2>
       <div class="muted">The route is worked out from your watch's <b>altitude</b> readings (they show which floor you were on), so the activity must record altitude. Choose your watch:</div>
       <div class="brands" role="tablist" aria-label="Watch brand">
         <button class="brand-b" data-brand="garmin" aria-selected="true"><span class="bn">GARMIN</span><span class="bs">Tested</span></button>
@@ -266,11 +266,11 @@ body:not(.is-admin) .admin-only{display:none!important}
 
       <div class="bpane" data-bpane="suunto" hidden>
         <p class="must">Use the <b>Running</b> sport mode, not Treadmill or another indoor mode. Indoor modes may not record altitude.</p>
-        <b>Get the file</b>
-        <p>The Suunto app exports only FIT and GPX files, not TCX. The easiest way is through Strava:</p>
-        <ol><li>In the Suunto app connect Strava once (under <b>Partner services</b> in the app settings).</li>
-          <li>After the race the activity appears in Strava by itself.</li>
-          <li>Get the TCX file from Strava (see the Strava tab).</li></ol>
+        <b>Get the file (Suunto app, on the phone)</b>
+        <ol><li>Open the workout in the Suunto app.</li>
+          <li>Tap the three dots ⋯ at the top right and choose <b>FIT</b>.</li>
+          <li>Save the file, then add it here.</li></ol>
+        <p class="muted">A workout recorded without GPS can only be exported as FIT, which is fine here. Through Strava works too (see the Strava tab).</p>
         <p class="muted">Not tested with Suunto yet. If the site says the file has no altitude readings, the sport mode did not record altitude.</p>
       </div>
 
@@ -286,7 +286,7 @@ body:not(.is-admin) .admin-only{display:none!important}
       <div class="bpane" data-bpane="apple" hidden>
         <p class="must">In the Workout app choose <b>Outdoor Run</b>, not Indoor Run. Altitude is measured by Apple Watch Series 3 and newer, SE and Ultra.</p>
         <b>Get the file</b>
-        <p>Apple's Health and Fitness apps cannot export TCX files. The easiest way is through Strava:</p>
+        <p>Apple's Health and Fitness apps cannot export workout files. The easiest way is through Strava:</p>
         <ol><li>In the Strava phone app connect Apple Health once (in Strava's settings), or record the run with the Strava app on the watch.</li>
           <li>After the race the run appears in Strava.</li>
           <li>Get the TCX file from Strava (see the Strava tab).</li></ol>
@@ -301,7 +301,7 @@ body:not(.is-admin) .admin-only{display:none!important}
         <p class="muted">Works only for your own activities.</p>
       </div>
 
-      <div class="muted">Then add the file above under <b>Add your run</b>, step 1. The site checks the file and tells you straight away if it has no altitude readings.</div>
+      <div class="muted">Then add the file above under <b>Add your run</b>, step 1. TCX, FIT and GPX files all work. The site checks the file and tells you straight away if it has no altitude readings.</div>
     </div>
   </section>
 </div>
@@ -466,7 +466,7 @@ $('#rSplits').oninput = () => { const t=$('#rSplits').value.replace(/\([^)]*\)/g
 /* ---------- add a run: TCX first, then whose run ---------- */
 let CHECK=null, CHECKED_NO_RES=false;
 function resetRunForm(){ CHECK=null; $('#rCheck').hidden=true; $('#whoBox').hidden=true; $('#whoList').innerHTML=''; $('#rBtn').disabled=!(ADMIN && !RES);
-  $('#rNote').textContent = $('#rTrack').files[0] ? '' : (RES || !ADMIN ? 'Choose your TCX file first.' : ''); }
+  $('#rNote').textContent = $('#rTrack').files[0] ? '' : (RES || !ADMIN ? 'Choose your watch file first.' : ''); }
 function whoChosen(){ const r=$('#whoList input:checked'); if (r) return JSON.parse(r.value); const v=$('#whoAll').value; return v?JSON.parse(v):null; }
 function updateWho(){ const w=whoChosen(); $('#rBtn').disabled=!w;
   $('#rNote').innerHTML = w ? (w.has_run ? `<b>${esc(w.name)} already has a saved run here. Saving replaces it.</b>` : `Press <b>Save my run</b> to save it as <b>${esc(w.name)}</b> (${esc(w.group)}).`) : 'Choose your name, then press Save my run.'; }
@@ -492,7 +492,7 @@ $('#rTrack').onchange = async () => {
 };
 $('#runForm').onsubmit = async e => { e.preventDefault();
   const fd=new FormData(); const f=$('#rTrack').files[0];
-  if (RES){ const w=whoChosen(); if (!f || !w){ toast('Choose your TCX file and whose run it is.'); return; } fd.append('group',w.group); fd.append('runner',w.name); }
+  if (RES){ const w=whoChosen(); if (!f || !w){ toast('Choose your watch file and whose run it is.'); return; } fd.append('group',w.group); fd.append('runner',w.name); }
   else { if (!$('#rName').value.trim() || !$('#rSplits').value.trim()){ toast('Fill in the name and split times.'); return; } fd.append('name',$('#rName').value); fd.append('splits',$('#rSplits').value); }
   if (f) fd.append('track',f);
   const who = RES ? whoChosen().name : $('#rName').value;

@@ -588,7 +588,7 @@ def _event_date(res):
 def _read_track(f):
     try: t0, obs = parse_track(f.read(), f.filename)
     except Exception as e: raise ValueError(f'Could not read {f.filename}: {e}')
-    if not obs: raise ValueError(f'{f.filename} has no altitude readings. The activity must be an outdoor Run (not an indoor or treadmill run): see How to get your TCX file under the map.')
+    if not obs: raise ValueError(f'{f.filename} has no altitude readings. The activity must be an outdoor Run (not an indoor or treadmill run): see How to get your watch file under the map.')
     return t0, obs
 
 def _match(summary, entry):
@@ -608,7 +608,7 @@ def api_check_run(mid):
     """Read a watch file and say which results it could belong to."""
     _seen(mid)
     f = request.files.get('track')
-    if not f or not f.filename: return jsonify(error='Choose your TCX file.'), 400
+    if not f or not f.filename: return jsonify(error='Choose your watch file (TCX, FIT or GPX).'), 400
     try: t0, obs = _read_track(f)
     except ValueError as e: return jsonify(error=str(e)), 400
     sm = track_summary(obs, t0); res = store.get_results(mid) or {'groups': []}
@@ -644,7 +644,7 @@ def api_new_run(mid):
         entry = g and next((x for x in g['runners'] if x['name'] == who), None)
         if not entry: return jsonify(error=f'{who} is not in the results of group {group}.'), 400
         if not entry.get('legs'): return jsonify(error=f"{who} has no complete split times ({entry.get('status') or 'missing punches'}), so the route can't be worked out."), 400
-        if not obs: return jsonify(error='Add your TCX watch file.'), 400
+        if not obs: return jsonify(error='Add your watch file (TCX, FIT or GPX).'), 400
         sm = track_summary(obs, t0); ev = _event_date(res)
         if ev and sm['date'] and ev != sm['date']:
             return jsonify(error=f"This watch file is from {sm['date']}, but the race was on {ev}."), 400

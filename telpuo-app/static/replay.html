@@ -123,7 +123,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
     <div class="actions">
       <label class="btn primary" for="mapFile">Open map<input id="mapFile" type="file" accept=".pdf,application/pdf,image/*"></label>
       <select id="pageSel" hidden aria-label="Map page / floor"></select>
-      <label class="btn" for="gpxFile">Add TCX<input id="gpxFile" type="file" accept=".tcx" multiple></label>
+      <label class="btn" for="gpxFile">Add TCX<input id="gpxFile" type="file" accept=".tcx,.gpx" multiple></label>
       <div class="seg" role="group" aria-label="Mode">
         <button id="mView" aria-pressed="true">Replay</button><button id="mDraw" aria-pressed="false">Draw route</button><button id="mAlign" aria-pressed="false" hidden>Align GPS</button>
       </div>
@@ -839,7 +839,7 @@ window.addEventListener('dragenter', e => { e.preventDefault(); dragN++; $('#dro
 window.addEventListener('dragleave', () => { if (--dragN<=0){ dragN=0; $('#drop').hidden=true; } });
 window.addEventListener('dragover', e => e.preventDefault());
 window.addEventListener('drop', async e => { e.preventDefault(); dragN=0; $('#drop').hidden=true;
-  const fs=[...e.dataTransfer.files], gpx=fs.filter(f=>/\.tcx$/i.test(f.name)), map=fs.find(f=>/\.(pdf|png|jpe?g|webp)$/i.test(f.name));
+  const fs=[...e.dataTransfer.files], gpx=fs.filter(f=>/\.(tcx|gpx)$/i.test(f.name)), map=fs.find(f=>/\.(pdf|png|jpe?g|webp)$/i.test(f.name));
   try { if (map) await loadMapFile(map); if (gpx.length) await loadGpxFiles(gpx); } catch(err){ toast(err.message); } });
 
 /* ---------- example data ---------- */

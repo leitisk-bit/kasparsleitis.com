@@ -261,6 +261,20 @@
     'Then add the file above under': 'Pēc tam pievieno failu augstāk sadaļā', ', step 1. The site checks the file and tells you straight away if it has no altitude readings.':
       ', 1. solī. Vietne pārbauda failu un uzreiz pasaka, ja tajā nav augstuma mērījumu.',
     'How do I get my TCX file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓': 'Kā iegūt savu TCX failu? Instrukcijas Garmin, Suunto, Polar, Apple Watch un Strava ↓',
+
+    '1. Your watch file (TCX, FIT or GPX)': '1. Tava pulksteņa fails (TCX, FIT vai GPX)', 'How to get your watch file': 'Kā iegūt pulksteņa failu',
+    'How do I get my watch file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓': 'Kā iegūt pulksteņa failu? Instrukcijas Garmin, Suunto, Polar, Apple Watch un Strava ↓',
+    'Get the file (Suunto app, on the phone)': 'Faila iegūšana (Suunto lietotnē, telefonā)', 'Open the workout in the Suunto app.': 'Atver treniņu Suunto lietotnē.',
+    'Tap the three dots ⋯ at the top right and choose': 'Pieskaries trim punktiem ⋯ augšā labajā stūrī un izvēlies', 'FIT': 'FIT',
+    'Save the file, then add it here.': 'Saglabā failu un pievieno to šeit.',
+    'A workout recorded without GPS can only be exported as FIT, which is fine here. Through Strava works too (see the Strava tab).':
+      'Treniņu, kas ierakstīts bez GPS, var eksportēt tikai kā FIT, un tas šeit der. Var arī caur Strava (skat. cilni Strava).',
+    "Apple's Health and Fitness apps cannot export workout files. The easiest way is through Strava:": 'Apple lietotnes Health un Fitness nevar eksportēt treniņu failus. Vienkāršākais ceļš ir caur Strava:',
+    ', step 1. TCX, FIT and GPX files all work. The site checks the file and tells you straight away if it has no altitude readings.':
+      ', 1. solī. Der TCX, FIT un GPX faili. Vietne pārbauda failu un uzreiz pasaka, ja tajā nav augstuma mērījumu.',
+    'Choose your watch file first.': 'Vispirms izvēlies savu pulksteņa failu.',
+    'Choose your watch file (TCX, FIT or GPX).': 'Izvēlies savu pulksteņa failu (TCX, FIT vai GPX).', 'Add your watch file (TCX, FIT or GPX).': 'Pievieno savu pulksteņa failu (TCX, FIT vai GPX).',
+    'Choose your watch file and whose run it is.': 'Izvēlies savu pulksteņa failu un to, kura skrējiens tas ir.',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',
@@ -281,7 +295,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
-    [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your TCX file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt savu TCX failu” zem kartes.'],
+    [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your watch file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt pulksteņa failu” zem kartes.'],
 
     [/^⚠ Floor numbers read as (.*): one may be misread\. Check the Map tab\.$/, '⚠ Stāvu numuri nolasīti kā $1: kāds varētu būt nolasīts nepareizi. Pārbaudi cilni Karte.'],
     [/^(\d+) course symbol\(s\) could not be put in order; check the control list\.$/, '$1 distances zīmes neizdevās sakārtot; pārbaudi kontrolpunktu sarakstu.'],
