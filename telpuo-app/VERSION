@@ -1,1 +1,1 @@
-{"commit": "6435407", "date": "2026-11-13T21:55:17+02:00", "change": "TELPO site look: telpo.lv colours (blue #0B7BC1, cyan #18B7C9, light blue background), Space Grotesk, round corners, white header bar with the TELPO logo, TELPO browser icon, link to telpo.lv"}
+{"commit": "1f9632c", "date": "2026-11-13T22:09:56+02:00", "change": "Watch instructions under the map: Garmin, Suunto, Polar, Apple Watch and Strava, each with the activity type that records altitude and how to get the TCX file (Latvian and English); clearer message when a file has no altitude"}
