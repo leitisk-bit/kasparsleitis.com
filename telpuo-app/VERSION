@@ -1,1 +1,1 @@
-{"commit": "38399d3", "date": "2026-11-13T22:43:50+02:00", "change": "TELPO site admin: every empty stage option (Garā A/B, Vidējā A/B, Vieglā) is an upload button; the map is named, placed in its stage and given the venue and date automatically"}
+{"commit": "d73f6fc", "date": "2026-11-13T22:51:42+02:00", "change": "TELPO site: watch-file instructions under the stages (the same card moves under the map on a map page); stage rules line removed"}
