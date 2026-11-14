@@ -98,7 +98,7 @@ def _fresh_pages(r):
 def _site_cors(r):
     # Let only kasparsleitis.com/serverinfo and /football read these answers from the browser.
     o = request.headers.get('Origin', '')
-    fb = request.path.startswith('/football-api/')
+    fb = request.path.startswith('/football-api/') or request.path.startswith('/api/cilpa')
     if (request.path in ('/api/server', '/api/admin') or fb) and o in SITE_ORIGINS:
         r.headers['Access-Control-Allow-Origin'] = o
         r.headers['Access-Control-Allow-Headers'] = 'X-Admin-Key, Content-Type' if fb else 'X-Admin-Key'
@@ -139,6 +139,66 @@ def api_server():
     try: after = int(request.args.get('range', 900))
     except ValueError: after = 900
     r = jsonify(serverinfo.overview(after)); r.headers['Cache-Control'] = 'no-store'; return r
+
+# ------------------------------------------------------------------ Cilpa: project reminder (admin only)
+# kasparsleitis.com/cilpa lists every project: what to start, where to open it, what it needs.
+# The list is cilpa/projects.json; notes typed on the page are kept on the server (data volume) only.
+CILPA_FILE = os.path.join(HERE, 'cilpa', 'projects.json')
+CILPA_NOTES = os.path.join(os.environ.get('OREPLAY_DATA', os.path.join(HERE, 'data')), 'cilpa-notes.json')
+CILPA_HOST = os.environ.get('CILPA_HOST', 'host.docker.internal')   # the server itself, seen from Docker
+CILPA_LOCK = threading.Lock()
+
+def _cilpa_notes():
+    try:
+        with open(CILPA_NOTES, encoding='utf-8') as f: return json.load(f)
+    except Exception: return {}
+
+def _cilpa_check(c):
+    """True / False = up / down; None = not checked from here (e.g. runs on the Mac)."""
+    import socket, urllib.request
+    try:
+        if 'port' in c:
+            with socket.create_connection((CILPA_HOST, int(c['port'])), timeout=1.5): return True
+        if 'url' in c:
+            req = urllib.request.Request(c['url'], method='GET', headers={'User-Agent': 'cilpa-check'})
+            with urllib.request.urlopen(req, timeout=4) as r: return r.status < 500
+    except urllib.error.HTTPError as e: return e.code < 500
+    except Exception: return False
+    return None
+
+@app.get('/api/cilpa')
+def api_cilpa():
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    with open(CILPA_FILE, encoding='utf-8') as f: data = json.load(f)
+    from concurrent.futures import ThreadPoolExecutor
+    checks = {p['id']: p['check'] for p in data['projects'] if p.get('check')}
+    with ThreadPoolExecutor(8) as ex:
+        res = dict(zip(checks, ex.map(_cilpa_check, checks.values())))
+    data['status'] = res
+    data['notes'] = _cilpa_notes()
+    data['checked'] = time.time()
+    r = jsonify(data); r.headers['Cache-Control'] = 'no-store'; return r
+
+@app.post('/api/cilpa/notes')
+def api_cilpa_notes():
+    """Save what was typed for one project: {"id": ..., "chat": ..., "note": ..., "done": [...]}."""
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    body = request.get_json(silent=True) or {}
+    pid = str(body.get('id', ''))[:60]
+    if not re.fullmatch(r'[a-z0-9_-]+', pid): return jsonify(error='Bad project id.'), 400
+    with CILPA_LOCK:
+        notes = _cilpa_notes()
+        cur = notes.get(pid, {})
+        for k in ('chat', 'note'):
+            if k in body: cur[k] = str(body[k])[:4000]
+        if 'done' in body and isinstance(body['done'], list): cur['done'] = [str(x)[:300] for x in body['done']][:50]
+        cur['saved'] = time.time()
+        notes[pid] = cur
+        os.makedirs(os.path.dirname(CILPA_NOTES), exist_ok=True)
+        tmp = CILPA_NOTES + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f: json.dump(notes, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, CILPA_NOTES)
+    return jsonify(ok=True, saved=cur['saved'])
 
 # ------------------------------------------------------------------ pages
 def _page(name):

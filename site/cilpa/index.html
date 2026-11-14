@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Cilpa · My projects</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#ECEEE9; --panel:#F9FAF7; --fg:#1B1F1A; --muted:#5F685D; --line:#D3D8CF; --grid:#E2E6DE;
+  --accent:#A3309B; --flag:#E0601A; --ok:#1E7F4E; --warn:#B4540A; --bad:#B42318; --idea:#2F6FB3;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#111411; --panel:#191D19; --fg:#E6EAE3; --muted:#98A193; --line:#2D332C; --grid:#232822;
+  --accent:#D865CF; --flag:#F07C3C; --ok:#4CC38A; --warn:#F0A04B; --bad:#F2716A; --idea:#6AA6E8; color-scheme:dark}}
+*{box-sizing:border-box} html,body{margin:0} [hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-body)}
+a{color:var(--accent)}
+.wrap{max-width:1200px;margin:0 auto;padding:14px max(16px,env(safe-area-inset-left,0px)) 48px;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;color:inherit;text-decoration:none}
+.flag{width:26px;height:26px;flex:none;background:linear-gradient(135deg,#fff 50%,var(--flag) 50%);border:1.5px solid var(--fg);border-radius:2px}
+.brand h1{font:700 22px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.brand small{display:block;font:500 11px/1.2 var(--f-body);color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin-top:3px}
+h2{font:700 15px/1 var(--f-display);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h3{font:700 19px/1.1 var(--f-display);letter-spacing:.03em;margin:0}
+h4{font:600 11.5px/1 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 0}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 13px var(--f-body);cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{height:26px;padding:0 9px;font-size:12.5px}
+.btn:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;height:30px;padding:0 10px;font:600 12.5px var(--f-body);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.muted{color:var(--muted);font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:12px;align-items:start}
+.top{display:flex;align-items:flex-start;gap:10px}
+.top h3{margin-right:auto}
+.pill{font:600 11px/1 var(--f-body);text-transform:uppercase;letter-spacing:.05em;border-radius:99px;padding:4px 8px;border:1px solid currentColor;white-space:nowrap}
+.pill.live{color:var(--ok)} .pill.progress{color:var(--warn)} .pill.idea{color:var(--idea)}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--grid);border:1px solid var(--line);flex:none}
+.dot.up{background:var(--ok);border-color:var(--ok)} .dot.down{background:var(--bad);border-color:var(--bad)}
+.where{font-size:13px}
+.links{display:flex;gap:6px;flex-wrap:wrap}
+.cmds{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}
+.cmds li{display:flex;gap:6px;align-items:flex-start}
+.cmd{flex:1;font:12.5px/1.45 var(--f-mono);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:5px 8px;overflow-wrap:anywhere;white-space:pre-wrap}
+.copy{flex:none;height:28px;width:30px;border:1px solid var(--line);background:var(--panel);border-radius:5px;cursor:pointer;color:var(--muted);font-size:13px}
+.copy.ok{color:var(--ok);border-color:var(--ok)}
+ul.plain{margin:0;padding-left:18px} ul.plain li{margin:2px 0}
+.todo label{display:flex;gap:8px;align-items:flex-start;margin:3px 0;cursor:pointer}
+.todo input{margin-top:3px}
+.todo .done span{text-decoration:line-through;color:var(--muted)}
+.chat{display:flex;gap:6px;align-items:center}
+.field{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:7px 9px;font:13.5px var(--f-body)}
+textarea.field{min-height:56px;resize:vertical}
+.saved{font-size:11.5px;color:var(--ok);min-height:14px}
+details summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:10px 18px;margin:0}
+.facts div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.facts dt{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.facts dd{margin:0;font-size:13.5px}
+.signin{max-width:340px;margin:12vh auto 0}
+.err{border-left:3px solid var(--bad)}
+.search{max-width:260px;height:32px}
+.summary{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
+.summary b{font:700 20px/1 var(--f-display)}
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/cilpa/"><span class="flag" aria-hidden="true"></span><div><h1>Cilpa</h1><small>All my projects · what to start, where to open</small></div></a>
+    <input class="field search" id="q" type="search" placeholder="Search…" aria-label="Search projects" hidden>
+    <span class="muted" id="updated"></span>
+    <button class="btn" id="reBtn" type="button" hidden>Check again</button>
+    <button class="btn" id="outBtn" type="button" hidden>Sign out</button>
+  </header>
+
+  <form class="card signin" id="signin" hidden>
+    <h2>Admin sign in</h2>
+    <p class="muted" style="margin:0">Same admin password as Server Info, Football and the Telpu O map library.</p>
+    <input class="field" type="password" id="keyIn" autocomplete="current-password" aria-label="Admin password" required>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p class="muted" id="signErr" style="margin:0;color:var(--bad)" hidden>Wrong password.</p>
+  </form>
+
+  <div id="errBox" class="card err" hidden></div>
+
+  <main id="main" hidden style="display:flex;flex-direction:column;gap:14px">
+    <section class="card"><div class="summary" id="summary"></div><div class="tabs" id="groups" role="group" aria-label="Show"></div></section>
+    <section id="list" style="display:flex;flex-direction:column;gap:18px"></section>
+    <section class="card" id="basics"></section>
+    <p class="muted" style="margin:0">Green = answering right now, red = not answering, grey = not checked from the server (runs on the Mac or has no address).
+      The list itself is <code>telpuo-app/cilpa/projects.json</code> in GitHub (ask Claude to update it); chat names, notes and ticks you type here are saved on the server only.</p>
+  </main>
+</div>
+<script>
+const API = /(^|\.)kasparsleitis\.com$/.test(location.hostname) ? 'https://telpuo.kasparsleitis.com' : '';
+let KEY = ''; try { KEY = localStorage.getItem('ior:key') || ''; } catch(e){}
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let DATA = null, GROUP = 'all';
+try { GROUP = localStorage.getItem('cilpa:group') || 'all'; } catch(e){}
+
+function showSignin(){ $('#main').hidden = true; $('#errBox').hidden = true; $('#signin').hidden = false;
+  ['#outBtn','#reBtn','#q'].forEach(s => $(s).hidden = true); $('#keyIn').focus(); }
+$('#signin').onsubmit = async ev => {
+  ev.preventDefault(); KEY = $('#keyIn').value;
+  const r = await fetch(API + '/api/admin', {headers: {'X-Admin-Key': KEY}}).then(r => r.json()).catch(() => ({}));
+  if (!r.admin){ $('#signErr').hidden = false; return; }
+  try { localStorage.setItem('ior:key', KEY); } catch(e){}
+  $('#signErr').hidden = true; $('#keyIn').value = ''; load();
+};
+$('#outBtn').onclick = () => { KEY = ''; try { localStorage.removeItem('ior:key'); } catch(e){} showSignin(); };
+$('#reBtn').onclick = () => load();
+$('#q').oninput = () => render();
+
+async function load(){
+  if (!KEY) return showSignin();
+  $('#updated').textContent = 'Checking…';
+  let r;
+  try { r = await fetch(API + '/api/cilpa', {headers: {'X-Admin-Key': KEY}, cache: 'no-store'}); }
+  catch(e){ return fail('The server did not answer (' + esc(e.message) + '). Is the Telpu O app and its Cloudflare Tunnel running?'); }
+  if (r.status === 403) return showSignin();
+  if (!r.ok) return fail('Server answered ' + r.status + '.');
+  DATA = await r.json();
+  $('#signin').hidden = true; $('#errBox').hidden = true; $('#main').hidden = false;
+  ['#outBtn','#reBtn','#q'].forEach(s => $(s).hidden = false);
+  $('#updated').textContent = 'Checked ' + new Date(DATA.checked * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  render();
+}
+function fail(msg){ $('#errBox').innerHTML = msg; $('#errBox').hidden = false; $('#updated').textContent = ''; }
+
+function stateOf(p){
+  const s = DATA.status[p.id];
+  if (s === true) return ['up', 'Running'];
+  if (s === false) return ['down', 'Not answering'];
+  return ['', p.check && p.check.mac ? 'On the Mac' : 'Not checked'];
+}
+function pillOf(st){ return st === 'live' ? 'live' : st === 'idea' ? 'idea' : 'progress'; }
+function cmdList(arr){
+  if (!arr || !arr.length) return '';
+  // a line is "text: command" or just a command or just text; commands get a box and a copy button
+  return '<ul class="cmds">' + arr.map(line => {
+    const m = line.match(/^(.*?[:?]\s+|)((?:cd|sudo|docker|ssh|curl|python3?|\.venv\/bin\/python|\.\/|git|systemctl)\b.*)$/);
+    if (!m) return `<li><div style="flex:1">${esc(line)}</div></li>`;
+    const label = m[1] ? `<div class="muted" style="width:100%">${esc(m[1].replace(/[:\s]+$/, ''))}</div>` : '';
+    return `${label ? `<li>${label}</li>` : ''}<li><div class="cmd">${esc(m[2])}</div><button class="copy" type="button" title="Copy" data-copy="${esc(m[2])}">⧉</button></li>`;
+  }).join('') + '</ul>';
+}
+function card(p){
+  const n = DATA.notes[p.id] || {}, [cls, label] = stateOf(p), done = new Set(n.done || []);
+  const chat = n.chat != null ? n.chat : (p.chat || '');
+  return `<article class="card" data-id="${esc(p.id)}">
+    <div class="top"><h3>${esc(p.name)}</h3>
+      <span class="state"><span class="dot ${cls}"></span>${label}</span>
+      <span class="pill ${pillOf(p.status)}">${esc(p.status)}</span></div>
+    <div class="where">${esc(p.where)}</div>
+    ${p.open && p.open.length ? `<div class="links">${p.open.map(l => `<a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join('')}</div>` : ''}
+    ${p.start && p.start.length ? `<h4>Start</h4>${cmdList(p.start)}` : ''}
+    ${p.needs && p.needs.length ? `<h4>Needs</h4><ul class="plain">${p.needs.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    ${p.todo && p.todo.length ? `<h4>To do</h4><div class="todo">${p.todo.map(t => `<label class="${done.has(t) ? 'done' : ''}"><input type="checkbox" data-todo="${esc(t)}" ${done.has(t) ? 'checked' : ''}><span>${esc(t)}</span></label>`).join('')}</div>` : ''}
+    ${p.update && p.update.length ? `<details><summary>Update / logs</summary>${cmdList(p.update)}</details>` : ''}
+    ${p.notes ? `<div class="muted">${esc(p.notes)}</div>` : ''}
+    <h4>Claude chat / project</h4>
+    <div class="chat"><input class="field" data-f="chat" value="${esc(chat)}" placeholder="Name of the chat where this was built"></div>
+    <h4>My notes</h4>
+    <textarea class="field" data-f="note" placeholder="Anything to remember…">${esc(n.note || '')}</textarea>
+    <div class="saved"></div>
+    ${p.repo ? `<div class="muted">GitHub: ${esc(p.repo)}</div>` : ''}
+  </article>`;
+}
+function render(){
+  const q = $('#q').value.trim().toLowerCase();
+  const ps = DATA.projects;
+  const up = ps.filter(p => DATA.status[p.id] === true).length, down = ps.filter(p => DATA.status[p.id] === false);
+  $('#summary').innerHTML = `<span><b>${ps.length}</b> projects</span><span><b style="color:var(--ok)">${up}</b> running</span>`
+    + `<span><b style="color:var(--bad)">${down.length}</b> not answering${down.length ? ': ' + down.map(p => esc(p.name)).join(', ') : ''}</span>`;
+  $('#groups').innerHTML = [{id:'all', title:'All'}, ...DATA.groups].map(g =>
+    `<button type="button" data-g="${g.id}" aria-pressed="${GROUP === g.id}">${esc(g.title)}</button>`).join('');
+  const show = DATA.groups.filter(g => GROUP === 'all' || g.id === GROUP);
+  $('#list').innerHTML = show.map(g => {
+    const items = ps.filter(p => p.group === g.id && (!q || JSON.stringify(p).toLowerCase().includes(q) || JSON.stringify(DATA.notes[p.id] || {}).toLowerCase().includes(q)));
+    return items.length ? `<div style="display:flex;flex-direction:column;gap:10px"><h2>${esc(g.title)}</h2><div class="grid">${items.map(card).join('')}</div></div>` : '';
+  }).join('') || '<p class="muted">Nothing matches.</p>';
+  const b = DATA.basics;
+  $('#basics').innerHTML = `<h2>${esc(b.title)}</h2><dl class="facts">${b.items.map(i =>
+    `<div><dt>${esc(i.label)}</dt><dd>${i.cmd ? cmdList([i.cmd]) : esc(i.value)}</dd></div>`).join('')}</dl>`;
+}
+
+document.addEventListener('click', async ev => {
+  const g = ev.target.closest('[data-g]');
+  if (g){ GROUP = g.dataset.g; try { localStorage.setItem('cilpa:group', GROUP); } catch(e){} render(); return; }
+  const c = ev.target.closest('[data-copy]');
+  if (c){ try { await navigator.clipboard.writeText(c.dataset.copy); c.classList.add('ok'); c.textContent = '✓'; setTimeout(() => { c.classList.remove('ok'); c.textContent = '⧉'; }, 1200); } catch(e){} }
+});
+const timers = {};
+async function save(art, extra){
+  const id = art.dataset.id, out = art.querySelector('.saved');
+  const body = Object.assign({id}, extra);
+  out.style.color = ''; out.textContent = 'Saving…';
+  try {
+    const r = await fetch(API + '/api/cilpa/notes', {method:'POST', headers:{'X-Admin-Key': KEY, 'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    if (!r.ok) throw new Error(r.status);
+    DATA.notes[id] = Object.assign(DATA.notes[id] || {}, extra);
+    out.textContent = 'Saved';
+  } catch(e){ out.style.color = 'var(--bad)'; out.textContent = 'Not saved (' + e.message + ')'; }
+}
+document.addEventListener('input', ev => {
+  const f = ev.target.dataset && ev.target.dataset.f; if (!f) return;
+  const art = ev.target.closest('article'), k = art.dataset.id + f;
+  clearTimeout(timers[k]); timers[k] = setTimeout(() => save(art, {[f]: ev.target.value}), 700);
+});
+document.addEventListener('change', ev => {
+  if (!ev.target.dataset || ev.target.dataset.todo == null) return;
+  const art = ev.target.closest('article');
+  const done = [...art.querySelectorAll('[data-todo]')].filter(x => x.checked).map(x => x.dataset.todo);
+  ev.target.closest('label').classList.toggle('done', ev.target.checked);
+  save(art, {done});
+});
+load();
+</script>
+</body></html>

@@ -59,6 +59,13 @@ then put `KUMA_STATUS_SLUG=server` in `.env` and run the update command.
 
 `install.sh` and `nginx-oreplay.conf` are an alternative for a server without Docker.
 
+## Cilpa page (project reminder)
+
+**https://kasparsleitis.com/cilpa** (page in `site/cilpa/`, data from this app's `/api/cilpa`) lists every project:
+where it runs, what to start, links, what it needs, and whether it answers right now. Same admin password (`ADMIN_KEY`).
+The list is `cilpa/projects.json`; chat names, notes and ticked to-dos typed on the page are saved only in the
+Docker volume (`/data/cilpa-notes.json`). Status checks reach the server's ports through `host.docker.internal`.
+
 ## Timing
 
 - Reading a map and building its network takes about 1 minute (A3 map, 4–6 floors).
