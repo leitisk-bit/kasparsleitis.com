@@ -2,14 +2,14 @@
    season's stages (from events.json): a stage is grey until its maps are uploaded; then it is in colour
    and opens that stage's maps. A stage's maps are those in the folder "… N. posms" (from the map name). */
 (function () {
-  var V = '?v=8';
+  var V = '?v=9';
   function brand() {
     var b = document.querySelector('header .brand'); if (!b || b.dataset.site) return;
     b.dataset.site = 'telpo';
     var logo = document.createElement('img'); logo.className = 'site-logo'; logo.alt = 'TELPO';
     logo.src = 'static/sites/telpo/logo.svg' + V;
     b.insertBefore(logo, b.firstChild);
-    var h = b.querySelector('h1'); if (h) { h.textContent = 'Maršruti'; h.setAttribute('data-noi18n', ''); }
+    var h = b.querySelector('h1'); if (h) { h.textContent = 'Ceļi'; h.setAttribute('data-noi18n', ''); }
     var hd = b.parentNode, right = hd && hd.lastElementChild;
     if (right && right !== b) {
       var a = document.createElement('a'); a.href = 'https://telpo.lv'; a.className = 'btn small'; a.textContent = 'telpo.lv'; a.rel = 'noopener';

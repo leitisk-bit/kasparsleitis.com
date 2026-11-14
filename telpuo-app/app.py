@@ -35,7 +35,7 @@ def published(m): return bool(m) and m.get('published', True) is not False   # m
 # was uploaded on; the admin can move it. Maps from before sites existed belong to 'main'.
 SITES = {
     'main': {'name': 'Indoor O Replay', 'hosts': []},
-    'telpo': {'name': 'TELPO maršruti',
+    'telpo': {'name': 'TELPO ceļi',
               'hosts': [h.strip().lower() for h in os.environ.get('TELPO_HOSTS', 'telpomarsruts.kasparsleitis.com,celi.telpo.lv').split(',') if h.strip()]},
 }
 def current_site():
@@ -158,7 +158,7 @@ def _page(name):
     if request.host.split(':')[0] in ('127.0.0.1', 'localhost') and request.args.get('site') in SITES:
         r.set_cookie('ior_site', request.args['site'])            # testing on this computer
     return r
-SITE_V = 8                 # bump when a site's stylesheet, logo or script changes
+SITE_V = 9                 # bump when a site's stylesheet, logo or script changes
 
 @app.get('/')
 def index(): return _page('index.html')
