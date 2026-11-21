@@ -574,6 +574,10 @@ def build(img, features, progress=None):
         g = cand[0] if tag == 'up' else cand[-1]
         first, second = (f'{g}_{L}_dn', f'{g}_{L}_up') if tag == 'up' else (f'{g}_{L}_up', f'{g}_{L}_dn')
         m_ = first if first in N else (second if second in N else None)
+        # a stairwell used only upwards between two floors (features['stair_up_only'] = [[letter, floor,
+        # floor], …]; TELPO 1. posms: A from 0 to 1 goes up only, there is no way down to 0 by A)
+        if tag == 'dn' and any(str(c_[0]) == L and {fnum(c_[1]), fnum(c_[2])} == {f, g}
+                               for c_ in features.get('stair_up_only') or []): continue
         if m_: add(n, m_, 0.0, 1)
     # The up and down halves of a stairwell on one floor. When each half has its own door onto the floor
     # (4. posms: one half goes down to -1, the other up to 2) they are separate: you cannot walk in

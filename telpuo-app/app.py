@@ -342,7 +342,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)))
+    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -855,6 +855,12 @@ FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
 # TELPO 2026 1. posms, Jelgava Palace: stair A from floor 1 ends on a closed landing on floor 2 (its
 # 'dn' half there); 0-1, 2-3 and 3-4 are normal.
 STAIR_DEADENDS = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), [['A', 2, 'dn']])]
+
+# Stairwells used only upwards between two floors. TELPO 2026 1. posms: A from floor 0 to 1 is up only.
+STAIR_UP_ONLY = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), [['A', 0, 1]])]
+
+def stair_up_only_of(m):
+    return [c for rx, d in STAIR_UP_ONLY if rx.search((m or {}).get('name') or '') for c in d]
 
 def stair_deadends_of(m):
     return [c for rx, d in STAIR_DEADENDS if rx.search((m or {}).get('name') or '') for c in d]
