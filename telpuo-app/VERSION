@@ -1,1 +1,1 @@
-{"commit": "d94b4b6", "date": "2026-11-21T16:39:13+02:00", "change": "TELPO 2026 1. posms maps: scale fixed at 1:1800 (from the size of Jelgava Palace), locked in admin; routes rebuilt on start when it changes"}
+{"commit": "ea20b20", "date": "2026-11-21T16:40:09+02:00", "change": "TELPO 2026 1. posms: fixed scale 1:1780 (the measured value, not rounded)"}
