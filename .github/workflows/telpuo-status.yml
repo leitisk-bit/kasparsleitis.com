@@ -22,6 +22,10 @@ jobs:
               print(f"- {m['id']} | {m.get('name')} | status={m.get('status')} | controls={m.get('controls')} | legs={len(d['features']['controls'])-1 if d.get('features') else '?'}"
                     f" | results: {r.get('event','-')} groups={[g['name'] for g in r.get('groups',[])]} runners={sum(len(g['runners']) for g in r.get('groups',[]))}"
                     f" | meta.results={m.get('results')} | runs={[(x.get('name'), x.get('status')) for x in d.get('runs',[])]}")
+              import collections
+              for g in r.get('groups', []):
+                  st = collections.Counter(x.get('status') for x in g['runners'])
+                  print('  group', g['name'], dict(st), 'no place:', [(x.get('name'), x.get('status'), x.get('total')) for x in g['runners'] if x.get('place') is None][:12])
           for m in maps:
               d = get(f"/api/maps/{m['id']}")
               me = d['meta']; f = d['features']
