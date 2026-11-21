@@ -1,1 +1,1 @@
-{"commit": "08aeacd", "date": "2026-11-21T20:14:54+02:00", "change": "Results import: IOF XML ResultList (3.0 and 2.0.3) with split times, next to lof.lv link and PDF/web page"}
+{"commit": "ab91baf", "date": "2026-11-21T21:16:19+02:00", "change": "Watch file pickers without type filter: iPhone Safari greyed out .tcx/.fit/.gpx; the name is checked after choosing instead"}
