@@ -1,1 +1,1 @@
-{"commit": "9cfc8ab", "date": "2026-11-14T23:24:54+02:00", "change": "Add /cilpa project reminder page (admin only)"}
+{"commit": "1814c96", "date": "2026-11-21T13:46:48+02:00", "change": "Map reader: TELPO maps (floor numbers and stair letters written as text in fonts with shifted character codes) now read; a piece far from its floor number (sponsor logo) is not part of that floor"}
