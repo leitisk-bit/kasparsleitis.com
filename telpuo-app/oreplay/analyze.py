@@ -41,7 +41,7 @@ def _is_blue(c):
     return c is not None and c[2] > 200 and 120 < c[1] < 200 and c[0] < 120
 
 def _is_green(c):
-    return c is not None and c[1] > 140 and c[0] < 80 and c[2] < 80
+    return c is not None and c[1] > 120 and c[0] < 80 and c[2] < 80          # TELPO: darker (0,130,64)
 
 def _is_red(c):
     return c is not None and c[0] > 200 and c[1] < 70 and c[2] < 70
@@ -485,7 +485,7 @@ def analyze(pdf_path, page=0):
     chev = []
     for d in drawings:
         fc = _rgb(d.get('fill')); r = d['rect']
-        if not _is_green(fc) or not (3 < max(r.width, r.height) < 25): continue
+        if not _is_green(fc) or not (2 < max(r.width, r.height) < 25): continue
         pts = [it[1] for it in d['items'] if it[0] == 'l'] + [it[2] for it in d['items'] if it[0] == 'l']
         if len(pts) < 4: continue
         xs = [p_.x for p_ in pts]; ys = [p_.y for p_ in pts]
