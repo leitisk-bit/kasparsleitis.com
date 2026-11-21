@@ -698,7 +698,7 @@ def api_check_run(mid):
     for g in res['groups']:
         for x in g['runners']:
             if not x.get('legs'): continue
-            cands.append({'group': g['name'], 'name': x['name'], 'club': x.get('club', ''), 'place': x.get('place'),
+            cands.append({'group': g['name'], 'name': x['name'], 'club': x.get('club', ''), 'place': x.get('place'), 'nc': x.get('status') == 'nc',
                           'total': sum(x['legs']), 'diff': sm['duration'] - sum(x['legs']), 'fits': _match(sm, x) is None,
                           'has_run': (g['name'], x['name']) in taken})
     cands.sort(key=lambda c: (not c['fits'], abs(c['diff'])))

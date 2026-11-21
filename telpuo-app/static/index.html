@@ -488,9 +488,9 @@ $('#rTrack').onchange = async () => {
   $('#rCheck').innerHTML=`Watch recording: <b class="mono">${fmt(c.duration)}</b>${c.date?' · '+esc(c.date):''}. ` + (fit.length ? `Choose your name below; the results closest to this time are first.` : `<span class="bad">No result on this course fits this time. The watch must have run for the whole race: at most 30 s shorter or 10 min longer than the result.</span>`);
   if (!fit.length) return;
   const top=fit.slice(0,6), L=$('#whoList');
-  L.innerHTML=top.map((x,k)=>`<label class="who"><input type="radio" name="who" value='${esc(JSON.stringify(x))}' ${k===0?'checked':''}><span><b>${esc(x.name)}</b> <span class="muted">${esc(x.group)}${x.club?' · '+esc(x.club):''}</span>${x.has_run?' <span class="warn">· has a run</span>':''}</span><span class="m">${fmt(x.total)}</span></label>`).join('');
+  L.innerHTML=top.map((x,k)=>`<label class="who"><input type="radio" name="who" value='${esc(JSON.stringify(x))}' ${k===0?'checked':''}><span><b>${esc(x.name)}</b> <span class="muted">${esc(x.group)}${x.nc?' · NC':''}${x.club?' · '+esc(x.club):''}</span>${x.has_run?' <span class="warn">· has a run</span>':''}</span><span class="m">${fmt(x.total)}</span></label>`).join('');
   const rest=fit.slice(6); $('#whoMore').hidden=!rest.length;
-  $('#whoAll').innerHTML='<option value="">Choose…</option>'+rest.map(x=>`<option value='${esc(JSON.stringify(x))}'>${esc(x.name)} · ${esc(x.group)} · ${fmt(x.total)}</option>`).join('');
+  $('#whoAll').innerHTML='<option value="">Choose…</option>'+rest.map(x=>`<option value='${esc(JSON.stringify(x))}'>${esc(x.name)} · ${esc(x.group)}${x.nc?' NC':''} · ${fmt(x.total)}</option>`).join('');
   L.querySelectorAll('input').forEach(r=>r.onchange=()=>{ $('#whoAll').value=''; updateWho(); });
   $('#whoAll').onchange=()=>{ if ($('#whoAll').value) L.querySelectorAll('input').forEach(r=>r.checked=false); updateWho(); };
   $('#whoBox').hidden=false; updateWho();

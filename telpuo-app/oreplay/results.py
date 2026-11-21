@@ -205,9 +205,11 @@ def parse_oe_csv(csv_text, event=''):
             if not c: break
             codes.append(c); punches.append(secs(t) if t else None)
         total = secs(get(r, 'Time')) if get(r, 'Time') else None
-        status = OE_STATUS.get(get(r, 'Classifier'), get(r, 'Classifier') or '')
+        status = OE_STATUS.get(get(r, 'Classifier'), (get(r, 'Classifier') or '').lower())
+        if status == 'ok' and get(r, 'nc').upper() in ('X', '1', 'Y', 'NC'): status = 'nc'   # not competing (ārpus konkurences)
         legs = None
-        if status == 'ok' and total and punches and all(p is not None for p in punches):
+        # runners not competing (NC) ran the whole course too: their split times count for replays
+        if status in ('ok', 'nc') and total and punches and all(p is not None for p in punches):
             cum = punches + [total]
             legs = [cum[0]] + [b - a for a, b in zip(cum, cum[1:])]
             if any(l < 0 for l in legs): legs = None
@@ -286,7 +288,7 @@ def parse_iof_xml(data):
                 rc.append(c); punches.append(_iof_secs(txt(sp, 'Time')))
             if len(rc) > len(codes): codes = rc
             legs = None
-            if status == 'ok' and total and punches and all(x is not None for x in punches):
+            if status in ('ok', 'nc') and total and punches and all(x is not None for x in punches):
                 cum = punches + [total]
                 legs = [cum[0]] + [b - a for a, b in zip(cum, cum[1:])]
                 if any(l < 0 for l in legs): legs = None
