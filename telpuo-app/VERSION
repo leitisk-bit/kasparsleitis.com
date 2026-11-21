@@ -1,1 +1,1 @@
-{"commit": "4f2cf03", "date": "2026-11-21T14:58:44+02:00", "change": "Status check shows which app version runs on the server (version visible to the view-only checker)"}
+{"commit": "74b209f", "date": "2026-11-21T15:55:55+02:00", "change": "Route reading: same-floor steps join the floor, controls stay under their circle centre, cleaner straight route lines"}
