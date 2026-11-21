@@ -1,1 +1,1 @@
-{"commit": "ab91baf", "date": "2026-11-21T21:16:19+02:00", "change": "Watch file pickers without type filter: iPhone Safari greyed out .tcx/.fit/.gpx; the name is checked after choosing instead"}
+{"commit": "0bd8f85", "date": "2026-11-21T21:35:19+02:00", "change": "Results: runners not competing (NC) keep their split times, so they can add their watch file; NC shown in the name list"}
