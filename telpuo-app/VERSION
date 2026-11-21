@@ -1,1 +1,1 @@
-{"commit": "ea20b20", "date": "2026-11-21T16:40:09+02:00", "change": "TELPO 2026 1. posms: fixed scale 1:1780 (the measured value, not rounded)"}
+{"commit": "df8f1cb", "date": "2026-11-21T17:25:28+02:00", "change": "Strict stairs by default (new maps and TELPO maps); one-way lanes open to a side corridor level with the last arrow; strict stair doors across the thin light outline round the steps"}
