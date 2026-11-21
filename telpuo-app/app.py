@@ -585,9 +585,13 @@ def api_results(mid):
             res = results.parse_oe_csv(csv_text, event)
         elif f and f.filename:
             data = f.read()
-            res = results.parse(data=data) if data[:5] == b'%PDF-' else results.parse(text=_html_text(data.decode('utf-8', 'replace')))
+            head_ = data[:600].lstrip(b'\xef\xbb\xbf \r\n\t').lower()
+            if data[:5] == b'%PDF-': res = results.parse(data=data)
+            elif f.filename.lower().endswith('.xml') or head_.startswith(b'<?xml') and b'<resultlist' in data[:3000].lower():
+                res = results.parse_iof_xml(data)
+            else: res = results.parse(text=_html_text(data.decode('utf-8', 'replace')))
         elif text.strip(): res = results.parse(text=text)
-        else: return jsonify(error='Choose the results file (PDF) or paste the results text.'), 400
+        else: return jsonify(error='Choose the results file (PDF, web page or IOF XML) or paste the results text.'), 400
     except Exception as e:
         return jsonify(error=f'Could not read the results: {e}'), 400
     n_legs = len(feat['controls']) - 1

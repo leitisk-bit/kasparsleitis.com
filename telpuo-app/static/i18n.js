@@ -48,6 +48,8 @@
     "paste the race's lof.lv link, for example": 'ielīmē sacensību lof.lv saiti, piemēram',
     'lof.lv link to the race': 'sacensību lof.lv saite',
     'Or a saved results page: on lof.lv choose': 'Vai saglabāta rezultātu lapa: lof.lv izvēlies',
+    'Or the results as an': 'Vai rezultāti kā', 'IOF XML': 'IOF XML', 'file (ResultList with split times, exported from MeOS, OE/SportSoftware, OCAD …).': 'fails (ResultList ar starplaikiem, eksportēts no MeOS, OE/SportSoftware, OCAD …).',
+    'Choose the results file (PDF, web page or IOF XML) or paste the results text.': 'Izvēlies rezultātu failu (PDF, tīmekļa lapu vai IOF XML) vai ielīmē rezultātu tekstu.',
     'and save it as PDF or as a web page, or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.':
       'un saglabā to kā PDF vai tīmekļa lapu, vai nokopē visu lapu (Ctrl+A, Ctrl+C) un ielīmē zemāk.',
     '…or paste the results page here': '…vai ielīmē rezultātu lapu šeit',

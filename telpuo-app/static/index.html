@@ -98,7 +98,7 @@ body:not(.is-admin) .admin-only{display:none!important}
 .brand-b[aria-selected=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)} .brand-b:hover{border-color:var(--muted)}
 .bpane{font-size:13.5px;line-height:1.5} .bpane ol{margin:4px 0 8px;padding-left:20px} .bpane p{margin:4px 0 8px}
 .bpane .must{color:var(--bad);font-weight:600;border-left:3px solid var(--bad);padding:4px 8px;background:color-mix(in srgb, var(--bad) 7%, transparent)}
-</style><script src="static/i18n.js?v=3" defer></script>
+</style><script src="static/i18n.js?v=4" defer></script>
 </head><body>
 <div class="wrap">
   <header>
@@ -163,7 +163,8 @@ body:not(.is-admin) .admin-only{display:none!important}
                   <div class="muted"><b>Easiest:</b> paste the race's lof.lv link, for example <code>https://lof.lv/seriali_rez/?id=2026110832</code>.</div>
                   <input class="field" type="url" id="resLof" placeholder="lof.lv link to the race">
                   <div class="muted">Or a saved results page: on lof.lv choose <b>Split</b> and save it as PDF or as a web page, or copy the whole page (Ctrl+A, Ctrl+C) and paste it below.</div>
-                  <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,application/pdf,text/html">
+                  <div class="muted">Or the results as an <b>IOF XML</b> file (ResultList with split times, exported from MeOS, OE/SportSoftware, OCAD …).</div>
+                  <input class="field" type="file" id="resFile" accept=".pdf,.html,.htm,.xml,application/pdf,text/html,text/xml,application/xml">
                   <textarea class="field" id="resText" rows="2" placeholder="…or paste the results page here"></textarea>
                   <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn primary small" type="button" id="resBtn">Import and save results</button>
                   <button class="btn small" type="button" id="resClear" title="Empty the link, the chosen file and the pasted text">Clear</button></div>

@@ -224,3 +224,76 @@ def parse_oe_csv(csv_text, event=''):
         g['runners'].sort(key=lambda x: (x['place'] is None, x['place'] or 0, x['total'] or 1e9))
         out.append(g)
     return {'event': event, 'groups': out}
+
+
+# ---- IOF XML (the standard export of MeOS, OE / SportSoftware, OCAD, OEvent …): a ResultList,
+# version 3.0 or 2.0.3, with each runner's split times (time since their start at each control).
+IOF_STATUS = {'ok': 'ok', 'didnotstart': 'dns', 'dns': 'dns', 'didnotfinish': 'dnf', 'dnf': 'dnf',
+              'missingpunch': 'mp', 'mispunch': 'mp', 'mp': 'mp', 'disqualified': 'dsq', 'dsq': 'dsq',
+              'overtime': 'ot', 'ot': 'ot', 'notcompeting': 'nc', 'inactive': 'dns', 'active': 'dns'}
+
+def _iof_secs(s):
+    s = (s or '').strip()
+    if not s: return None
+    if ':' in s: return secs(s)
+    try: return round(float(s))
+    except ValueError: return None
+
+def parse_iof_xml(data):
+    """{'event', 'groups'} like parse_oe_csv, from an IOF XML ResultList (3.0 or 2.0.3)."""
+    import xml.etree.ElementTree as ET
+    if isinstance(data, bytes) and b'<!ENTITY' in data[:4000]: raise ValueError('this XML file is not a plain results file')
+    root = ET.fromstring(data)
+    for el in root.iter():                      # drop the namespaces: <ResultList xmlns="http://www.orienteering.org/datastandard/3.0">
+        if isinstance(el.tag, str) and '}' in el.tag: el.tag = el.tag.split('}', 1)[1]
+    if root.tag not in ('ResultList',):
+        raise ValueError(f'this XML is a {root.tag}, not a results list (IOF XML ResultList with split times)')
+    def txt(el, *path):
+        for p in path:
+            if el is None: return ''
+            el = el.find(p)
+        return (el.text or '').strip() if el is not None and el.text else ''
+    ev = root.find('Event')
+    event = txt(ev, 'Name') or txt(ev, 'EventName') if ev is not None else ''
+    date = txt(ev, 'StartTime', 'Date') or txt(ev, 'StartDate', 'Date') if ev is not None else ''
+    if event and re.fullmatch(r'\d{4}-\d{2}-\d{2}', date): y, mo, d = date.split('-'); event += f' ({d}.{mo}.{y})'
+    groups = []
+    for cr in root.findall('ClassResult'):
+        cls = txt(cr, 'Class', 'Name') or txt(cr, 'Class', 'ShortName') or txt(cr, 'ClassShortName') or txt(cr, 'ClassName') or '?'
+        runners, codes = [], []
+        for pr in cr.findall('PersonResult'):
+            p = pr.find('Person')
+            given = txt(p, 'Name', 'Given') or txt(p, 'PersonName', 'Given')
+            family = txt(p, 'Name', 'Family') or txt(p, 'PersonName', 'Family')
+            name = (given + ' ' + family).strip()
+            club = txt(pr, 'Organisation', 'Name') or txt(pr, 'Organisation', 'ShortName') or txt(pr, 'Club', 'Name') or txt(pr, 'Club', 'ShortName')
+            r = pr.find('Result')
+            if r is None: continue
+            st = r.find('Status')
+            st = (st.text or '') if st is not None else ''
+            if not st:
+                cs = r.find('CompetitorStatus'); st = cs.get('value', '') if cs is not None else 'OK'
+            status = IOF_STATUS.get(st.strip().lower(), st.strip().lower() or 'ok')
+            total = _iof_secs(txt(r, 'Time'))
+            pos = txt(r, 'Position') or txt(r, 'ResultPosition')
+            start_clock = txt(r, 'StartTime') or txt(r, 'StartTime', 'Clock')       # 3.0 / 2.0.3
+            start = secs(start_clock.split('T')[-1][:8]) if start_clock else None
+            rc, punches = [], []
+            for sp in r.findall('SplitTime'):
+                if (sp.get('status') or '').lower() == 'additional': continue
+                c = txt(sp, 'ControlCode')
+                if not c: continue
+                rc.append(c); punches.append(_iof_secs(txt(sp, 'Time')))
+            if len(rc) > len(codes): codes = rc
+            legs = None
+            if status == 'ok' and total and punches and all(x is not None for x in punches):
+                cum = punches + [total]
+                legs = [cum[0]] + [b - a for a, b in zip(cum, cum[1:])]
+                if any(l < 0 for l in legs): legs = None
+            runners.append({'place': int(pos) if pos.isdigit() and status == 'ok' else None, 'name': name, 'club': club,
+                            'total': total, 'status': status if legs or status != 'ok' else 'incomplete', 'legs': legs,
+                            'start': start})
+        if not codes: continue                    # a class without split times
+        runners.sort(key=lambda x: (x['place'] is None, x['place'] or 0, x['total'] or 1e9))
+        groups.append({'name': cls, 'n_controls': len(codes), 'codes': codes + ['F'], 'runners': runners})
+    return {'event': event, 'groups': groups}
