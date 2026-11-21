@@ -29,6 +29,7 @@ def _near(c, ref, tol=60):
 # stair letters 152,80,159, tape 113,82,162, building grey 191): those are accepted too.
 SOFT_LETTER = (152, 80, 159)
 SOFT_TAPE = (113, 82, 162)
+TELPO_TAPE = (198, 22, 141)       # TELPO maps: no-crossing tape in bright magenta (course stays 154,37,143)
 
 def _is_course(c):   # magenta / purple overprint (not the bluer violet tape)
     return c is not None and 130 < c[0] < 215 and 30 < c[1] < 115 and 110 < c[2] < 205 and not _near(c, SOFT_LETTER, 20)
@@ -46,7 +47,7 @@ def _is_red(c):
     return c is not None and c[0] > 200 and c[1] < 70 and c[2] < 70
 
 def _is_tape(c):
-    return c is not None and ((c[2] > 220 and c[1] < 40 and c[0] < 170) or _near(c, SOFT_TAPE, 20))
+    return c is not None and ((c[2] > 220 and c[1] < 40 and c[0] < 170) or _near(c, SOFT_TAPE, 20) or _near(c, TELPO_TAPE, 25))
 
 # ---------------------------------------------------------------- glyphs
 _TPL = {}
@@ -525,6 +526,9 @@ def analyze(pdf_path, page=0):
     for d in drawings:
         fc = _rgb(d.get('fill')); r = d['rect']
         if _is_red(fc) and len(d['items']) == 3 and 2 < r.width < 9 and 2 < r.height < 9:
+            heads.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S))
+        # (TELPO maps draw each arrowhead as two red strokes, not a filled triangle)
+        elif not fc and _is_red(_rgb(d.get('color'))) and ''.join(i[0] for i in d['items']) == 'll' and 1.5 < r.width < 9 and 1.5 < r.height < 9:
             heads.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S))
     f['crossings'] = []
     used_h = set()

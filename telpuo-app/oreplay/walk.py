@@ -19,14 +19,14 @@ import networkx as nx
 PAL = {
     'beige': [(255, 235, 194), (255, 240, 209), (229, 225, 220), (219, 199, 175)],
     'landing': [(255, 214, 135), (213, 178, 112)],
-    'same': [(223, 134, 67)],
+    'same': [(223, 134, 67), (221, 147, 88)],
     'red': [(255, 25, 25), (222, 22, 24), (255, 43, 43), (255, 110, 110), (255, 160, 160), (240, 120, 100), (236, 38, 43), (255, 0, 0)],
     'blue': [(76, 166, 255), (57, 126, 195), (100, 159, 213)],
     'green': [(28, 181, 21), (229, 250, 225), (196, 255, 186), (14, 178, 9)],
     'black': [(0, 0, 0), (63, 64, 61), (61, 30, 41), (35, 31, 32)],
     'grey': [(178, 178, 178), (165, 165, 165), (169, 160, 166), (204, 204, 204), (105, 107, 110), (191, 191, 191)],
     'white': [(255, 255, 255)],
-    'tape': [(136, 0, 248), (140, 0, 255), (113, 82, 162)],
+    'tape': [(136, 0, 248), (140, 0, 255), (113, 82, 162), (198, 22, 141)],
     'pink': [(242, 191, 255)],
     'over': [(169, 49, 158), (169, 60, 159), (180, 128, 158), (204, 0, 255), (210, 33, 255), (90, 116, 135), (153, 80, 159), (171, 74, 156)],
 }
@@ -74,8 +74,12 @@ def walk_mask(img, features, cls=None, k=None):
         cls = cls.copy() if not features.get('course_lines') else cls; cls[tm] = k['tape']
     walk = np.isin(cls, [k[n] for n in WALK])
     known = cls != k['over']
-    wf = ndi.uniform_filter(walk.astype(np.float32) * known, 13); kf = ndi.uniform_filter(known.astype(np.float32), 13)
-    walk = np.where(known, walk, (wf / np.maximum(kf, 1e-6)) > 0.5)
+    # under the course overprint: what the nearest drawn pixel beside the line is. A line crossing a
+    # wall has wall on both its sides there, so the wall stays a wall (an average over a window would
+    # see floor beyond the wall and open it: TELPO 1. posms)
+    if (~known).any():
+        _, (iy, ix) = ndi.distance_transform_edt(~known, return_indices=True)
+        walk = np.where(known, walk, walk[iy, ix])
     for x0, y0, x1, y1 in features.get('start_finish_zone', []):
         x0, y0 = max(0, int(x0)), max(0, int(y0))
         walk[y0:int(y1), x0:int(x1)] |= cls[y0:int(y1), x0:int(x1)] == k['pink']
