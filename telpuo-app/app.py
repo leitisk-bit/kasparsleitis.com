@@ -851,13 +851,14 @@ def api_delete_run(rid):
 FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
                  'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
 
-# Flights that end on a dead-end landing on certain maps: from the landing you only go back.
-# TELPO 2026 1. posms, Jelgava Palace: stair A from floor 1 ends on a closed landing on floor 2 (its
-# 'dn' half there); 0-1, 2-3 and 3-4 are normal.
-STAIR_DEADENDS = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), [['A', 2, 'dn']])]
+# Flights that end on a dead-end landing on certain maps: [(name regex, [[letter, floor, 'up'|'dn'], …])].
+# (none at the moment; on TELPO 1. posms floor 2 stair A from floor 1 arrives at a half-floor corridor:
+# the one-way corridor, as drawn)
+STAIR_DEADENDS = []
 
-# Stairwells used only upwards between two floors. TELPO 2026 1. posms: A from floor 0 to 1 is up only.
-STAIR_UP_ONLY = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), [['A', 0, 1]])]
+# Stairwells used only upwards between two floors on certain maps: [(name regex, [[letter, floor, floor], …])].
+# (none at the moment; TELPO 1. posms stair A turned out to be as drawn)
+STAIR_UP_ONLY = []
 
 def stair_up_only_of(m):
     return [c for rx, d in STAIR_UP_ONLY if rx.search((m or {}).get('name') or '') for c in d]
