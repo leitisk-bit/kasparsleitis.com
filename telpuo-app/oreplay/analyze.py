@@ -171,6 +171,35 @@ def render(pdf_path, page=0):
         img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).copy()
     return doc, p, img
 
+def text_spans(p, want):
+    """Text pieces whose decoded text fully matches the regex `want`, as (text, rgb, size, rect in
+    pixels). Some map PDFs store their font with its own character numbering (digits from \x13, the
+    dash as \x11, capitals from '$'): every shift is tried and the one that matches is kept."""
+    out = []
+    rx = re.compile(want)
+    spans = [sp for b_ in p.get_text('dict')['blocks'] for l_ in b_.get('lines', []) for sp in l_['spans'] if sp['text'].strip()]
+    # each font's shift, from its numbers ("0.", "1-55"): a single letter alone fits many shifts
+    shift = {}
+    num = re.compile(r'-?\d{1,2}\.|\d{1,2}-\d{2,3}')
+    for sp in spans:
+        t = sp['text'].strip()
+        if sp['font'] in shift or len(t) < 2 or not all(ord(c) < 0x30 for c in t): continue
+        for sh in range(1, 64):
+            if num.fullmatch(''.join(chr(ord(c) + sh) for c in t)): shift[sp['font']] = sh; break
+    for sp in spans:
+                t = sp['text'].strip()
+                dec = t if rx.fullmatch(t) else None
+                if dec is None and all(ord(c) < 0x60 for c in t):
+                    shs = [shift[sp['font']]] if sp['font'] in shift else range(1, 64)
+                    for sh in shs:
+                        u = ''.join(chr(ord(c) + sh) for c in t)
+                        if rx.fullmatch(u): dec = u; break
+                if dec is None: continue
+                c = sp['color']; rgb = ((c >> 16) & 255, (c >> 8) & 255, c & 255)
+                x0, y0, x1, y1 = sp['bbox']
+                out.append((dec, rgb, sp['size'], [x0 * S, y0 * S, x1 * S, y1 * S]))
+    return out
+
 def control_codes(pdf, page=0):
     """{control number: code} from the list printed on the map ("1-31", "2-33", …). The map font is
     often stored with its own character numbering (digits as \x14-\x1d, the dash as \x11), so every
@@ -317,6 +346,11 @@ def analyze(pdf_path, page=0):
                 if it[0] == 'l': poly += [(it[1].x * S, it[1].y * S), (it[2].x * S, it[2].y * S)]
                 elif it[0] == 're': q = it[1]; poly += [(q.x0 * S, q.y0 * S), (q.x1 * S, q.y0 * S), (q.x1 * S, q.y1 * S), (q.x0 * S, q.y1 * S)]
             if len(poly) >= 3: sep_polys.append([[round(x_, 1), round(y_, 1)] for x_, y_ in poly])
+    # floor numbers written as text ("0.", "1.", … in a big blue font: TELPO maps)
+    if not cand:
+        for t, rgb, size, bb in text_spans(p, r'-?\d{1,2}\.?'):
+            if _is_blue(rgb) and size >= 30:
+                cand.append(((int(t.rstrip('.')), 1.0), fitz.Rect(bb[0] / S, bb[1] / S, bb[2] / S, bb[3] / S)))
     # floor numbers are the big blue figures, all printed at one size: drop smaller or larger blue shapes
     if cand:
         hs = sorted(r.height for _, r in cand); med = hs[len(hs) // 2]
@@ -361,6 +395,12 @@ def analyze(pdf_path, page=0):
         if (crop.sum(-1) < 120).sum() < 2000: continue          # needs walls
         fl = floor_of_point(cx, cy)
         if fl is not None: floors[fl].append(box)
+    # a piece far from its floor's number is not that floor (a sponsor logo beside the map: TELPO 1. posms)
+    for fl in list(floors):
+        lbs = [lb for lb in digits if lb['floor'] == fl]
+        if not lbs or len(floors[fl]) < 2: continue
+        keep = [b_ for b_ in floors[fl] if min(math.hypot(max(b_[0] - lb['x'], 0, lb['x'] - b_[2]), max(b_[1] - lb['y'], 0, lb['y'] - b_[3])) for lb in lbs) < 1200]
+        if keep: floors[fl] = keep
     f['floors'] = [{'floor': fl, 'boxes': bx} for fl, bx in sorted(floors.items())]
     if not floors:
         f['notes'].append('No floors found: draw floor areas on the check screen.')
@@ -409,6 +449,18 @@ def analyze(pdf_path, page=0):
             outline_stairs.append((fl, x, y))                  # far from its floor's drawn area: give it one
                                                                # (a letter just beside the building is not)
         stairs.append({'letter': ch, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': round(float(conf), 2)})
+    # stair letters written as text (TELPO maps: coloured capitals with a white outline copy behind)
+    if not stairs:
+        seen_ = set()
+        for t, rgb, size, bb in text_spans(p, r'[A-ZĀČĒĢĪĶĻŅŠŪŽ]'):
+            if rgb in ((255, 255, 255), (0, 0, 0)) or not (8 <= size <= 30): continue
+            x, y = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
+            if in_ignore(x, y) or (t, round(x), round(y)) in seen_: continue
+            seen_.add((t, round(x), round(y)))
+            fl = floor_at(x, y)
+            if fl is None: fl = floor_of_point(x, y)
+            if fl is None or fl not in floors: continue
+            stairs.append({'letter': t, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': 1.0})
     # floors drawn only as an outline get a small area round each such staircase
     for fl, x, y in outline_stairs:
         box = [round(x - 90), round(y - 70), round(x + 90), round(y + 70)]
