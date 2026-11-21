@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script src="static/i18n.js?v=4" defer></script>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script src="static/i18n.js?v=5" defer></script>
 </head><body>
 <title>Indoor O Replay</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
@@ -123,7 +123,7 @@ textarea.field{font:13px var(--f-mono);resize:vertical}
     <div class="actions">
       <label class="btn primary" for="mapFile">Open map<input id="mapFile" type="file" accept=".pdf,application/pdf,image/*"></label>
       <select id="pageSel" hidden aria-label="Map page / floor"></select>
-      <label class="btn" for="gpxFile">Add TCX<input id="gpxFile" type="file" accept=".tcx,.gpx" multiple></label>
+      <label class="btn" for="gpxFile">Add TCX<input id="gpxFile" type="file" multiple></label>
       <div class="seg" role="group" aria-label="Mode">
         <button id="mView" aria-pressed="true">Replay</button><button id="mDraw" aria-pressed="false">Draw route</button><button id="mAlign" aria-pressed="false" hidden>Align GPS</button>
       </div>
@@ -795,7 +795,7 @@ function rescaleDrawn(r){ const p=r.pts, mpp=mPerPx(); let d=0;
   for (let i=1;i<p.length;i++){ d+= p[i].jump ? JUMP_M : Math.hypot(p[i].u-p[i-1].u,p[i].v-p[i-1].v)*mpp; p[i].d=d; }
   let k0=0; for (const k of r.ctrlIdx){ const L=p[k].d-p[k0].d, dt=p[k].t-p[k0].t; for (let i=k0+1;i<=k;i++) p[i].s = dt? L/dt : 0; k0=k; } p[0].s=p[1].s; }
 $('#mapFile').onchange = async e => { const f=e.target.files[0]; e.target.value=''; if (f) try{ await loadMapFile(f); }catch(err){ toast('Could not open map: '+err.message); } };
-$('#gpxFile').onchange = async e => { const fs=[...e.target.files]; e.target.value=''; if (fs.length) await loadGpxFiles(fs); };
+$('#gpxFile').onchange = async e => { const fs=[...e.target.files].filter(f => /\.(tcx|gpx)$/i.test(f.name)); e.target.value=''; if (fs.length) await loadGpxFiles(fs); };
 $('#pageSel').onchange = e => renderPdfPage(+e.target.value);
 $('#affine').onchange = e => { S.affine=e.target.checked; saveAnchors(); computeT(); };
 $('#clearAnchors').onclick = () => { S.anchors=[]; saveAnchors(); computeT(); };
