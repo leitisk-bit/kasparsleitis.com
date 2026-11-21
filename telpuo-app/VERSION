@@ -1,1 +1,1 @@
-{"commit": "2ec424a", "date": "2026-11-21T19:08:54+02:00", "change": "Rebuild a map's routes by itself at start when its map-specific rules (strict stairs, stair A dead end, fixed scale) changed since it was built"}
+{"commit": "95549e0", "date": "2026-11-21T19:33:21+02:00", "change": "TELPO 2026 1. posms: stair A between floors 0 and 1 is up only"}
