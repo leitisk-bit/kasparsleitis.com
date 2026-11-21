@@ -74,16 +74,39 @@ def walk_mask(img, features, cls=None, k=None):
         cls = cls.copy() if not features.get('course_lines') else cls; cls[tm] = k['tape']
     walk = np.isin(cls, [k[n] for n in WALK])
     known = cls != k['over']
-    # under the course overprint: what the nearest drawn pixel beside the line is. A line crossing a
-    # wall has wall on both its sides there, so the wall stays a wall (an average over a window would
-    # see floor beyond the wall and open it: TELPO 1. posms)
-    if (~known).any():
-        _, (iy, ix) = ndi.distance_transform_edt(~known, return_indices=True)
+    # under the overprint: what the nearest drawn pixel that is not a wall is (in a narrow alcove an
+    # average over the surroundings would see mostly wall and close it: Garā B, control 11); walls
+    # under a line are kept by the dark print over them and by the rule below
+    src = known & (cls != k['black'])
+    if (~known).any() and src.any():
+        _, (iy, ix) = ndi.distance_transform_edt(~src, return_indices=True)
         walk = np.where(known, walk, walk[iy, ix])
+    # but where the line crosses a wall (wall on both sides of it, left and right or above and below)
+    # the wall goes on underneath: closed (TELPO 1. posms). A line or circle running beside a wall,
+    # with wall on one side only, leaves the floor open.
+    if (~known).any():
+        B = cls == k['black']; ov = ~known
+        # going out from the line each way, the first drawn pixel met is black: then the line lies on
+        # a wall. In a narrow corridor crossed by a line there is floor first, so it stays open.
+        # and the gap between the two blacks is no wider than a wall's run under a line (<= 10 px);
+        # a wider gap is a passage (an alcove's mouth crossed by a circle: Garā B, control 11)
+        sides, dist = [], []
+        for ax, sg in ((1, 1), (1, -1), (0, 1), (0, -1)):
+            hit, done = np.zeros_like(B), np.zeros_like(B); dd = np.full(B.shape, 99, np.int16)
+            for d_ in range(1, 12):
+                kn = np.roll(known, sg * d_, ax) & ~done
+                h_ = kn & np.roll(B, sg * d_, ax); hit |= h_; dd[h_] = d_; done |= kn
+            sides.append(hit); dist.append(dd)
+        bridge = ov & (((sides[0] & sides[1]) & (dist[0] + dist[1] - 1 <= 10)) |
+                       ((sides[2] & sides[3]) & (dist[2] + dist[3] - 1 <= 10)))
+        walk &= ~bridge
     for x0, y0, x1, y1 in features.get('start_finish_zone', []):
         x0, y0 = max(0, int(x0)), max(0, int(y0))
         walk[y0:int(y1), x0:int(x1)] |= cls[y0:int(y1), x0:int(x1)] == k['pink']
     st = np.isin(cls, [k['red'], k['blue'], k['same']])
+    # the step edge (landing colour) belongs to the steps: the thin white outline round small
+    # same-floor steps would otherwise cut them off from the corridor (TELPO 1. posms)
+    st |= (cls == k['landing']) & ndi.binary_dilation(np.isin(cls, [k['same']]), iterations=6)
     base = walk.copy()
     walk |= ndi.binary_dilation(st, iterations=3) & ~np.isin(cls, [k['tape'], k['grey']])
     R_, B_ = cls == k['red'], cls == k['blue']
@@ -253,6 +276,15 @@ def snap_big(walk, x, y, r=60, min_area=1500):
     lab, n = ndi.label(w)
     if n:
         sz = ndi.sum(w, lab, range(1, n + 1))
+        # the circle's centre on floor (or right beside it): the control is there, however small that
+        # piece of floor is (a stairwell half cut off by tape: TELPO 1. posms Garā A, control 2)
+        cy_, cx_ = y - y0, x - x0
+        near = lab[max(0, cy_ - 8):cy_ + 9, max(0, cx_ - 8):cx_ + 9]
+        own = [v for v in np.unique(near) if v and sz[v - 1] >= 150]
+        if own:
+            ys, xs = np.nonzero(np.isin(lab, own))
+            d2 = (xs + x0 - x) ** 2 + (ys + y0 - y) ** 2; j = int(np.argmin(d2))
+            return int(xs[j] + x0), int(ys[j] + y0)
         big = np.isin(lab, [i + 1 for i in range(n) if sz[i] >= min_area])
         ys, xs = np.nonzero(big)
         if len(xs):
@@ -260,7 +292,7 @@ def snap_big(walk, x, y, r=60, min_area=1500):
             if d2[j] <= r * r: return int(xs[j] + x0), int(ys[j] + y0)
     return snap(walk, x, y)
 
-def strict_stairs(walk, cls, k, FL, loose=()):
+def strict_stairs(walk, cls, k, FL, loose=(), controls=()):
     """Strict stairs (switched on per map; 4. posms). Go into blue and you go down, into red and you go
     up: no part of a stair drawing is floor. The black lines round a staircase are walls; a flight is
     got on only where its coloured steps meet the floor directly. Only the slanted black line inside a
@@ -291,6 +323,10 @@ def strict_stairs(walk, cls, k, FL, loose=()):
     floor = walk & ~icon
     flab, _ = ndi.label(floor)
     fsz = np.bincount(flab.ravel()); fsz[0] = 0
+    ctl_comps = set()                                           # floor pieces with a control in them
+    for cx_, cy_ in controls:
+        y_, x_ = int(cy_), int(cx_)
+        ctl_comps |= {int(v) for v in np.unique(flab[max(0, y_ - 25):y_ + 26, max(0, x_ - 25):x_ + 26]) if v}
     out, doors = {}, set()
     for name, (fl, x, y) in FL.items():
         H_, W_ = icon.shape
@@ -309,9 +345,11 @@ def strict_stairs(walk, cls, k, FL, loose=()):
         own = np.zeros_like(red); own[y0:y0 + cl.shape[0], x0:x0 + cl.shape[1]] = cl == cl[ys_[j], xs_[j]]
         door = ndi.binary_dilation(own & col, iterations=3) & floor          # meets the floor directly
         dy, dx = np.nonzero(door)
-        if len(dx):                                             # onto the biggest floor it meets, not a sliver
-            best = fsz[flab[dy, dx]]
-            keep = (best == best.max()) & (best >= 400)
+        if len(dx):                                             # onto the biggest floor it meets, not a sliver;
+            comp = flab[dy, dx]                                 # but a small stair room with a control in it
+            best = fsz[comp]                                    # counts (5-40 in B, TELPO 1. posms floor 0)
+            withc = np.isin(comp, list(ctl_comps)) & (best >= 30)
+            keep = withc if withc.any() else (best == best.max()) & (best >= 400)
             dy, dx = dy[keep], dx[keep]
         if not len(dx): out[name] = (fl, int(xs_[j] + x0), int(ys_[j] + y0)); continue
         oy, ox = np.nonzero(own)
@@ -344,9 +382,31 @@ def straighten(W, pts):
     out, i = [pts[0]], 0
     while i < len(pts) - 1:
         j = len(pts) - 1
-        while j > i + 1 and not _clear(W, pts[i], pts[j]): j -= 1
+        if not _clear(W, pts[i], pts[j]):
+            # farthest point in sight: search by halves, then make sure it really is in sight
+            lo, hi = i + 1, j
+            while hi - lo > 1:
+                m = (lo + hi) // 2
+                if _clear(W, pts[i], pts[m]): lo = m
+                else: hi = m
+            j = lo
+            while j > i + 1 and not _clear(W, pts[i], pts[j]): j -= 1
         out.append(pts[j]); i = j
     return out
+
+def pull_tight(W, pts):
+    """Straight lines between corners, from the whole walked path (every pixel of it a possible corner),
+    pulled from both ends so a route and its way back lie on the same line."""
+    if len(pts) < 3: return pts
+    # keep the line off the walls where there is room: a straight stretch must stay 3 px clear of any
+    # wall; through a narrow door the line simply follows the (centred) walked path point by point
+    D = ndi.distance_transform_edt(W)
+    p = straighten(D >= 3, pts)
+    p = straighten(D >= 3, p[::-1])[::-1]
+    # then whatever wobble is left (in narrow places) is pulled straight with less room to spare,
+    # only between the corners already found, so the line still keeps off the walls
+    p = straighten(D >= 1.5, p)
+    return p
 
 def rdp(pts, eps=1.0):
     if len(pts) < 3: return pts
@@ -397,7 +457,7 @@ def build(img, features, progress=None):
     strict = features.get('stair_rule') == 'legend'
     if strict:                                                 # per map, switched on in the Stairs tab
         loose = [b_ for f_ in features.get('floors', []) for b_ in f_['boxes'] if (b_[2] - b_[0], b_[3] - b_[1]) == (180, 140)]
-        walk, FL, doors = strict_stairs(walk, cls, k, FL, loose)
+        walk, FL, doors = strict_stairs(walk, cls, k, FL, loose, [(c['x'], c['y']) for c in features.get('controls', [])])
     else:                                                      # the legend rule, on every map
         walk, FL, _ = stair_open(walk, cls, k, FL)
     N = dict(FL)
@@ -471,7 +531,8 @@ def build(img, features, progress=None):
                                 d_out = abs(along(eout) - pos) + abs(fixed - (eout[2] if kind == 'h' else eout[1]))
                                 add(f'{fl}_ow{i}_in', nm, d_in, 0); add(nm, f'{fl}_ow{i}_out', d_out, 0)
                             run = None
-        cost = np.where(Wm, 1.0, np.inf)
+        dW = ndi.distance_transform_edt(Wm)                    # a little dearer close to a wall: paths keep to the middle
+        cost = np.where(Wm, 1.0 + 0.6 * (dW < 2) + 0.3 * (dW < 4), np.inf)
         nodes = [n for n, v in N.items() if v[0] == fl and n not in pocket_ctrl]
         for s in nodes:
             sx, sy = N[s][1] - x0, N[s][2] - y0
@@ -485,7 +546,7 @@ def build(img, features, progress=None):
                 cst = cum[ty, tx]
                 if not np.isfinite(cst): continue
                 tb = m.traceback((ty, tx))
-                poly = straighten(Wm, rdp([(int(x), int(y)) for y, x in tb]))
+                poly = pull_tight(Wm, [(int(x), int(y)) for y, x in tb[::2]] + [(int(tb[-1][1]), int(tb[-1][0]))])
                 E.append((s, t, float(min(cst, plen(poly))), 0, True)); POLY[(s, t)] = [(x + x0, y + y0) for x, y in poly]
         if progress: progress(f'floor {fl} done')
     # stairs (directed)
