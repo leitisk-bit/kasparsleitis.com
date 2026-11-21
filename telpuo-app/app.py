@@ -834,8 +834,8 @@ def api_delete_run(rid):
 
 # Maps whose scale is fixed (not the printed one): worked out from the real building, nobody may change it.
 # TELPO 2026 1. posms, Jelgava Palace: about 150 x 120 m outside, drawn 802-811 x 985-989 px at 300 dpi
-# on every floor -> 1:1750-1800 (the sheet says nothing true about scale: the plan was enlarged to fit).
-FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1800,
+# on every floor -> 1:1750-1800, 1:1780 on average (the sheet says nothing true about scale: the plan was enlarged to fit).
+FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
                  'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
 
 def fixed_scale(m):
