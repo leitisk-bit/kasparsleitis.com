@@ -329,8 +329,14 @@ def _requeue_runs(mid):
         store.background(_reconstruct, r['id'], mid, run['legs_in'], obs,
                          on_error=lambda e, rid=r['id']: (lambda x: (x.update(status='error', error=e), store.set_run(rid, x)))(store.get_run(rid)))
 
+def rules_key(m):
+    """What the map-specific rules were when the routes were built: when they change in a new version,
+    the map's routes are rebuilt by themselves at start."""
+    return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale')])
+
 def _build_now(mid):
     feat = store.get_features(mid); img = store.load_render(mid)
+    rk = rules_key(store.get_meta(mid))
     nfl = len(feat.get('floors', [])); done_fl = [0]
     _job(mid, 'network', 'Every corridor on every floor, stairs in their allowed direction', 0, nfl, status='building', message='Building the route network…')
     def prog(msg):
@@ -378,7 +384,7 @@ def _build_now(mid):
     whole = [x for x in fl if x == int(x)]          # half floors (1.5) are extra levels, not gaps
     warn = [] if not whole or whole == list(range(int(whole[0]), int(whole[0]) + len(whole))) else [f"Floor numbers read as {', '.join(map(str, fl))}: one may be misread. Check the Map tab."]
     store.set_meta(mid, status='ready', message='', job={'step': 'done', 'finished': time.time()}, suggestions=sugg, legs_preview=preview, problems=problems, warnings=warn,
-                   flights=flights, suggested_pockets=info['suggested_pockets'], built=built)
+                   flights=flights, suggested_pockets=info['suggested_pockets'], built=built, rules_key=rk)
     _requeue_runs(mid)
 
 @app.get('/api/maps/<mid>')
@@ -866,8 +872,8 @@ def _apply_fixed_scale(mid, rebuild=True):
         if m.get('scale_fixed'): store.set_meta(mid, scale_fixed=None)
         return
     sc, why = fx
-    changed = m.get('scale') != sc
     store.set_meta(mid, scale=sc, scale_fixed=why)
+    changed = m.get('rules_key') != rules_key(store.get_meta(mid))     # scale or stair rules changed since built
     if changed and rebuild and m.get('status') == 'ready' and store.get_features(mid):
         store.set_meta(mid, status='building', message='Rebuilding the route network (map scale fixed)…')
         store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
@@ -886,10 +892,10 @@ def _resume():
             for r in store.list_runs(mid):
                 if r.get('status') == 'working': _requeue_runs(mid); break
 
+try: _resume()
+except Exception: traceback.print_exc()
 try:
     for m_ in store.list_maps(): _apply_fixed_scale(m_['id'])
-except Exception: traceback.print_exc()
-try: _resume()
 except Exception: traceback.print_exc()
 
 if __name__ == '__main__':
