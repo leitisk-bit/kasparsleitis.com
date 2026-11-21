@@ -1,1 +1,1 @@
-{"commit": "df8f1cb", "date": "2026-11-21T17:25:28+02:00", "change": "Strict stairs by default (new maps and TELPO maps); one-way lanes open to a side corridor level with the last arrow; strict stair doors across the thin light outline round the steps"}
+{"commit": "1fc2c2a", "date": "2026-11-21T18:44:31+02:00", "change": "TELPO 2026 1. posms: stair A from floor 1 ends on a dead-end landing on floor 2 (only back down; a control there is reached that way)"}
