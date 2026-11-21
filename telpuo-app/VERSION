@@ -1,1 +1,1 @@
-{"commit": "74b209f", "date": "2026-11-21T15:55:55+02:00", "change": "Route reading: same-floor steps join the floor, controls stay under their circle centre, cleaner straight route lines"}
+{"commit": "e109a16", "date": "2026-11-21T16:13:58+02:00", "change": "3D view: pick the floor yourself (▲/▼), e.g. when looking over the whole route; play or Runner's floor goes back to following"}
