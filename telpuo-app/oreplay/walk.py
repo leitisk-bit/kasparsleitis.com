@@ -343,7 +343,11 @@ def strict_stairs(walk, cls, k, FL, loose=(), controls=()):
         if not len(xs_): out[name] = (fl, x, y); continue
         j = int(np.argmin((xs_ + x0 - x) ** 2 + (ys_ + y0 - y) ** 2))
         own = np.zeros_like(red); own[y0:y0 + cl.shape[0], x0:x0 + cl.shape[1]] = cl == cl[ys_[j], xs_[j]]
-        door = ndi.binary_dilation(own & col, iterations=3) & floor          # meets the floor directly
+        # meets the floor directly, or across the thin light outline drawn round the steps (TELPO:
+        # grey + white, 3 px, Vidējā A stair E), never across black
+        grow = own & col
+        for _ in range(5): grow = ndi.binary_dilation(grow) & ~black
+        door = grow & floor
         dy, dx = np.nonzero(door)
         if len(dx):                                             # onto the biggest floor it meets, not a sliver;
             comp = flab[dy, dx]                                 # but a small stair room with a control in it
@@ -530,6 +534,11 @@ def build(img, features, progress=None):
                                 d_in = abs(pos - along(ein)) + abs(fixed - (ein[2] if kind == 'h' else ein[1]))
                                 d_out = abs(along(eout) - pos) + abs(fixed - (eout[2] if kind == 'h' else eout[1]))
                                 add(f'{fl}_ow{i}_in', nm, d_in, 0); add(nm, f'{fl}_ow{i}_out', d_out, 0)
+                                # an opening level with the last (or first) arrow is past the lane (or
+                                # before it): both ways (TELPO Garā A floor 2: from control 14 into the
+                                # side corridor to stair F, right after the arrows end)
+                                if d_out <= 45: add(f'{fl}_ow{i}_out', nm, d_out, 0)
+                                if d_in <= 45: add(nm, f'{fl}_ow{i}_in', d_in, 0)
                             run = None
         dW = ndi.distance_transform_edt(Wm)                    # a little dearer close to a wall: paths keep to the middle
         cost = np.where(Wm, 1.0 + 0.6 * (dW < 2) + 0.3 * (dW < 4), np.inf)

@@ -266,7 +266,7 @@ def api_new_map():
     f.save(os.path.join(d, 'map.pdf'))
     name = (request.form.get('name') or f.filename.rsplit('.', 1)[0]).strip()[:120]
     store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(), published=False, site=current_site(),
-                   page=int(request.form.get('page') or 0), status='analysing', message='Reading the map…')
+                   page=int(request.form.get('page') or 0), status='analysing', message='Reading the map…', stair_rule='legend')
     _apply_fixed_scale(mid, rebuild=False)
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(id=mid)
@@ -336,7 +336,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, stair_rule=(store.get_meta(mid) or {}).get('stair_rule'))
+    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -384,7 +384,7 @@ def _build_now(mid):
 @app.get('/api/maps/<mid>')
 def api_map(mid):
     m = _seen(mid)
-    return jsonify(meta=m, features=store.get_features(mid), runs=store.list_runs(mid), now=time.time())
+    return jsonify(meta=dict(m, stair_rule=stair_rule_of(m)), features=store.get_features(mid), runs=store.list_runs(mid), now=time.time())
 
 @app.get('/api/maps/<mid>/image')
 def api_map_image(mid):
@@ -427,16 +427,23 @@ def api_options(mid):
     with open(cache, 'w') as f: json.dump(out, f, separators=(',', ':'))
     return jsonify(out)
 
+def stair_rule_of(m):
+    """Strict stairs ('legend') is the default: for every map uploaded from now on and for the TELPO
+    maps; older maps keep what they had (nothing set = standard). 'standard' = switched off."""
+    m = m or {}
+    r = m['stair_rule'] if 'stair_rule' in m else ('legend' if m.get('site') == 'telpo' else None)
+    return 'legend' if r == 'legend' else None
+
 @app.post('/api/maps/<mid>/stair_rule')
 def api_stair_rule(mid):
     """How this map's stair symbols are read: 'legend' (strict: into red only up, into blue only down,
     the black lines round the stairs are walls) or the standard reading. Rebuilds the routes."""
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     if not store.get_meta(mid): abort(404)
-    rule = 'legend' if (request.get_json(silent=True) or {}).get('legend') else None
+    rule = 'legend' if (request.get_json(silent=True) or {}).get('legend') else 'standard'
     store.set_meta(mid, stair_rule=rule)
     store.background(_build, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
-    return jsonify(ok=True, stair_rule=rule)
+    return jsonify(ok=True, stair_rule=stair_rule_of({'stair_rule': rule}))
 
 @app.post('/api/maps/<mid>/rebuild')
 def api_rebuild(mid):
