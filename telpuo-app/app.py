@@ -336,7 +336,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)))
+    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -844,6 +844,14 @@ def api_delete_run(rid):
 # on every floor -> 1:1750-1800, 1:1780 on average (the sheet says nothing true about scale: the plan was enlarged to fit).
 FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
                  'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
+
+# Flights that end on a dead-end landing on certain maps: from the landing you only go back.
+# TELPO 2026 1. posms, Jelgava Palace: stair A from floor 1 ends on a closed landing on floor 2 (its
+# 'dn' half there); 0-1, 2-3 and 3-4 are normal.
+STAIR_DEADENDS = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), [['A', 2, 'dn']])]
+
+def stair_deadends_of(m):
+    return [c for rx, d in STAIR_DEADENDS if rx.search((m or {}).get('name') or '') for c in d]
 
 def fixed_scale(m):
     for rx, sc, why in FIXED_SCALES:

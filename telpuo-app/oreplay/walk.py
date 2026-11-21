@@ -625,6 +625,16 @@ def build(img, features, progress=None):
         if fl_name in N and c in N:
             d = math.hypot(N[c][1] - N[fl_name][1], N[c][2] - N[fl_name][2])
             add(c, fl_name, d, 0); add(fl_name, c, d, 0)
+    # dead-end landings: a flight that ends on a closed landing on that floor (features['stair_deadends']
+    # = [[letter, floor, 'up'|'dn'], …]; TELPO 1. posms: A from floor 1 ends on a landing on floor 2).
+    # From the landing you only go back the way you came; a control on it is reached that way.
+    for L_, fl_, half_ in features.get('stair_deadends') or []:
+        nd = f'{fnum(fl_)}_{L_}_{half_}'
+        if nd not in N: continue
+        on_land = {c_ for c_ in names if c_ in N and N[c_][0] == N[nd][0]
+                   and math.hypot(N[c_][1] - N[nd][1], N[c_][2] - N[nd][2]) <= 80}
+        keep = on_land | {nd}
+        E[:] = [e for e in E if e[3] or not ((e[0] in keep) != (e[1] in keep))]
     info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names}
     return N, E, POLY, info
 
