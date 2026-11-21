@@ -75,6 +75,7 @@ def _version():
 def api_admin():
     out = dict(admin=admin_ok(), required=bool(ADMIN_KEY))
     if out['admin']: out.update(version=_version(), started=STARTED, now=time.time(), check_key=CHECK_KEY)
+    elif check_ok(): out.update(version=_version(), started=STARTED)     # the view-only checker: which code runs
     return jsonify(out)
 
 # ------------------------------------------------------------------ server info (admin only)
