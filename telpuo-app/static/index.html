@@ -98,7 +98,7 @@ body:not(.is-admin) .admin-only{display:none!important}
 .brand-b[aria-selected=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)} .brand-b:hover{border-color:var(--muted)}
 .bpane{font-size:13.5px;line-height:1.5} .bpane ol{margin:4px 0 8px;padding-left:20px} .bpane p{margin:4px 0 8px}
 .bpane .must{color:var(--bad);font-weight:600;border-left:3px solid var(--bad);padding:4px 8px;background:color-mix(in srgb, var(--bad) 7%, transparent)}
-</style><script src="static/i18n.js?v=2" defer></script>
+</style><script src="static/i18n.js?v=3" defer></script>
 </head><body>
 <div class="wrap">
   <header>
@@ -227,7 +227,7 @@ body:not(.is-admin) .admin-only{display:none!important}
             <label class="lbl">Event / place<input class="field" id="iEvent"></label>
             <label class="lbl">Folder<input class="field" id="iFolder" list="folderList" placeholder="by the name, e.g. RK 2026 4. posms"><datalist id="folderList"></datalist></label>
             <label class="lbl admin-only" id="iSiteBox" hidden>Site<select class="field" id="iSite"><option value="main">kasparsleitis.com (Indoor O Replay)</option><option value="telpo">TELPO (telpomarsruts.kasparsleitis.com)</option></select></label>
-            <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label>
+            <label class="lbl">Map scale 1:<input class="field" id="iScale" type="number" min="100" step="50"></label><div class="muted" id="iScaleFixed" hidden></div>
             <div class="muted" id="iFloors"></div>
             <label style="display:flex;gap:6px;align-items:center" class="muted"><input type="checkbox" id="showLegs" checked> Show the fastest route of every leg</label>
             <button class="btn small" id="reread" type="button">Read the map again</button>
@@ -366,7 +366,7 @@ async function openMap(id){
   $('#lib').hidden=true; $('#mapPage').hidden=false; stopPoll();
   const j = await api('maps/'+id); M=j.meta; F=j.features; RUNS=j.runs||[]; CLOCK=(j.now||Date.now()/1000)-Date.now()/1000; dirty=false; $('#saveCard').hidden=true;
   $('#mName').textContent=M.name; $('#mEvent').textContent=M.event||''; $('#pdfLink').href='api/maps/'+id+'/pdf';
-  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iFolder').value=(M.folder!=null?M.folder:''); $('#iSite').value=M.site||'main'; $('#iSiteBox').hidden=!ADMIN; $('#iScale').value=M.scale||1000;
+  $('#iName').value=M.name; $('#iEvent').value=M.event||''; $('#iFolder').value=(M.folder!=null?M.folder:''); $('#iSite').value=M.site||'main'; $('#iSiteBox').hidden=!ADMIN; $('#iScale').value=M.scale||1000; $('#iScale').disabled=!!M.scale_fixed; $('#iScaleFixed').hidden=!M.scale_fixed; $('#iScaleFixed').textContent=M.scale_fixed?('🔒 '+M.scale_fixed):'';
   if (M.status!=='ready' && M.status!=='error') pollT=setTimeout(()=>openMap(id).catch(e=>toast(e.message)), 2000);
   renderStatus(); renderSugg();
   const v = String(M.display_scale ? (M.built||'r') : 'none');

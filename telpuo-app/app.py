@@ -267,6 +267,7 @@ def api_new_map():
     name = (request.form.get('name') or f.filename.rsplit('.', 1)[0]).strip()[:120]
     store.set_meta(mid, id=mid, name=name, event=request.form.get('event', '')[:160], created=time.time(), published=False, site=current_site(),
                    page=int(request.form.get('page') or 0), status='analysing', message='Reading the map…')
+    _apply_fixed_scale(mid, rebuild=False)
     store.background(_analyse, mid, on_error=lambda e: store.set_meta(mid, status='error', message=e))
     return jsonify(id=mid)
 
@@ -522,6 +523,7 @@ def api_save_map(mid):
     if 'name' in body or 'event' in body:
         store.set_meta(mid, name=body.get('name', m['name'])[:120], event=body.get('event', m.get('event', ''))[:160],
                        scale=int(body.get('scale') or m.get('scale') or 1000))
+        _apply_fixed_scale(mid)                # a fixed scale can't be changed (and follows a rename)
     if 'features' in body:
         feat = store.get_features(mid); new = body['features']
         for key in ('controls', 'stair_labels', 'oneways', 'crossings', 'pockets', 'floors'):
@@ -830,6 +832,31 @@ def api_delete_run(rid):
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     store.delete_run(rid); return jsonify(ok=True)
 
+# Maps whose scale is fixed (not the printed one): worked out from the real building, nobody may change it.
+# TELPO 2026 1. posms, Jelgava Palace: about 150 x 120 m outside, drawn 802-811 x 985-989 px at 300 dpi
+# on every floor -> 1:1750-1800 (the sheet says nothing true about scale: the plan was enlarged to fit).
+FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1800,
+                 'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
+
+def fixed_scale(m):
+    for rx, sc, why in FIXED_SCALES:
+        if rx.search((m or {}).get('name') or ''): return sc, why
+    return None
+
+def _apply_fixed_scale(mid, rebuild=True):
+    """Puts the fixed scale on the map (and marks it locked); rebuilds the routes if it changed."""
+    m = store.get_meta(mid) or {}
+    fx = fixed_scale(m)
+    if not fx:
+        if m.get('scale_fixed'): store.set_meta(mid, scale_fixed=None)
+        return
+    sc, why = fx
+    changed = m.get('scale') != sc
+    store.set_meta(mid, scale=sc, scale_fixed=why)
+    if changed and rebuild and m.get('status') == 'ready' and store.get_features(mid):
+        store.set_meta(mid, status='building', message='Rebuilding the route network (map scale fixed)…')
+        store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
+
 def _resume():
     """Jobs cut off by a restart (the server updates itself): start them again."""
     for m in store.list_maps():
@@ -844,6 +871,9 @@ def _resume():
             for r in store.list_runs(mid):
                 if r.get('status') == 'working': _requeue_runs(mid); break
 
+try:
+    for m_ in store.list_maps(): _apply_fixed_scale(m_['id'])
+except Exception: traceback.print_exc()
 try: _resume()
 except Exception: traceback.print_exc()
 
