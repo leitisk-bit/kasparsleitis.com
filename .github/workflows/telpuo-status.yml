@@ -25,7 +25,7 @@ jobs:
               import collections
               for g in r.get('groups', []):
                   st = collections.Counter(x.get('status') for x in g['runners'])
-                  print('  group', g['name'], dict(st), 'no place:', [(x.get('name'), x.get('status'), x.get('total')) for x in g['runners'] if x.get('place') is None][:12])
+                  print('  group', g['name'], dict(st), 'NC:', [(x.get('name'), x.get('total'), 'splits' if x.get('legs') else 'NO splits') for x in g['runners'] if x.get('status') == 'nc'])
           for m in maps:
               d = get(f"/api/maps/{m['id']}")
               me = d['meta']; f = d['features']
