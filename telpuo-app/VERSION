@@ -1,1 +1,1 @@
-{"commit": "e109a16", "date": "2026-11-21T16:13:58+02:00", "change": "3D view: pick the floor yourself (▲/▼), e.g. when looking over the whole route; play or Runner's floor goes back to following"}
+{"commit": "d2c5dd8", "date": "2026-11-21T16:17:33+02:00", "change": "Read TELPO one-way arrows: darker green (0,130,64) and smaller chevrons"}
