@@ -1,1 +1,1 @@
-{"commit": "1fc2c2a", "date": "2026-11-21T18:44:31+02:00", "change": "TELPO 2026 1. posms: stair A from floor 1 ends on a dead-end landing on floor 2 (only back down; a control there is reached that way)"}
+{"commit": "2ec424a", "date": "2026-11-21T19:08:54+02:00", "change": "Rebuild a map's routes by itself at start when its map-specific rules (strict stairs, stair A dead end, fixed scale) changed since it was built"}
