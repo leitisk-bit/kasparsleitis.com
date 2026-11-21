@@ -1,1 +1,1 @@
-{"commit": "5bdf4ec", "date": "2026-11-21T14:48:54+02:00", "change": "TELPO maps: magenta no-crossing tape is a wall, the four-way crossing sign drawn as red strokes is found (straight on only), their orange same-floor steps are walkable; under a purple course line a wall stays a wall (no more routes through walls where the course line crosses one)"}
+{"commit": "4f2cf03", "date": "2026-11-21T14:58:44+02:00", "change": "Status check shows which app version runs on the server (version visible to the view-only checker)"}
