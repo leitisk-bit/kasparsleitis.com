@@ -164,7 +164,7 @@
     'Route': 'Maršruts', 'Route shown': 'Rādītais maršruts', 'Whole race': 'Visas sacensības', 'Current leg': 'Pašreizējais posms',
     'How the route appears': 'Kā maršruts parādās', 'Appears as run': 'Parādās skrējiena gaitā', 'Show all': 'Rādīt visu',
     'Tail:': 'Aste:', 'Common start': 'Kopīgs starts', 'Real clock time': 'Īstais pulksteņa laiks', 'Start timing': 'Laika sākums',
-    'Fade other floors': 'Citus stāvus blāvināt', 'Floor spacing': 'Attālums starp stāviem',
+    'Fade other floors': 'Citus stāvus blāvināt', "Runner's floor": 'Skrējēja stāvs', 'Floor up': 'Stāvu augstāk', 'Floor down': 'Stāvu zemāk', 'Show the floor the runner is on': 'Rādīt stāvu, kurā ir skrējējs', 'Floor spacing': 'Attālums starp stāviem',
     'Analyze': 'Analizēt', 'Analyze a leg': 'Analizēt posmu', 'Leg to analyze': 'Analizējamais posms', 'Analyze routes on the map': 'Analizēt maršrutus kartē',
     'Every sensible route for this leg, timed at the runner\'s pace (or a standard pace when there is no runner). Press play to race them. Red is always the fastest.':
       'Visi saprātīgie šī posma maršruti ar skrējēja tempu (vai standarta tempu, ja skrējēja nav). Spied “Atskaņot”, lai tie sacenstos. Sarkanais vienmēr ir ātrākais.',

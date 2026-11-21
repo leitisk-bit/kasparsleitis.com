@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script src="static/i18n.js?v=1" defer></script>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><script src="static/i18n.js?v=2" defer></script>
 </head><body>
 <title>Indoor O Replay</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
@@ -978,7 +978,10 @@ window.__ior = S;
 .v3d canvas{display:block;width:100%;height:100%;touch-action:none}
 .v3d .hud3{position:absolute;left:10px;top:10px;right:10px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
 .v3d .chip3{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:12.5px;box-shadow:0 2px 10px #0002;color:var(--fg)}
-.v3d .fl3{font:700 15px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase}
+.v3d .fl3{font:700 15px/1 var(--f-display);letter-spacing:.06em;text-transform:uppercase;min-width:74px;text-align:center}
+.v3d .flpick{display:flex;align-items:center;gap:6px;padding:3px 4px}
+.v3d .flpick button{height:28px;min-width:30px;padding:0 8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:5px;font:600 12.5px var(--f-body);cursor:pointer}
+.v3d .flpick button:hover{border-color:var(--fg)}
 .v3d .cams{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:4px}
 .v3d .cams button{height:32px;min-width:44px;padding:0 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 12.5px var(--f-body);cursor:pointer}
 .v3d .cams button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -993,7 +996,7 @@ window.__ior = S;
 const $ = s => document.querySelector(s);
 const stage = $('#stage');
 const box = document.createElement('div'); box.className = 'v3d'; box.hidden = true;
-box.innerHTML = `<div class="hud3"><div class="chip3 fl3" id="fl3">Floor</div></div>
+box.innerHTML = `<div class="hud3"><div class="chip3 flpick"><button id="fl3Dn" title="Floor down" aria-label="Floor down">▼</button><span class="fl3" id="fl3">Floor</span><button id="fl3Up" title="Floor up" aria-label="Floor up">▲</button><button id="fl3Auto" hidden title="Show the floor the runner is on">Runner's floor</button></div></div>
   <div class="cams"><button id="c3Follow" aria-pressed="true" title="Camera follows the runner">Follow</button><button id="c3Side" title="Look from the side">Side</button><button id="c3Top" title="Look from above">Top</button><button id="c3All" title="Whole building">All</button></div>
   <div class="opts"><label><input type="checkbox" id="o3Fade" checked> Fade other floors</label><label>Floor spacing <input type="range" id="o3Gap" min="1" max="6" step="0.1" value="3"></label></div>`;
 stage.appendChild(box);
@@ -1168,6 +1171,13 @@ async function start(){
     return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:(fz - 1)*H0*gapK + 0.5, fz };
   }
   let follow = true; const tgt = new THREE.Vector3();
+  // the floor shown: the runner's, or one picked with the floor buttons (looking over the whole route);
+  // a picked floor stays until "Runner's floor" or play
+  let manualF = null, wasPlaying = false;
+  const pickFloor = step => { const me = ME && ME.cur; const now = manualF !== null ? manualF : (me ? Math.round(me.fz) : floors[0]);
+    const i = floors.indexOf(now), j = Math.max(0, Math.min(floors.length - 1, (i < 0 ? 0 : i) + step));
+    const prevY = yOf(now), nf = floors[j]; manualF = nf;
+    if (!follow){ const dy = yOf(nf) - prevY; controls.target.y += dy; camera.position.y += dy; } };
   const timeOf = r => { const s = S(); if (!s) return 0; const rr = s.runners[r.ri]; return rr && window.IOR_runnerT ? window.IOR_runnerT(rr) : s.tau; };
   function update(){
     const s = S();
@@ -1184,12 +1194,17 @@ async function start(){
       r.full.visible = showAll; r.full.material.opacity = 0.45;
       r.g2.instanceCount = Math.max(0, Math.min(p.i, i1) - i0);
     });
-    const me = ME && ME.cur, curF = me ? Math.round(me.fz) : (floors.includes(1) ? 1 : floors[0]), fade = $('#o3Fade').checked;
+    const me = ME && ME.cur, runF = me ? Math.round(me.fz) : (floors.includes(1) ? 1 : floors[0]), fade = $('#o3Fade').checked;
+    if (manualF !== null && s && s.playing && !wasPlaying) manualF = null;   // pressing play: back to the runner's floor
+    wasPlaying = !!(s && s.playing);
+    const curF = manualF !== null ? manualF : runF;
+    $('#fl3Auto').hidden = manualF === null;
     plates.forEach(m => { const on = !fade || m.userData.floor === curF; m.material.opacity = on ? 1 : 0.22; m.material.alphaTest = on ? 0.4 : 0.05; m.material.depthWrite = on; });
     flabels.forEach(sp => sp.material.opacity = (!fade || sp.userData.floor === curF) ? 1 : 0.35);
     ctrlObjs.forEach(g => g.children.forEach(c => c.material.opacity = (!fade || g.userData.floor === curF) ? 1 : 0.3));
     $('#fl3').textContent = 'Floor ' + curF;
-    if (follow && me){ tgt.set(me.x, me.y, me.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.08); controls.target.add(d); camera.position.add(d); }
+    if (manualF !== null){ if (follow){ tgt.set(me ? me.x : controls.target.x, yOf(manualF) + 0.5, me ? me.z : controls.target.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.12); controls.target.add(d); camera.position.add(d); } }
+    else if (follow && me){ tgt.set(me.x, me.y, me.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.08); controls.target.add(d); camera.position.add(d); }
   }
   function frame(kind){
     const bb = new THREE.Box3(); plates.forEach(m => bb.expandByObject(m));
@@ -1206,6 +1221,9 @@ async function start(){
   $('#c3Side').onclick = () => { setFollow(false); frame('side'); };
   $('#c3All').onclick = () => { setFollow(false); frame('all'); };
   $('#o3Gap').oninput = e => { gapK = +e.target.value; layout(); };
+  $('#fl3Up').onclick = () => pickFloor(1); $('#fl3Dn').onclick = () => pickFloor(-1);
+  $('#fl3Auto').onclick = () => { manualF = null; };
+  box.addEventListener('keydown', e => { if (e.key === 'PageUp'){ e.preventDefault(); pickFloor(1); } if (e.key === 'PageDown'){ e.preventDefault(); pickFloor(-1); } });
   const setBg = () => { scene.background = new THREE.Color(css('--stage') || '#DDE2DA'); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setBg);
   new MutationObserver(setBg).observe(document.documentElement, { attributes:true, attributeFilter:['data-theme'] });
