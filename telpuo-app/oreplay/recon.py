@@ -63,6 +63,109 @@ def parse_track(data, name=''):
         if el: pts.append((ts - t0, float(el.group(1)), int(hr.group(1)) if hr else None))
     return (int(t0 * 1000) if t0 else None), pts
 
+def parse_motion(data, name=''):
+    """[(t_s, distance_m)] from the watch file: the distance the watch counted from your wrist and steps
+    (indoors without GPS that is the accelerometer). Same time base as parse_track. [] if none."""
+    out, t0 = [], None
+    try:
+        if name.lower().endswith('.fit') or data[8:12] == b'.FIT':
+            import fitparse
+            ff = fitparse.FitFile(io.BytesIO(data)); rec = []
+            for m in ff.get_messages('record'):
+                v = {f.name: f.value for f in m}
+                ts = v.get('timestamp')
+                if ts is None: continue
+                ts = ts.replace(tzinfo=datetime.timezone.utc).timestamp()
+                if t0 is None: t0 = ts
+                if v.get('distance') is not None: rec.append((ts, float(v['distance'])))
+            for m in ff.get_messages('session'):
+                v = {f.name: f.value for f in m}
+                if v.get('start_time'): t0 = v['start_time'].replace(tzinfo=datetime.timezone.utc).timestamp()
+            return [(ts - t0, d) for ts, d in rec]
+        txt = data.decode('utf-8', 'replace')
+        meta = re.search(r'<metadata>.*?<time>([^<]+)</time>', txt, re.S) or re.search(r'<Id>([^<]+)</Id>', txt)
+        if meta: t0 = datetime.datetime.fromisoformat(meta.group(1).strip().replace('Z', '+00:00')).timestamp()
+        for b in re.findall(r'<Trackpoint>.*?</Trackpoint>', txt, re.S):
+            tm = re.search(r'<Time>([^<]+)<', b); dm = re.search(r'<DistanceMeters>([^<]+)<', b)
+            if not tm: continue
+            ts = datetime.datetime.fromisoformat(tm.group(1).strip().replace('Z', '+00:00')).timestamp()
+            if t0 is None: t0 = ts
+            if dm: out.append((ts - t0, float(dm.group(1))))
+    except Exception:
+        return []
+    return out
+
+def prepare_altitude(obs, ctrl_floors, cum, all_floors=range(-2, 10)):
+    """Watch altitude made comparable with the floors, from the control punches (where the floor is
+    known):
+      - the watch's delay (it smooths altitude, so a climb shows up a few seconds late), 0-15 s;
+      - the slow drift of air pressure during the race (3-4 m over 40 min is a whole floor), as a smooth
+        curve through the punches, taken off;
+      - each floor's own height (old buildings: floors 2-7 m apart), from the punches on it;
+      - 'level' seconds: where the altitude stays put (on a floor, not on the stairs or a landing passed).
+    Returns None when there are too few punches with a floor (then the old way is used)."""
+    if not obs: return None
+    ts = np.array([o[0] for o in obs], float); es = np.array([o[1] for o in obs], float)
+    pun = [(f, t) for f, t in zip(ctrl_floors, cum) if f is not None and ts[0] - 2 <= t <= ts[-1] + 2]
+    if len(pun) < 4 or len({f for f, _ in pun}) < 2: return None
+    floors = sorted({f for f, _ in pun})
+    T_end = max(ts[-1], cum[-1]) + 1; K = np.linspace(0, T_end, max(2, int(T_end // 300) + 2))   # drift knots ~5 min
+    def hat(t):
+        w = np.zeros(len(K)); j = min(max(np.searchsorted(K, t, side='right') - 1, 0), len(K) - 2)
+        a = (t - K[j]) / (K[j + 1] - K[j]); w[j] = 1 - a; w[j + 1] = a; return w
+    def at(t, lag):
+        m = (ts >= t + lag - 2) & (ts <= t + lag + 2)
+        return float(np.median(es[m])) if m.any() else None
+    def solve(lag):
+        A, b = [], []
+        for f, t in pun:
+            e = at(t, lag)
+            if e is None: continue
+            row = np.zeros(len(floors) + len(K)); row[floors.index(f)] = 1; row[len(floors):] = hat(t); A.append(row); b.append(e)
+        if len(A) < 4: return None
+        nf = len(floors); n_p = len(A)
+        for j in range(1, len(K) - 1):                       # a smooth drift: little bending
+            row = np.zeros(nf + len(K)); row[nf + j - 1], row[nf + j], row[nf + j + 1] = 1.5, -3.0, 1.5; A.append(row); b.append(0)
+        for j in range(len(K)):                               # and small, unless the punches say otherwise
+            row = np.zeros(nf + len(K)); row[nf + j] = 0.15; A.append(row); b.append(0)
+        row = np.zeros(nf + len(K)); row[nf] = 3.0; A.append(row); b.append(0)      # no drift at the watch start
+        A = np.array(A); b = np.array(b)
+        # each floor at least 2 m above the one below (per floor between them), at most 9 m: unknowns as
+        # the lowest floor's height + the rise to each next measured floor, the rises bounded
+        from scipy.optimize import lsq_linear
+        Tm = np.eye(nf + len(K)); lo = np.full(nf + len(K), -np.inf); hi = np.full(nf + len(K), np.inf)
+        for k in range(1, nf):
+            Tm[k, :k + 1] = 1.0; gap = floors[k] - floors[k - 1]; lo[k], hi[k] = 2.0 * gap, 9.0 * gap
+        y = lsq_linear(A @ Tm, b, bounds=(lo, hi)).x; x = Tm @ y
+        r = A[:n_p] @ x - b[:n_p]
+        return float(np.sum(np.minimum(r * r, 9.0))), x
+    best = None
+    for lag in range(0, 16):
+        sv = solve(lag)
+        if sv and (best is None or sv[0] < best[0] - 0.05): best = (sv[0], sv[1], lag)
+    if not best: return None
+    _, x, lag = best
+    nf = len(floors); lv = dict(zip(floors, map(float, x[:nf]))); D = x[nf:]
+    # floors without a punch: from the nearest measured floors (spacing as measured, else 4 m)
+    steps = [(lv[b_] - lv[a_]) / (b_ - a_) for a_, b_ in zip(floors, floors[1:])]
+    st = float(np.median(steps)) if steps else 4.0
+    if not 1.5 <= st <= 9: st = 4.0
+    levels = {}
+    for f in all_floors:
+        if f in lv: levels[f] = lv[f]
+        else:
+            g = min(floors, key=lambda q: abs(q - f)); levels[f] = lv[g] + st * (f - g)
+    # corrected altitude: shifted back by the delay, drift taken off, lightly de-noised
+    drift = np.array([hat(t) @ D for t in ts])
+    ec = np.interp(ts + lag, ts, es) - drift
+    from scipy.ndimage import median_filter, maximum_filter, minimum_filter
+    ec = median_filter(ec, 5, mode='nearest')
+    rng = maximum_filter(ec, 9, mode='nearest') - minimum_filter(ec, 9, mode='nearest')
+    level = rng <= 1.0                                                   # staying at one height for ~9 s
+    new_obs = [(float(t), float(e), o[2]) for t, e, o in zip(ts, ec, obs)]
+    return {'obs': new_obs, 'level': {int(round(t)): bool(l) for t, l in zip(ts, level)}, 'levels': levels,
+            'lag': lag, 'drift_max': round(float(np.max(np.abs(drift))), 1), 'base': levels.get(1, lv[floors[0]]), 'step': st}
+
 def track_summary(obs, t0_ms):
     """Watch recording length and local start, for matching a file to a result."""
     if not obs: return None
@@ -128,9 +231,25 @@ def fit_floors(obs, ctrl_floors, cum, all_floors=range(1, 10)):
     return {'base': float(a), 'step': float(st), 'levels': levels}
 
 class Recon:
-    def __init__(self, N, E, POLY, names, px_s=None):
+    def __init__(self, N, E, POLY, names, px_s=None, steps=None):
         from .walk import graph
         self.N, self.POLY, self.names = N, POLY, names
+        self._hn = None; self._part_h = {}
+        # parts of each floor: what is connected without stairs or same-floor steps (the map marks every
+        # change of height inside a floor with those steps: half floors, a drop to street level)
+        self.parts = None
+        if steps is not None:
+            par = {n: n for n in N}
+            def find(x):
+                while par[x] != x: par[x] = par[par[x]]; x = par[x]
+                return x
+            st = {(a, b) for a, b in steps} | {(b, a) for a, b in steps}
+            for e in E:
+                a, b = e[0], e[1]
+                if e[3] or N[a][0] != N[b][0] or (a, b) in st: continue
+                par[find(a)] = find(b)
+            roots = {}
+            self.parts = {n: roots.setdefault(find(n), len(roots)) for n in N}
         self.Gu = graph(N, E, 1.0, 0.0001)       # unit graph for distances
         self.E = E; self._graph = graph
         self.px_s = px_s
@@ -238,26 +357,37 @@ class Recon:
             add(p1 + p2[1:])
         return out
 
+    def h(self, n, ele_of):
+        """Expected watch altitude at a place: its part of the floor if known, else the floor's."""
+        if self._hn is not None:
+            v = self._hn(n)
+            if v is not None: return v
+        return ele_of(self.N[n][0])
+
     def samples(self, p, ele_of):
         ele_of = ele_of or (lambda f: 0.0)       # no watch altitude: time alone decides
         ele, where = [], []
         for i, (u, v) in enumerate(zip(p, p[1:])):
             dt = self.G[u][v]['t']; n = max(1, int(round(dt)))
-            eu = ele_of(self.N[u][0]); ev = ele_of(self.N[v][0])
+            eu = self.h(u, ele_of); ev = self.h(v, ele_of)
             for k in range(n): ele.append(eu + (ev - eu) * k / n); where.append((i, k / n))
-        ele.append(ele_of(self.N[p[-1]][0])); where.append((len(p) - 2, 1.0))
+        ele.append(self.h(p[-1], ele_of)); where.append((len(p) - 2, 1.0))
         return np.array(ele), where
 
     def align(self, p, t0, T, obs, ele_of):
         ele, where = self.samples(p, ele_of); M = len(ele) - 1
         if M > T * 1.65: return None
         ob = {int(round(t - t0)): e for t, e, h in obs if t0 <= t <= t0 + T} if ele_of else {}
+        # seconds where the altitude stays put count fully; while it is changing (on the stairs, passing a
+        # landing or half floor) only a little: they show a change of level, not where it ended
+        lvl = getattr(self, '_level', None)
+        wt = {s_: (1.0 if lvl is None or lvl.get(s_ + int(t0), True) else 0.2) for s_ in ob}
         INF = 1e18; cost = np.full(M + 1, INF); cost[0] = 0
         back = np.zeros((T + 1, M + 1), dtype=np.int8)
         for s in range(1, T + 1):
             stack = np.vstack([cost, np.concatenate(([INF], cost[:-1])), np.concatenate(([INF, INF], cost[:-2])) + FAST_PEN])
             arg = stack.argmin(0); new = stack.min(0)
-            if s in ob: r = ele - ob[s]; new = new + np.minimum(r * r, 9.0)
+            if s in ob: r = ele - ob[s]; new = new + wt[s] * np.minimum(r * r, 9.0)
             back[s] = arg; cost = new
         if cost[M] >= INF / 2: return None
         pos = np.zeros(T + 1, dtype=int); j = M
@@ -266,6 +396,109 @@ class Recon:
         for a_, b_ in zip(anchors, anchors[1:]):
             if b_ - a_ > 1: pos[a_:b_ + 1] = np.round(np.linspace(pos[a_], pos[b_], b_ - a_ + 1)).astype(int)
         return dict(cost=float(cost[M]), M=M, pos=pos, where=where, nobs=len(ob))
+
+    def retime(self, p, al, t0, T, obs, ele_of, motion):
+        """When the runner was where along the chosen route, more like real running than the altitude fit:
+        each staircase centred where the altitude crosses halfway between the two floors and lasting as long
+        as climbing (or going down) that height takes; the stretches between them covered in step with the
+        distance the watch counted (stops, slow and fast bits where they really were), else evenly."""
+        pos0, where = al['pos'], al['where']; M = len(where) - 1
+        n_e = len(p) - 1
+        idx0 = [None] * n_e
+        for k, (i, f) in enumerate(where):
+            if idx0[i] is None: idx0[i] = k
+        for i in range(n_e - 1, -1, -1):
+            if idx0[i] is None: idx0[i] = idx0[i + 1] if i + 1 < n_e else M
+        idx1 = [idx0[i + 1] if i + 1 < n_e else M for i in range(n_e)]
+        es = {int(round(t - t0)): e for t, e, h in obs if t0 - 30 <= t <= t0 + T + 30} if obs else {}
+        stairs = []
+        for i, (u, v) in enumerate(zip(p, p[1:])):
+            if not self.G[u][v]['fl'] or idx1[i] <= idx0[i]: continue
+            s_in = int(np.searchsorted(pos0, idx0[i])); s_out = int(np.searchsorted(pos0, idx1[i]))
+            tc = tc_fit = (s_in + s_out) / 2
+            fu, fv = self.N[u][0], self.N[v][0]
+            lu = self.h(u, ele_of) if ele_of else None; lv_ = self.h(v, ele_of) if ele_of else None
+            if es and lu is not None and lv_ is not None:
+                mid = (lu + lv_) / 2; sg = 1 if lv_ > lu else -1; cross = []
+                for s_ in range(max(-5, s_in - 15), min(T + 5, s_out + 15)):
+                    a_, b_ = es.get(s_), es.get(s_ + 1)
+                    if a_ is not None and b_ is not None and (a_ - mid) * sg <= 0 < (b_ - mid) * sg: cross.append(s_ + 0.5)
+                if cross: tc = min(cross, key=lambda c: abs(c - tc))
+                dh = abs(lv_ - lu); D = dh / (0.55 if lv_ > lu else 0.8)
+            else:
+                D = FL_S * abs(fv - fu)
+            D = min(25.0, max(4.0, D))
+            stairs.append([tc, tc_fit, D, float(idx0[i]), float(idx1[i])])
+        def build(use):
+            an = [(0.0, 0.0)]
+            for (tc, tcf, D, k0, k1), u_ in zip(stairs, use):
+                c = tc if u_ else tcf
+                ta = max(an[-1][0], c - D / 2); an.append((ta, k0)); an.append((ta + D, k1))
+            an.append((float(T), float(M))); return an
+        def too_fast(an, k):            # the corridor before stair k (and the last one) faster than 1.8x pace
+            (ta, ka), (tb, kb) = an[2 * k], an[2 * k + 1]
+            return (kb - ka) > 1.8 * max(tb - ta, 0.5) + 2
+        use = [True] * len(stairs)
+        anchors = build(use)
+        for k in range(len(stairs)):    # a staircase that would squeeze the corridor around it: as fitted
+            if too_fast(anchors, k) or too_fast(anchors, k + 1): use[k] = False; anchors = build(use)
+        if any(b[0] < a[0] or b[1] < a[1] for a, b in zip(anchors, anchors[1:])) or anchors[-2][0] > T:
+            return al                                     # did not fit: keep the altitude fit
+        dist = None
+        if motion:
+            mt = np.array([m[0] for m in motion], float); md = np.array([m[1] for m in motion], float)
+            if len(mt) > 10 and mt[0] <= t0 + 1 and mt[-1] >= t0 + T - 1: dist = lambda s_: float(np.interp(t0 + s_, mt, md))
+        pos = np.zeros(T + 1)
+        for k in range(len(anchors) - 1):
+            (ta, ka), (tb, kb) = anchors[k], anchors[k + 1]
+            s_a, s_b = int(math.ceil(ta)), int(math.floor(tb))
+            stair = k % 2 == 1                            # anchors pair up: stair start → stair end
+            da = dist(ta) if dist and not stair else None; db = dist(tb) if dist and not stair else None
+            for s_ in range(max(0, s_a), min(T, s_b) + 1):
+                ft = (s_ - ta) / (tb - ta) if tb > ta else 1.0
+                if da is not None and db - da > 1.0:
+                    fd = (dist(s_) - da) / (db - da); f = 0.85 * fd + 0.15 * ft      # watch distance, a little time
+                else: f = ft
+                pos[s_] = ka + (kb - ka) * min(1.0, max(0.0, f))
+        pos = np.maximum.accumulate(pos); pos[T] = M
+        return dict(al, pos=pos)
+
+    def heights_from_punches(self, obs, cum):
+        """Part heights where a control is: the watch altitude at its punches."""
+        ts = np.array([o[0] for o in obs]); es = np.array([o[1] for o in obs]); got = {}
+        for n, t in zip(self.names, cum):
+            m = (ts >= t - 2) & (ts <= t + 2)
+            if m.any() and n in self.parts: got.setdefault(self.parts[n], []).append(float(np.median(es[m])))
+        self._part_h = {k: float(np.mean(v)) for k, v in got.items()}
+        self._part_w = {k: 30.0 * len(v) for k, v in got.items()}      # a punch counts like 30 s level there
+        return lambda n: self._part_h.get(self.parts.get(n))
+
+    def heights_learned(self, picked, obs, cum, ele_of):
+        """Part heights from the level seconds on the routes found: each part's height pulled from its
+        floor's towards what the watch showed while the runner stayed in it."""
+        acc = {}
+        for p, al, t0, T in picked:
+            pos, where = al['pos'], al['where']
+            ob = {int(round(t - t0)): e for t, e, h in obs if t0 <= t <= t0 + T}
+            for s_, e in ob.items():
+                if not self._level.get(s_ + int(t0), False) or s_ >= len(pos): continue
+                i, f = where[min(int(pos[s_]), len(where) - 1)]
+                u, v = p[i], p[i + 1]
+                if self.N[u][0] != self.N[v][0]: continue          # on the stairs
+                n = u if f < 0.5 else v
+                acc.setdefault(self.parts[n], []).append((e, self.N[n][0]))
+        H = {}
+        for k, vals in acc.items():
+            fl = vals[0][1]; prior = ele_of(fl)
+            w0, h0 = (self._part_w[k], self._part_h[k]) if k in self._part_h else (20.0, prior)
+            e = np.array([v[0] for v in vals])
+            # only readings within 4 m of the part's height so far (a wrong guess of the route elsewhere must
+            # not drag it away)
+            e = e[np.abs(e - h0) <= 4.0]
+            H[k] = float((w0 * h0 + e.sum()) / (w0 + len(e)))
+        for k, v in self._part_h.items(): H.setdefault(k, v)
+        self._part_h = H
+        return lambda n: self._part_h.get(self.parts.get(n))
 
     def describe(self, p):
         segs = []
@@ -305,67 +538,87 @@ class Recon:
                 pts.append((round(t0 + s + q, 2), round(x, 1), round(y, 1), fl))
         return pts
 
-    def run(self, legs, obs=None, ctrl_floors=None, progress=None, levels=None, leader=None):
+    def run(self, legs, obs=None, ctrl_floors=None, progress=None, levels=None, leader=None, motion=None):
         cum = [0]
         for l in legs: cum.append(cum[-1] + l)
-        obs = obs or []
-        fit = fit_floors(obs, ctrl_floors or [], cum) if obs else None
+        obs = obs or []; self._level = None
+        prep = prepare_altitude(obs, ctrl_floors or [], cum) if obs else None
+        if prep:
+            obs = prep['obs']; self._level = prep['level']
+            fit = {'base': prep['base'], 'step': prep['step'], 'levels': prep['levels'], 'lag': prep['lag'], 'drift_max': prep['drift_max']}
+        else:
+            fit = fit_floors(obs, ctrl_floors or [], cum) if obs else None
         if fit and levels: fit['levels'].update({(lambda v: int(v) if v == int(v) else v)(float(f)): float(e) for f, e in levels.items()})   # runner-confirmed floor heights
         ele_of = (lambda f: fit['levels'].get(f, fit['base'] + fit['step'] * (f - 1))) if fit else None
         self.calibrate(legs)
-        out = []
-        for li, T in enumerate(legs):
-            T = int(round(T)); a, b = self.names[li], self.names[li + 1]; t0 = cum[li]
-            if progress: progress(f'leg {li + 1} of {len(legs)}')
-            cands = self.candidates(a, b, T)
-            if not cands:
-                out.append({'leg': li + 1, 'T': T, 'error': 'no route found between these controls'}); continue
-            if ele_of and obs:
-                fp = self.floor_path(a, b, t0, T, obs, ele_of)
-                if fp and fp not in cands: cands.append(fp)
-            fls = [sum(self.G[u][v]['fl'] for u, v in zip(p, p[1:])) for p in cands]; minfl = min(fls)
-            # a leg far slower than its fastest way: the runner was lost. They most likely first set off
-            # the way that looked right on the map and turned back when they hit a closed stairwell,
-            # rather than wandering off somewhere unrelated. Prefer routes that start out that way.
-            intent = None
-            fast_t = min(self.ptime(p) for p in cands)
-            if T > 1.4 * fast_t:
-                pn = self.intended(a, b)
-                if pn:
-                    from scipy.spatial import cKDTree
-                    tn = self.trace(pn); trees = {}
-                    for fl in {q[2] for q in tn}: trees[fl] = cKDTree([(q[0], q[1]) for q in tn if q[2] == fl])
-                    def intent(p):
-                        tp = self.trace(p); tp = tp[:max(1, len(tp) // 2)]       # how the leg was begun
-                        hit = sum(1 for x, y, fl in tp if fl in trees and trees[fl].query((x, y))[0] < 45)
-                        return hit / max(1, len(tp))
-            rows = []
-            for p, nfl in zip(cands, fls):
-                al = self.align(p, t0, T, obs, ele_of) if ele_of else self.align(p, t0, T, [], None)
-                if not al: continue
-                prior = PRIOR_FL * (nfl - minfl) + PRIOR_REP * (len(p) - len(set(p)))
-                if intent: prior += PRIOR_INTENT * (1 - intent(p))
-                rows.append([al['cost'], prior, al['M'], p, al])
-            if not rows:
-                out.append({'leg': li + 1, 'T': T, 'error': 'every route is much longer than the split'}); continue
-            minM = min(r[2] for r in rows)
-            for r in rows: r.insert(0, r[0] + r[1] + 0.3 * (r[2] - minM) / 60)
-            rows.sort(key=lambda r: r[0])
-            groups = {}
-            for r in rows: groups.setdefault(self.describe(r[4]), r)
-            g = sorted(groups.values(), key=lambda r: r[0])
-            z = sum(math.exp(-(r[0] - g[0][0]) / 2) for r in g)
-            fastest = min(rows, key=lambda r: r[3])
-            best = g[0]
-            M = fastest[3]
-            # the ghost: the split leader of this leg (best split in the results) on the fastest route;
-            # without results, the fastest route at this runner's best pace. It waits at the control.
-            lead_t = leader[li] if leader and li < len(leader) and leader[li] else None
-            L_ = max(1, min(T, int(round(lead_t)))) if lead_t else max(1, min(T - 1, int(round(M))))
-            ghost_al = {'pos': np.array([min(M, int(round(s * M / L_))) for s in range(T + 1)]), 'where': self.samples(fastest[4], lambda f: 0)[1]}
-            out.append({'leg': li + 1, 'T': T, 'route': self.describe(best[4]), 'path': best[4],
-                        'fit': round(best[1], 1), 'nobs': best[5]['nobs'],
-                        'fastest': self.describe(fastest[4]), 'fastestT': int(L_), 'leader': bool(lead_t),
-                        'alts': [{'route': self.describe(r[4]), 'p': round(math.exp(-(r[0] - g[0][0]) / 2) / z, 2)} for r in g[:4]],
-                        'pts': self.dump(best[4], best[5], t0), 'ghost': self.dump(fastest[4], ghost_al, t0)})
+        cache = {}
+        def match():
+            picked = []
+            out = []
+            for li, T in enumerate(legs):
+                T = int(round(T)); a, b = self.names[li], self.names[li + 1]; t0 = cum[li]
+                if progress: progress(f'leg {li + 1} of {len(legs)}')
+                cands = cache.get(li)
+                if cands is None: cands = cache[li] = self.candidates(a, b, T)
+                cands = list(cands)
+                if not cands:
+                    out.append({'leg': li + 1, 'T': T, 'error': 'no route found between these controls'}); continue
+                if ele_of and obs:
+                    fp = self.floor_path(a, b, t0, T, obs, ele_of)
+                    if fp and fp not in cands: cands.append(fp)
+                fls = [sum(self.G[u][v]['fl'] for u, v in zip(p, p[1:])) for p in cands]; minfl = min(fls)
+                # a leg far slower than its fastest way: the runner was lost. They most likely first set off
+                # the way that looked right on the map and turned back when they hit a closed stairwell,
+                # rather than wandering off somewhere unrelated. Prefer routes that start out that way.
+                intent = None
+                fast_t = min(self.ptime(p) for p in cands)
+                if T > 1.4 * fast_t:
+                    pn = self.intended(a, b)
+                    if pn:
+                        from scipy.spatial import cKDTree
+                        tn = self.trace(pn); trees = {}
+                        for fl in {q[2] for q in tn}: trees[fl] = cKDTree([(q[0], q[1]) for q in tn if q[2] == fl])
+                        def intent(p):
+                            tp = self.trace(p); tp = tp[:max(1, len(tp) // 2)]       # how the leg was begun
+                            hit = sum(1 for x, y, fl in tp if fl in trees and trees[fl].query((x, y))[0] < 45)
+                            return hit / max(1, len(tp))
+                rows = []
+                for p, nfl in zip(cands, fls):
+                    al = self.align(p, t0, T, obs, ele_of) if ele_of else self.align(p, t0, T, [], None)
+                    if not al: continue
+                    prior = PRIOR_FL * (nfl - minfl) + PRIOR_REP * (len(p) - len(set(p)))
+                    if intent: prior += PRIOR_INTENT * (1 - intent(p))
+                    rows.append([al['cost'], prior, al['M'], p, al])
+                if not rows:
+                    out.append({'leg': li + 1, 'T': T, 'error': 'every route is much longer than the split'}); continue
+                minM = min(r[2] for r in rows)
+                for r in rows: r.insert(0, r[0] + r[1] + 0.3 * (r[2] - minM) / 60)
+                rows.sort(key=lambda r: r[0])
+                groups = {}
+                for r in rows: groups.setdefault(self.describe(r[4]), r)
+                g = sorted(groups.values(), key=lambda r: r[0])
+                z = sum(math.exp(-(r[0] - g[0][0]) / 2) for r in g)
+                fastest = min(rows, key=lambda r: r[3])
+                best = g[0]; picked.append((best[4], best[5], t0, T))
+                M = fastest[3]
+                # the ghost: the split leader of this leg (best split in the results) on the fastest route;
+                # without results, the fastest route at this runner's best pace. It waits at the control.
+                lead_t = leader[li] if leader and li < len(leader) and leader[li] else None
+                L_ = max(1, min(T, int(round(lead_t)))) if lead_t else max(1, min(T - 1, int(round(M))))
+                ghost_al = {'pos': np.array([min(M, int(round(s * M / L_))) for s in range(T + 1)]), 'where': self.samples(fastest[4], lambda f: 0)[1]}
+                out.append({'leg': li + 1, 'T': T, 'route': self.describe(best[4]), 'path': best[4],
+                            'fit': round(best[1], 1), 'nobs': best[5]['nobs'],
+                            'fastest': self.describe(fastest[4]), 'fastestT': int(L_), 'leader': bool(lead_t),
+                            'alts': [{'route': self.describe(r[4]), 'p': round(math.exp(-(r[0] - g[0][0]) / 2) / z, 2)} for r in g[:4]],
+                            'pts': self.dump(best[4], self.retime(best[4], best[5], t0, T, obs, ele_of, motion), t0),
+                            'ghost': self.dump(fastest[4], ghost_al, t0)})
+            return out, picked
+        self._hn = self.heights_from_punches(obs, cum) if (fit and obs and self.parts) else None
+        out, picked = match()
+        if self._hn is not None and self._level:
+            # the parts of each floor (between same-floor steps) learn their height from where the runner
+            # stayed level in them on the routes just found; then the routes once more
+            self._hn = self.heights_learned(picked, obs, cum, ele_of)
+            out, picked = match()
+        if self._hn is not None: fit['parts'] = {str(k): round(v, 1) for k, v in self._part_h.items()}
         return {'legs': out, 'floors_fit': fit, 'px_s': self.px_s, 'cum': cum}

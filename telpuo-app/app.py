@@ -7,7 +7,7 @@ import os, time, json, math, re, traceback, threading, hmac, hashlib
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
 from oreplay import store, analyze, walk, results, three, serverinfo
-from oreplay.recon import Recon, parse_splits, parse_track, track_summary, find_offset
+from oreplay.recon import Recon, parse_splits, parse_track, parse_motion, track_summary, find_offset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__, static_folder=os.path.join(HERE, 'static'), static_url_path='/static')
@@ -792,11 +792,17 @@ def _reconstruct(rid, mid, legs, obs):
 def _reconstruct_now(rid, mid, legs, obs):
     N, E, POLY, info = store.load_graph(mid)
     feat = store.get_features(mid); run = store.get_run(rid)
-    R = Recon(N, E, POLY, info['controls'])
+    R = Recon(N, E, POLY, info['controls'], steps=info.get('steps'))      # floor parts: needs the map rebuilt once
+    motion = None                        # the distance the watch counted: moves the replay dot like the runner moved
+    if run.get('track_file'):
+        try:
+            data = store.load_track(run['track_file'])
+            if data: motion = [(t - (run.get('offset') or 0), d) for t, d in parse_motion(data, run['track_file'])] or None
+        except Exception: motion = None
     run['message'] = 'Working out the route…'; store.set_run(rid, run)
     def prog(s): run['message'] = 'Working out the route: ' + s; store.set_run(rid, run)
     # the AI runner: the fastest route on every leg, at this runner's own best pace (its own split times)
-    res = R.run([int(round(x)) for x in legs], obs, [c.get('floor') for c in feat['controls']], progress=prog)
+    res = R.run([int(round(x)) for x in legs], obs, [c.get('floor') for c in feat['controls']], progress=prog, motion=motion)
     k = feat.get('display_scale', 1)
     codes = [{'start': 'Start', 'finish': 'Finish'}.get(c['kind']) or (f"{c['n']}-{c['code']}" if c.get('code') else str(c['n'])) for c in feat['controls']]
     def conv(pts):

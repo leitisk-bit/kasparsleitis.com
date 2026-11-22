@@ -639,7 +639,23 @@ def build(img, features, progress=None):
                    and math.hypot(N[c_][1] - N[nd][1], N[c_][2] - N[nd][2]) <= 80}
         keep = on_land | {nd}
         E[:] = [e for e in E if e[3] or not ((e[0] in keep) != (e[1] in keep))]
-    info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names}
+    # passages over the orange same-floor steps: a change of height within the floor (1-2 m; half floors).
+    # They split each floor into parts that may lie at different heights (used by the watch-altitude fit).
+    same = ndi.binary_dilation(cls == k['same'], iterations=3)
+    steps = []
+    for e in E:
+        u, v = e[0], e[1]
+        if e[3] or N[u][0] != N[v][0]: continue
+        poly = POLY.get((u, v)) or [N[u][1:], N[v][1:]]
+        hit = False
+        for (x0_, y0_), (x1_, y1_) in zip(poly, poly[1:]):
+            n_ = max(1, int(math.hypot(x1_ - x0_, y1_ - y0_) / 2))
+            for q in range(n_ + 1):
+                xq = int(round(x0_ + (x1_ - x0_) * q / n_)); yq = int(round(y0_ + (y1_ - y0_) * q / n_))
+                if 0 <= yq < same.shape[0] and 0 <= xq < same.shape[1] and same[yq, xq]: hit = True; break
+            if hit: break
+        if hit: steps.append([u, v])
+    info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names, 'steps': steps}
     return N, E, POLY, info
 
 def graph(N, E, px_s, floor_s):
