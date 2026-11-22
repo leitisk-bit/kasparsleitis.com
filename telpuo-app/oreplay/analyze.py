@@ -178,18 +178,19 @@ def text_spans(p, want):
     dash as \x11, capitals from '$'): every shift is tried and the one that matches is kept."""
     out = []
     rx = re.compile(want)
-    spans = [sp for b_ in p.get_text('dict')['blocks'] for l_ in b_.get('lines', []) for sp in l_['spans'] if sp['text'].strip()]
+    spans = [sp for b_ in p.get_text('dict')['blocks'] for l_ in b_.get('lines', []) for sp in l_['spans'] if sp['text'].strip(' \t\r\n')]
     # each font's shift, from its numbers ("0.", "1-55"): a single letter alone fits many shifts
     shift = {}
     num = re.compile(r'-?\d{1,2}\.|\d{1,2}-\d{2,3}')
     for sp in spans:
-        t = sp['text'].strip()
+        t = sp['text'].strip(' \t\r\n')
         if sp['font'] in shift or len(t) < 2 or not all(ord(c) < 0x30 for c in t): continue
         for sh in range(1, 64):
             if num.fullmatch(''.join(chr(ord(c) + sh) for c in t)): shift[sp['font']] = sh; break
     for sp in spans:
-                t = sp['text'].strip()
-                dec = t if rx.fullmatch(t) else None
+                t = sp['text'].strip(' \t\r\n')
+                # a font whose numbering is known is always read through it (raw 'D' there is 'a': TELPO 2. posms)
+                dec = t if rx.fullmatch(t) and sp['font'] not in shift else None
                 if dec is None and all(ord(c) < 0x60 for c in t):
                     shs = [shift[sp['font']]] if sp['font'] in shift else range(1, 64)
                     for sh in shs:
@@ -327,6 +328,30 @@ def analyze(pdf_path, page=0):
         f['controls'].append({'kind': {'S': 'start', 'C': 'control', 'F': 'finish'}[kind], 'n': k, 'x': round(x), 'y': round(y), 'r': round(r)})
     if len(order) < len(nodes):
         f['notes'].append(f'{len(nodes) - len(order)} course symbol(s) could not be put in order; check the control list.')
+    # the number printed beside each circle ("1-31", "2-51", …) says its place in the course for sure; when
+    # every control has one of its own, it decides the order (lines between floor drawings that cross
+    # each other mislead the order from the lines: TELPO 2. posms)
+    try:
+        labs = {}
+        for t, rgb, size, bb in text_spans(p, r'\d{1,2}-\d{2,3}'):
+            if rgb == (255, 255, 255): continue                  # the white halo under the purple text
+            n_, code_ = t.split('-'); labs.setdefault(int(n_), ((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, code_))
+        cs = [c for c in f['controls'] if c['kind'] == 'control']
+        if cs and len(labs) >= len(cs):
+            pick = {}
+            for c in cs:
+                best = min(labs.items(), key=lambda kv: math.hypot(kv[1][0] - c['x'], kv[1][1] - c['y']))
+                if math.hypot(best[1][0] - c['x'], best[1][1] - c['y']) < 400: pick[id(c)] = best[0]
+            nums = list(pick.values())
+            if len(pick) == len(cs) and len(set(nums)) == len(nums) and sorted(nums) == list(range(1, len(cs) + 1)):
+                st = [c for c in f['controls'] if c['kind'] == 'start']; fi = [c for c in f['controls'] if c['kind'] == 'finish']
+                new = st + sorted(cs, key=lambda c: pick[id(c)]) + fi
+                if [id(c) for c in new] != [id(c) for c in f['controls']]:
+                    f['notes'].append('Control order taken from the numbers printed beside the circles.')
+                for k_, c in enumerate(new): c['n'] = k_
+                f['controls'] = new
+    except Exception:
+        pass
 
     # ---- floor numbers (big blue digits) and blue floor separators
     digits, seps, cand, sep_polys = [], [], [], []
@@ -348,10 +373,11 @@ def analyze(pdf_path, page=0):
                 elif it[0] == 're': q = it[1]; poly += [(q.x0 * S, q.y0 * S), (q.x1 * S, q.y0 * S), (q.x1 * S, q.y1 * S), (q.x0 * S, q.y1 * S)]
             if len(poly) >= 3: sep_polys.append([[round(x_, 1), round(y_, 1)] for x_, y_ in poly])
     # floor numbers written as text ("0.", "1.", … in a big blue font: TELPO maps)
-    if not cand:
-        for t, rgb, size, bb in text_spans(p, r'-?\d{1,2}\.?'):
-            if _is_blue(rgb) and size >= 30:
-                cand.append(((int(t.rstrip('.')), 1.0), fitz.Rect(bb[0] / S, bb[1] / S, bb[2] / S, bb[3] / S)))
+    # When the map writes them as text, those are the floor numbers for sure (blue shapes read as figures
+    # may be stair bars or arrows: TELPO 2. posms, where they are 27.7 pt Arial in their own numbering)
+    txt = [((int(t.rstrip('.')), 1.0), fitz.Rect(bb[0] / S, bb[1] / S, bb[2] / S, bb[3] / S))
+           for t, rgb, size, bb in text_spans(p, r'-?\d{1,2}\.?') if _is_blue(rgb) and size >= 20]
+    if len(txt) >= 2 or (txt and not cand): cand = txt
     # floor numbers are the big blue figures, all printed at one size: drop smaller or larger blue shapes
     if cand:
         hs = sorted(r.height for _, r in cand); med = hs[len(hs) // 2]
@@ -378,29 +404,38 @@ def analyze(pdf_path, page=0):
     # buildings: walls + rooms + open floor (not white, not overprint, not floor lines)
     q = 4
     sm = img[::q, ::q].astype(int)
-    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30) | (abs(sm - [202, 202, 202]).sum(-1) < 24) | (abs(sm - [191, 191, 191]).sum(-1) < 12))
+    mapc = ((abs(sm - [255, 235, 194]).sum(-1) < 40) | (sm.sum(-1) < 120) | (abs(sm - [178, 178, 178]).sum(-1) < 30) | (abs(sm - [202, 202, 202]).sum(-1) < 24) | (abs(sm - [191, 191, 191]).sum(-1) < 12)
+            | (abs(sm - [252, 211, 128]).sum(-1) < 30)       # outdoor area that may be used (TELPO 2. posms: the field, the stands)
+            | (abs(sm - [219, 135, 70]).sum(-1) < 24))       # stand seating rows (and same-floor steps)
     mapc = ndi.binary_closing(mapc, iterations=1)
     lab, n = ndi.label(mapc)
     floors = collections.defaultdict(list)
     for i, sl in enumerate(ndi.find_objects(lab), start=1):
         if sl is None: continue
         hh, ww = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
-        if hh < 20 or ww < 20: continue
         box = [sl[1].start * q, sl[0].start * q, sl[1].stop * q, sl[0].stop * q]
+        if (hh < 20 or ww < 20) and not (min(hh, ww) >= 8 and any(box[0] <= c_['x'] <= box[2] and box[1] <= c_['y'] <= box[3] for c_ in f['controls'])): continue
         cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
         if in_ignore(cx, cy): continue
         crop = img[box[1]:box[3], box[0]:box[2]].astype(int)
         cream_n = ((abs(crop - [255, 235, 194]).sum(-1) < 40) | (abs(crop - [255, 214, 135]).sum(-1) < 40)).sum()   # floor or stair landing
         stair_n = ((crop[..., 0] > 200) & (crop[..., 1] < 80) & (crop[..., 2] < 80)).sum() + ((crop[..., 2] > 200) & (crop[..., 0] < 120) & (crop[..., 1] > 130)).sum()
-        if cream_n < 800 and not (cream_n >= 100 and stair_n >= 150): continue   # small top floors: only a stairwell
-        if (crop.sum(-1) < 120).sum() < 2000: continue          # needs walls
+        # a small piece with a control in it is a floor too (TELPO 2. posms floor -2: drawn as an outline,
+        # only the corridor by the stairs filled in)
+        has_c = any(box[0] <= c_['x'] <= box[2] and box[1] <= c_['y'] <= box[3] for c_ in f['controls'])
+        small_ok = has_c and cream_n >= 200 and (crop.sum(-1) < 120).sum() >= 150
+        if cream_n < 800 and not (cream_n >= 100 and stair_n >= 150) and not small_ok: continue   # small top floors: only a stairwell
+        if (crop.sum(-1) < 120).sum() < 2000 and not small_ok: continue          # needs walls
         fl = floor_of_point(cx, cy)
         if fl is not None: floors[fl].append(box)
     # a piece far from its floor's number is not that floor (a sponsor logo beside the map: TELPO 1. posms)
     for fl in list(floors):
         lbs = [lb for lb in digits if lb['floor'] == fl]
         if not lbs or len(floors[fl]) < 2: continue
-        keep = [b_ for b_ in floors[fl] if min(math.hypot(max(b_[0] - lb['x'], 0, lb['x'] - b_[2]), max(b_[1] - lb['y'], 0, lb['y'] - b_[3])) for lb in lbs) < 1200]
+        dist = [min(math.hypot(max(b_[0] - lb['x'], 0, lb['x'] - b_[2]), max(b_[1] - lb['y'], 0, lb['y'] - b_[3])) for lb in lbs) for b_ in floors[fl]]
+        lim = min(1200, max(400, 3 * min(dist)))       # far from the number, and far beyond the floor's nearest piece
+        hasc = [any(b_[0] <= c_['x'] <= b_[2] and b_[1] <= c_['y'] <= b_[3] for c_ in f['controls']) for b_ in floors[fl]]
+        keep = [b_ for b_, d_, h_ in zip(floors[fl], dist, hasc) if (h_ and d_ < 1200) or d_ < lim]
         if keep: floors[fl] = keep
     f['floors'] = [{'floor': fl, 'boxes': bx} for fl, bx in sorted(floors.items())]
     if not floors:
@@ -450,14 +485,20 @@ def analyze(pdf_path, page=0):
             outline_stairs.append((fl, x, y))                  # far from its floor's drawn area: give it one
                                                                # (a letter just beside the building is not)
         stairs.append({'letter': ch, 'floor': fl, 'x': round(x), 'y': round(y), 'conf': round(float(conf), 2)})
-    # stair letters written as text (TELPO maps: coloured capitals with a white outline copy behind)
-    if not stairs:
-        seen_ = set()
-        for t, rgb, size, bb in text_spans(p, r'[A-ZĀČĒĢĪĶĻŅŠŪŽ]'):
-            if rgb in ((255, 255, 255), (0, 0, 0)) or not (8 <= size <= 30): continue
+    # stair letters written as text (TELPO maps: coloured capitals with a white outline copy behind); also
+    # added to letters already read from drawn shapes (small letters there are text only: TELPO 2. posms)
+    if True:
+        seen_ = {(s_['letter'], s_['x'] // 20, s_['y'] // 20) for s_ in stairs}
+        near_ = lambda x_, y_: any(abs(s_['x'] - x_) < 20 and abs(s_['y'] - y_) < 20 for s_ in stairs)
+        for t, rgb, size, bb in text_spans(p, r'[A-ZĀČĒĢĪĶĻŅŠŪŽa-zāčēģīķļņšūž]'):      # small letters too: a ≠ A (TELPO 2. posms)
+            if rgb in ((255, 255, 255), (0, 0, 0)) or not (8 <= size <= 30 or (t.islower() and 5 <= size < 8)): continue
             x, y = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
             if in_ignore(x, y) or (t, round(x), round(y)) in seen_: continue
             seen_.add((t, round(x), round(y)))
+            hit_ = [s_ for s_ in stairs if abs(s_['x'] - x) < 20 and abs(s_['y'] - y) < 20]
+            if hit_:                                     # the text says exactly which letter (the shape reader
+                for s_ in hit_: s_['letter'] = t; s_['conf'] = 1.0     # knows only capitals: d read as D)
+                continue
             fl = floor_at(x, y)
             if fl is None: fl = floor_of_point(x, y)
             if fl is None or fl not in floors: continue
