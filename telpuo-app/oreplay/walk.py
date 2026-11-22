@@ -683,7 +683,14 @@ def build(img, features, progress=None):
                 if 0 <= yq < same.shape[0] and 0 <= xq < same.shape[1] and same[yq, xq]: hit = True; break
             if hit: break
         if hit: steps.append([u, v])
-    info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names, 'steps': steps}
+    # floors stacked over one footprint (each floor a full plan of about the same size: Jelgava) or parts
+    # of a site at their own heights (one huge floor beside small ones: Mežaparks)
+    area = {}
+    for f_ in features.get('floors', []):
+        area[f_['floor']] = sum((b_[2] - b_[0]) * (b_[3] - b_[1]) for b_ in f_['boxes'])
+    stacked = bool(area) and max(area.values()) <= 4 * min(area.values())
+    info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names, 'steps': steps,
+            'stacked': stacked}
     return N, E, POLY, info
 
 def graph(N, E, px_s, floor_s):

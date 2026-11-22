@@ -792,7 +792,7 @@ def _reconstruct(rid, mid, legs, obs):
 def _reconstruct_now(rid, mid, legs, obs):
     N, E, POLY, info = store.load_graph(mid)
     feat = store.get_features(mid); run = store.get_run(rid)
-    R = Recon(N, E, POLY, info['controls'], steps=info.get('steps'))      # floor parts: needs the map rebuilt once
+    R = Recon(N, E, POLY, info['controls'], steps=info.get('steps'), stacked=info.get('stacked', True))      # floor parts: needs the map rebuilt once
     motion = None                        # the distance the watch counted: moves the replay dot like the runner moved
     if run.get('track_file'):
         try:

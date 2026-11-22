@@ -97,7 +97,7 @@ def parse_motion(data, name=''):
         return []
     return out
 
-def prepare_altitude(obs, ctrl_floors, cum, all_floors=range(-2, 10)):
+def prepare_altitude(obs, ctrl_floors, cum, all_floors=range(-2, 10), stacked=True):
     """Watch altitude made comparable with the floors, from the control punches (where the floor is
     known):
       - the watch's delay (it smooths altitude, so a climb shows up a few seconds late), 0-15 s;
@@ -136,8 +136,17 @@ def prepare_altitude(obs, ctrl_floors, cum, all_floors=range(-2, 10)):
         # the lowest floor's height + the rise to each next measured floor, the rises bounded
         from scipy.optimize import lsq_linear
         Tm = np.eye(nf + len(K)); lo = np.full(nf + len(K), -np.inf); hi = np.full(nf + len(K), np.inf)
+        raw = {}
+        for f_, t_ in pun:
+            e_ = at(t_, lag)
+            if e_ is not None: raw.setdefault(f_, []).append(e_)
         for k in range(1, nf):
             Tm[k, :k + 1] = 1.0; gap = floors[k] - floors[k - 1]; lo[k], hi[k] = 2.0 * gap, 9.0 * gap
+            if not stacked: lo[k], hi[k] = -40.0, 40.0          # parts of a site: each at its own height
+            # floor numbers that are not in order of height (TELPO 2. posms: -2 lies above -1): a floor
+            # the punches put clearly below the one numbered under it is taken as it is
+            d_ = np.median(raw.get(floors[k], [0])) - np.median(raw.get(floors[k - 1], [0]))
+            if d_ < -1.5: lo[k], hi[k] = -9.0 * gap, 9.0 * gap
         y = lsq_linear(A @ Tm, b, bounds=(lo, hi)).x; x = Tm @ y
         r = A[:n_p] @ x - b[:n_p]
         return float(np.sum(np.minimum(r * r, 9.0))), x
@@ -233,10 +242,10 @@ def fit_floors(obs, ctrl_floors, cum, all_floors=range(1, 10)):
     return {'base': float(a), 'step': float(st), 'levels': levels}
 
 class Recon:
-    def __init__(self, N, E, POLY, names, px_s=None, steps=None):
+    def __init__(self, N, E, POLY, names, px_s=None, steps=None, stacked=True):
         from .walk import graph
         self.N, self.POLY, self.names = N, POLY, names
-        self._hn = None; self._part_h = {}
+        self._hn = None; self._part_h = {}; self.stacked = stacked
         # parts of each floor: what is connected without stairs or same-floor steps (the map marks every
         # change of height inside a floor with those steps: half floors, a drop to street level)
         self.parts = None
@@ -544,7 +553,7 @@ class Recon:
         cum = [0]
         for l in legs: cum.append(cum[-1] + l)
         obs = obs or []; self._level = None
-        prep = prepare_altitude(obs, ctrl_floors or [], cum) if obs else None
+        prep = prepare_altitude(obs, ctrl_floors or [], cum, stacked=self.stacked) if obs else None
         if prep:
             obs = prep['obs']; self._level = prep['level']
             fit = {'base': prep['base'], 'step': prep['step'], 'levels': prep['levels'], 'lag': prep['lag'], 'drift_max': prep['drift_max']}
