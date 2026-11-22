@@ -138,6 +138,7 @@ def flights(cls, k, features):
     for fl, boxes in fb.items():
         lab_here = [s for s in labels if s['floor'] == fl]
         if not lab_here: continue
+        blobs = []
         for (x0, y0, x1, y1) in boxes:
             x0, y0 = max(0, x0), max(0, y0)
             for col, tag in (('red', 'up'), ('blue', 'dn')):
@@ -148,12 +149,39 @@ def flights(cls, k, features):
                     if len(xs) < 40: continue
                     xs = xs + sl[1].start + x0; ys = ys + sl[0].start + y0
                     cx, cy = xs.mean(), ys.mean()
-                    best = min(lab_here, key=lambda s: math.hypot(s['x'] - cx, s['y'] - cy))
-                    if math.hypot(best['x'] - cx, best['y'] - cy) > 130: continue
-                    name = f"{fl}_{best['letter']}_{tag}"
                     j = int(np.argmin((xs - cx) ** 2 + (ys - cy) ** 2))
-                    if name not in out or len(xs) > out[name][3]:
-                        out[name] = (fl, int(xs[j]), int(ys[j]), len(xs))
+                    blobs.append([tag, cx, cy, int(xs[j]), int(ys[j]), len(xs), (xs.min(), ys.min(), xs.max(), ys.max())])
+        # a piece of a flight cut off by a course line over it is part of that flight, not one of its own
+        blobs.sort(key=lambda b_: -b_[5]); keep_ = []
+        for b_ in blobs:
+            bx = b_[6]
+            host = next((h for h in keep_ if h[0] == b_[0] and b_[5] < 0.25 * h[5] and
+                         bx[0] <= h[6][2] + 4 and bx[2] >= h[6][0] - 4 and bx[1] <= h[6][3] + 4 and bx[3] >= h[6][1] - 4), None)
+            if host is None: keep_.append(b_)
+        blobs = keep_
+        # letters by matching, closest pairs first: each printed letter names one flight of each colour, so
+        # a big flight with a small one's letter just beside it gets its own letter a little further off
+        # (TELPO 2. posms: stair S between two small Ģ flights, 8-46)
+        pairs = sorted((math.hypot(s_['x'] - b_[1], s_['y'] - b_[2]), bi, li)
+                       for bi, b_ in enumerate(blobs) for li, s_ in enumerate(lab_here))
+        done_b, used = set(), set()
+        for dd, bi, li in pairs:
+            if dd > 130: break
+            tag = blobs[bi][0]
+            if bi in done_b or (li, tag) in used: continue
+            done_b.add(bi); used.add((li, tag))
+            _, cx, cy, px, py, npx, _bx = blobs[bi]
+            name = f"{fl}_{lab_here[li]['letter']}_{tag}"
+            if name not in out or npx > out[name][3]:
+                out[name] = (fl, px, py, npx)
+        for bi, b_ in enumerate(blobs):              # a flight whose near letters all went to closer ones
+            if bi in done_b:                         # keeps its nearest letter as before
+                continue
+            tag, cx, cy, px, py, npx, _bx = b_
+            best = min(lab_here, key=lambda s_: math.hypot(s_['x'] - cx, s_['y'] - cy))
+            if math.hypot(best['x'] - cx, best['y'] - cy) > 130: continue
+            name = f"{fl}_{best['letter']}_{tag}"
+            if name not in out: out[name] = (fl, px, py, npx)
     return {n: v[:3] for n, v in out.items()}
 
 def stair_symbols(walk, cls, k, FL):

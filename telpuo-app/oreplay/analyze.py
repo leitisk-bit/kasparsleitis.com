@@ -319,13 +319,13 @@ def analyze(pdf_path, page=0):
         return any(a <= x <= c and b <= y <= d for a, b, c, d in f['ignore'])
 
     # ---- course overprint
-    circles, tri, lines, arcs = [], [], [], []
+    circles, tri, lines, arcs = [], [], [], []; cw_, tw_ = [], []
     for d in drawings:
         sc = _rgb(d.get('color')); fc = _rgb(d.get('fill'))
         if not _is_course(sc) or fc: continue
         r = d['rect']; kinds = ''.join(i[0] for i in d['items'])
         if set(kinds) == {'c'} and 6 < r.width < 30 and abs(r.width - r.height) < 1.5:
-            circles.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S, r.width / 2 * S))
+            circles.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S, r.width / 2 * S)); cw_.append((d.get('width') or 0, sc))
         elif set(kinds) == {'c'}:
             # a circle drawn in pieces (cut where it would cover a stairwell or wall): fit it
             pts = []
@@ -335,9 +335,11 @@ def analyze(pdf_path, page=0):
                     pts.append(((u**3*p0.x + 3*u*u*t*p1.x + 3*u*t*t*p2.x + t**3*p3.x) * S,
                                 (u**3*p0.y + 3*u*u*t*p1.y + 3*u*t*t*p2.y + t**3*p3.y) * S))
             arcs.append(pts)
-        elif kinds == 'lll' and 6 < r.width < 30 and 6 < r.height < 30:
-            pts = [it[1] for it in d['items']]
+        elif kinds in ('lll', 'llll') and 6 < r.width < 30 and 6 < r.height < 30 and \
+                (kinds == 'lll' or abs(d['items'][3][2].x - d['items'][0][1].x) + abs(d['items'][3][2].y - d['items'][0][1].y) < 0.5):
+            pts = [it[1] for it in d['items']][:3]                # (4 pieces: the last one closes it: TELPO 2. posms)
             tri.append(((sum(q.x for q in pts) / 3) * S, (sum(q.y for q in pts) / 3) * S, max(r.width, r.height) / 2 * S))
+            tw_.append((d.get('width') or 0, sc))
         else:
             for it in d['items']:
                 if it[0] == 'l': lines.append(((it[1].x * S, it[1].y * S), (it[2].x * S, it[2].y * S)))
@@ -361,7 +363,12 @@ def analyze(pdf_path, page=0):
                 finish = (a[0], a[1], max(a[2], b[2])); used |= {i, j}
     for i, c in enumerate(circles):
         if i not in used and not in_ignore(c[0], c[1]): ctrls.append(c)
-    start = next((t for t in tri if not in_ignore(t[0], t[1])), None)
+    # the start triangle is drawn like the control circles; a thinner purple corner is a tape line
+    cwm = float(np.median([w_ for w_, _ in cw_])) if cw_ else 0
+    ccol = collections.Counter(c_ for _, c_ in cw_).most_common(1)[0][0] if cw_ else None
+    tri_ok = [t for t, (w_, c_) in zip(tri, tw_) if cwm and 0.9 * cwm <= w_ <= 1.1 * cwm and c_ == ccol] or \
+             [t for t, (w_, c_) in zip(tri, tw_) if not cwm or 0.7 * cwm <= w_ <= 1.4 * cwm] or tri
+    start = next((t for t in tri_ok if not in_ignore(t[0], t[1])), None)
     nodes = ([('S',) + start] if start else []) + [('C',) + c for c in ctrls] + ([('F',) + finish] if finish else [])
     order = _course_order(nodes, lines)
     f['controls'] = []
@@ -563,6 +570,18 @@ def analyze(pdf_path, page=0):
     # the same letter on several floors should be the same physical stairwell: majority vote per
     # glyph outline signature fixes single misreads
     f['stair_labels'] = stairs
+    # a floor's area reaches its stair letters: stairs hanging just outside the drawn area (TELPO 2. posms:
+    # stair S and the small Ģ stairs below the edge of the choir stands, with 8-46 between them)
+    for s_ in stairs:
+        bx_ = floors.get(s_['floor'])
+        if not bx_: continue
+        if any(b_[0] - 10 <= s_['x'] <= b_[2] + 10 and b_[1] - 10 <= s_['y'] <= b_[3] + 10 for b_ in bx_): continue
+        j_ = min(range(len(bx_)), key=lambda i_: math.hypot(max(bx_[i_][0] - s_['x'], 0, s_['x'] - bx_[i_][2]),
+                                                          max(bx_[i_][1] - s_['y'], 0, s_['y'] - bx_[i_][3])))
+        b_ = bx_[j_]
+        if math.hypot(max(b_[0] - s_['x'], 0, s_['x'] - b_[2]), max(b_[1] - s_['y'], 0, s_['y'] - b_[3])) > 250: continue
+        bx_[j_] = [min(b_[0], s_['x'] - 60), min(b_[1], s_['y'] - 60), max(b_[2], s_['x'] + 60), max(b_[3], s_['y'] + 60)]
+    f['floors'] = [{'floor': fl, 'boxes': bx} for fl, bx in sorted(floors.items())]
 
     # ---- one-way chevrons
     chev = []
