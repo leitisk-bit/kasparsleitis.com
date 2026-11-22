@@ -1,1 +1,1 @@
-{"commit": "d329771", "date": "2026-11-22T02:05:17+02:00", "change": "Watch altitude: delay and drift taken out using the punches, floor heights with real spacing, level stretches count most, floor parts between same-floor steps get their own heights (half floors); replay dot moves by the distance the watch counted, stairs timed at the climb"}
+{"commit": "95c4d9a", "date": "2026-11-22T02:22:35+02:00", "change": "Route choice also checks the distance the watch counted on each leg (runner's own watch metres per map pixel); legs the watch fully covered"}
