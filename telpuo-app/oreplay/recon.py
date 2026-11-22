@@ -8,7 +8,9 @@ FL_S = 11.0            # s per floor on stairs at good pace
 FAST_PEN = 0.15
 PRIOR_FL = 1.5
 PRIOR_REP = 1.0
-PRIOR_INTENT = 4.0     # a long, lost leg: prefer the way a runner would have meant to go first
+PRIOR_INTENT = 4.0
+DIST_SHORT = 6.0       # route longer than the distance the watch counted (log ratio squared)
+DIST_LONG = 2.5        # route shorter than counted: room for a detour     # a long, lost leg: prefer the way a runner would have meant to go first
 
 # ------------------------------------------------------------------ inputs
 def parse_splits(text, n_legs=None):
@@ -552,6 +554,12 @@ class Recon:
         ele_of = (lambda f: fit['levels'].get(f, fit['base'] + fit['step'] * (f - 1))) if fit else None
         self.calibrate(legs)
         cache = {}
+        # the distance the watch counted on each leg (from the wrist and the steps; indoors no GPS)
+        wd = [None] * len(legs); dk = None
+        if motion and len(motion) > 10:
+            mt = np.array([m[0] for m in motion], float); md = np.array([m[1] for m in motion], float)
+            wd = [float(np.interp(b_, mt, md) - np.interp(a_, mt, md)) if mt[0] <= a_ + 2 and mt[-1] >= b_ - 15 else None
+                  for a_, b_ in zip(cum, cum[1:])]       # legs the watch covered (it may stop just before the finish)
         def match():
             picked = []
             out = []
@@ -587,6 +595,13 @@ class Recon:
                     al = self.align(p, t0, T, obs, ele_of) if ele_of else self.align(p, t0, T, [], None)
                     if not al: continue
                     prior = PRIOR_FL * (nfl - minfl) + PRIOR_REP * (len(p) - len(set(p)))
+                    if dk and wd[li]:
+                        # the distance the watch counted on this leg against this route's length (in the runner's
+                        # own watch metres per map pixel): a route far longer than was run is out; one shorter
+                        # than was run fits a detour (a closed stair, back and forth), so it costs less
+                        lp = max(20.0, sum(self.G[u][v]['px'] for u, v in zip(p, p[1:]) if not self.G[u][v]['fl']) * dk)
+                        q = math.log(max(wd[li], 10.0) / lp)
+                        prior += (DIST_SHORT if q < 0 else DIST_LONG) * q * q
                     if intent: prior += PRIOR_INTENT * (1 - intent(p))
                     rows.append([al['cost'], prior, al['M'], p, al])
                 if not rows:
@@ -615,10 +630,17 @@ class Recon:
             return out, picked
         self._hn = self.heights_from_punches(obs, cum) if (fit and obs and self.parts) else None
         out, picked = match()
-        if self._hn is not None and self._level:
+        if any(wd):
+            # watch metres per map pixel for this runner: the middle of what the legs found give
+            r_ = []
+            for (p, al, t0, T), w_ in zip(picked, wd):
+                px = sum(self.G[u][v]['px'] for u, v in zip(p, p[1:]) if not self.G[u][v]['fl'])
+                if w_ and px > 100: r_.append(w_ / px)
+            if len(r_) >= 4: dk = float(np.median(r_))
+        if (self._hn is not None and self._level) or dk:
             # the parts of each floor (between same-floor steps) learn their height from where the runner
             # stayed level in them on the routes just found; then the routes once more
-            self._hn = self.heights_learned(picked, obs, cum, ele_of)
+            if self._hn is not None and self._level: self._hn = self.heights_learned(picked, obs, cum, ele_of)
             out, picked = match()
         if self._hn is not None: fit['parts'] = {str(k): round(v, 1) for k, v in self._part_h.items()}
         return {'legs': out, 'floors_fit': fit, 'px_s': self.px_s, 'cum': cum}
