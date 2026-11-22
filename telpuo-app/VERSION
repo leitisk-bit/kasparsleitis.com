@@ -1,1 +1,1 @@
-{"commit": "dfee48b", "date": "2026-11-22T14:32:18+02:00", "change": "Map reading for TELPO 2. posms (Mežaparks): floor numbers in their own font and size, control order from the printed numbers, outdoor area and stand seating count as floor, small floor pieces with a control, lowercase stair letters (a ≠ A), digits stored as whitespace codes, sponsor logo not a floor"}
+{"commit": "687d2e0", "date": "2026-11-22T14:42:12+02:00", "change": "Map reading: accented stair letters (Ā Č Ē Ģ Ī Ķ Ļ Ņ Š Ū Ž) from subset fonts without a letter table, recognised by base letter + accent"}
