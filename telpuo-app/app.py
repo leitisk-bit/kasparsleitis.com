@@ -482,10 +482,30 @@ def api_three(mid):
     t = m['three']; feat = store.get_features(mid); pieces = t.get('pieces')
     tx = lambda x: f"api/maps/{mid}/tex/{x['floor']}" + (f"_{x['piece']}" if 'piece' in x else '') + f".webp?{int(m.get('built') or 0)}"
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'], pieces=pieces,
-                   levels=_levels3d(mid),
+                   levels=_levels3d(mid), heights=_heights3d(mid, m, t),
                    tex=[dict(x, img=tx(x)) for x in t['tex']],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces))
+
+_HGRID = {}
+def _heights3d(mid, m, t):
+    """Ground shape under each map piece from all runs' height samples (sites that are not a stack of equal
+    floors only); cached until the map is rebuilt or a run is added or redone."""
+    try:
+        if not t.get('pieces'): return None
+        N, E, POLY, info = store.load_graph(mid)
+        if info.get('stacked', True): return None
+        runs = store.list_runs(mid)
+        key = (mid, int(m.get('built') or 0), tuple(sorted((r['id'], r.get('done') or r.get('updated') or 0) for r in runs)))
+        if key in _HGRID: return _HGRID[key]
+        samples = []
+        for r in runs:
+            samples += (store.get_run(r['id']) or {}).get('hsamples') or []
+        g = three.height_grids(t['tex'], t['pieces'], samples) or None
+        _HGRID.clear(); _HGRID[key] = g
+        return g
+    except Exception:
+        traceback.print_exc(); return None
 
 def _levels3d(mid):
     """Real height of each floor over floor 1, measured by the runners' watches (the middle of all runs),
@@ -859,6 +879,7 @@ def _reconstruct_now(rid, mid, legs, obs):
         glegs.append({'label': label, 't0': cum[i], 't1': cum[i + 1], 'split': L['fastestT'], 'route': L['fastest'],
                       'note': f"AI Runner: the fastest route found, at this runner's own best pace ({L['fastestT']} s). Waits at the control; the runner arrived {L['T'] - L['fastestT']} s later."})
     run.update(status='done', message='', legs=legs_out, pts3d=p3, ghost3d=g3, floors_fit=res['floors_fit'], px_s=res['px_s'],
+               hsamples=res.get('hsamples') or [],
                runners=[{'name': run['name'] + (f" ({run['group']})" if run.get('group') else ''), 'color': '#E3262B', 'abs0': run.get('start_ms') or 0, 'pts': pts, 'legs': legs_out},
                         {'name': 'AI Runner', 'color': '#1F6FE0', 'abs0': run.get('start_ms') or 0, 'pts': gp, 'legs': glegs, 'ghost': True}])
     store.set_run(rid, run)

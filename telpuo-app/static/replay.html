@@ -257,7 +257,7 @@ async function load3d(mapId, runs, ids, q, k){
     if (runs.length && !runs.every(r=>r.pts3d && r.pts3d.length)) return;
     runs.forEach(r => { const main=r.runners.find(x=>!x.ghost); r3.push({ name:main.name, color:main.color, ghost:false, pts:al(r.pts3d) });
       if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g) r3.push({ name:g.name, color:g.color, ghost:true, pts:al(r.ghost3d||[]) }); } });
-    window.R3D = { mpp:T.mpp, floorH:T.floorH, levels:T.levels || null, tex:T.tex, controls:T.controls, stairs:T.stairs||[], title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
+    window.R3D = { mpp:T.mpp, floorH:T.floorH, levels:T.levels || null, heights:T.heights || null, tex:T.tex, controls:T.controls, stairs:T.stairs||[], title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
     const v=document.getElementById('viewSeg'); if (v) v.hidden=false;
   } catch(e){ console.warn('3D view unavailable', e); }
 }
@@ -1038,15 +1038,34 @@ async function start(){
   // floors at their real heights when the watches measured them (a site like Mežaparks, not a stack of
   // equal floors); the spacing slider then stretches them (3 = true height)
   const LV = D.levels ? Object.fromEntries(Object.entries(D.levels).map(([k, v]) => [+k, v])) : null;
+  if (LV){ gapK = 6; const gs = document.getElementById('o3Gap'); if (gs){ gs.max = 12; gs.value = 6; } }   // real heights: start at 2x so slopes show
   const yOf = fl => LV && fl in LV ? LV[fl] * gapK / 3 : (fl - 1) * H0 * gapK;
   const yOfF = z => { const a = Math.floor(z), b = Math.ceil(z); return a === b ? yOf(a) : yOf(a) + (yOf(b) - yOf(a)) * (z - a); };
+  // the measured shape of the ground under each map piece (steep choir stands, gentle audience field):
+  // metres over floor 1 on a grid over the piece's texture, from all runs; none = flat at the floor's height
+  const HG = {}; (D.heights || []).forEach(g => HG[g.piece] = g);
+  const texOf = {}; D.tex.forEach(t => { if (t.piece !== undefined) texOf[t.piece] = t; });
+  function hRaw(fl, px, py){          // px, py: sheet pixels as lined up (the texture's own frame)
+    let best = null;
+    D.tex.forEach(t => { if (t.floor !== fl || t.piece === undefined || !HG[t.piece]) return;
+      const d = Math.hypot(Math.max(t.x0 - px, 0, px - t.x0 - t.w), Math.max(t.y0 - py, 0, py - t.y0 - t.h)); if (!best || d < best[0]) best = [d, t]; });
+    if (!best || best[0] > 60) return null;
+    const t = best[1], g = HG[t.piece];
+    const u = Math.min(1, Math.max(0, (px - t.x0) / t.w)) * (g.nx - 1), v = Math.min(1, Math.max(0, (py - t.y0) / t.h)) * (g.ny - 1);
+    const i = Math.min(g.nx - 2, Math.floor(u)), j = Math.min(g.ny - 2, Math.floor(v)), fu = u - i, fv = v - j, H = g.h, n = g.nx;
+    return (H[j*n+i]*(1-fu) + H[j*n+i+1]*fu)*(1-fv) + (H[(j+1)*n+i]*(1-fu) + H[(j+1)*n+i+1]*fu)*fv;
+  }
+  const yAt = (fl, px, py) => { const h = hRaw(fl, px, py); return h === null ? yOf(fl) : h * gapK / 3; };
+  const yAtF = (z, px, py) => { const a = Math.floor(z), b = Math.ceil(z); return a === b ? yAt(a, px, py) : yAt(a, px, py) + (yAt(b, px, py) - yAt(a, px, py)) * (z - a); };
   let cx = 0, cz = 0; D.tex.forEach(t => { cx += (t.x0 + t.w/2) * M; cz += (t.y0 + t.h/2) * M; }); cx /= D.tex.length; cz /= D.tex.length;
   const floors = [...new Set(D.tex.map(t => t.floor))].sort((a,b) => a-b);
   const loader = new THREE.TextureLoader(), plates = [];
   D.tex.forEach(t => {
     const tex = loader.load(t.img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(t.w*M, t.h*M), new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide }));
-    mesh.rotation.x = -Math.PI/2; mesh.userData = { floor:t.floor, cx:(t.x0 + t.w/2)*M - cx, cz:(t.y0 + t.h/2)*M - cz };
+    const g = t.piece !== undefined ? HG[t.piece] : null;
+    const geo = g ? new THREE.PlaneGeometry(t.w*M, t.h*M, g.nx - 1, g.ny - 1) : new THREE.PlaneGeometry(t.w*M, t.h*M);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide }));
+    mesh.rotation.x = -Math.PI/2; mesh.userData = { floor:t.floor, cx:(t.x0 + t.w/2)*M - cx, cz:(t.y0 + t.h/2)*M - cz, hg:g };
     scene.add(mesh); plates.push(mesh);
   });
   let minX = Infinity; D.tex.forEach(t => minX = Math.min(minX, t.x0*M - cx));
@@ -1090,7 +1109,9 @@ async function start(){
     stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); });
     (D.stairs || []).forEach(st => {
       const x = (st.a[0] + st.b[0]) / 2 * M - cx, z = (st.a[1] + st.b[1]) / 2 * M - cz;
-      const y0 = Math.min(yOf(st.f1), yOf(st.f2)), y1 = Math.max(yOf(st.f1), yOf(st.f2)), h = y1 - y0; if (h <= 0.3) return;
+      // each stair from the real height at its foot to the real height at its top (they differ)
+      const ya = yAt(st.f1, st.a[0], st.a[1]), yb = yAt(st.f2, st.b[0], st.b[1]);
+      const y0 = Math.min(ya, yb), y1 = Math.max(ya, yb), h = y1 - y0; if (h <= 0.3) return;
       const W = 3.2, Dp = 3.2;
       const shaft = new THREE.Mesh(new THREE.BoxGeometry(W, h, Dp), shaftMat); shaft.position.set(x, y0 + h / 2, z);
       shaft.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(shaft);
@@ -1162,13 +1183,21 @@ async function start(){
   }
   function layoutRunners(){
     R.forEach(r => { const a = new Float32Array(r.P.length*3);
-      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = yOfF(p.fz) + 0.5; a[i*3+2] = p.z; });
+      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = yAtF(p.fz, (p.x + cx) / M, (p.z + cz) / M) + 0.5; a[i*3+2] = p.z; });
       r.A = a; r.legI0 = -1; setLine(r.g1, a); setLine(r.g2, a); });
   }
   function layout(){
-    plates.forEach(m => m.position.set(m.userData.cx, yOf(m.userData.floor), m.userData.cz));
+    plates.forEach(m => {
+      const g = m.userData.hg;
+      if (g){                       // bent to the measured ground: vertex heights, the plate itself at 0
+        const pos = m.geometry.attributes.position;
+        for (let k = 0; k < pos.count; k++) pos.setZ(k, g.h[k] * gapK / 3);
+        pos.needsUpdate = true; m.geometry.computeBoundingSphere();
+        m.position.set(m.userData.cx, 0, m.userData.cz);
+      } else m.position.set(m.userData.cx, yOf(m.userData.floor), m.userData.cz);
+    });
     flabels.forEach(s => s.position.set(minX - 7, yOf(s.userData.floor) + 3, 0));
-    ctrlObjs.forEach(g => g.position.set(g.userData.x, yOf(g.userData.floor) + 0.15, g.userData.z));
+    ctrlObjs.forEach(g => g.position.set(g.userData.x, yAt(g.userData.floor, (g.userData.x + cx) / M, (g.userData.z + cz) / M) + 0.15, g.userData.z));
     buildStairs();
     layoutRunners();
   }
@@ -1181,7 +1210,7 @@ async function start(){
     const i = idxAt(r, tt), a = r.P[i], b = r.P[Math.min(i+1, r.P.length-1)];
     const u = b.t > a.t ? Math.min(1, Math.max(0, (tt - a.t) / (b.t - a.t))) : 0;
     const jump = b.f !== a.f && Math.hypot(b.x - a.x, b.z - a.z) > 3, fz = a.fz + (b.fz - a.fz)*u;
-    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:yOfF(fz) + 0.5, fz };
+    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:yAtF(fz, ((jump ? a.x : a.x + (b.x - a.x)*u) + cx) / M, ((jump ? a.z : a.z + (b.z - a.z)*u) + cz) / M) + 0.5, fz };
   }
   let follow = true; const tgt = new THREE.Vector3();
   // the floor shown: the runner's, or one picked with the floor buttons (looking over the whole route);
@@ -1198,7 +1227,7 @@ async function start(){
       const rr = s && s.runners[r.ri]; const vis = !rr || rr.visible !== false; r.grp.visible = vis;
       const p = posAt(r, timeOf(r)); r.cur = p; if (!vis) return;
       animateFigure(r.dot, p.x, p.y, p.z);
-      const base = yOf(Math.round(p.fz)); r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
+      const base = yAt(Math.round(p.fz), (p.x + cx) / M, (p.z + cz) / M); r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
       const legScope = !s || s.routeScope !== 'all', showAll = s && s.routeReveal === 'full';
       let i0 = 0, i1 = r.P.length - 1;
       if (legScope && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); i1 = Math.min(r.P.length - 1, idxAt(r, L.t1) + 1); }

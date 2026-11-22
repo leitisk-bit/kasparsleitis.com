@@ -147,3 +147,44 @@ def controls(feat, off, pieces=None):
         lab = {'start': 'Start', 'finish': 'Finish'}.get(c['kind']) or (f"{c['n']}-{c['code']}" if c.get('code') else str(c['n']))
         ctrls.append({'kind': c['kind'], 'label': lab, 'x': c['x'] - o[0], 'y': c['y'] - o[1], 'floor': fl})
     return ctrls
+
+
+def height_grids(tex, pieces, samples, cell=30):
+    """The shape of the ground under each map piece, from where runners were and how high their watches said
+    they were: [{'piece', 'nx', 'ny', 'h': heights row by row, metres over floor 1}] over the piece's
+    texture. Places nobody ran over take the height of the nearest place someone did; a piece nobody ran
+    over gets none (it stays flat at its floor's height)."""
+    out = []
+    if not samples or not pieces: return out
+    S = np.array(samples, float)                                    # x, y, floor, h
+    for t in tex:
+        if 'piece' not in t: continue
+        pc = pieces[t['piece']]
+        ox, oy = pc['off']; X0, Y0 = t['x0'] + ox, t['y0'] + oy      # back to the sheet
+        nx = max(2, int(np.ceil(t['w'] / cell)) + 1); ny = max(2, int(np.ceil(t['h'] / cell)) + 1)
+        b = pc['box']
+        m = (S[:, 2] == pc['floor']) & (S[:, 0] >= b[0] - 40) & (S[:, 0] <= b[2] + 40) & (S[:, 1] >= b[1] - 40) & (S[:, 1] <= b[3] + 40)
+        P = S[m]
+        if len(P) < 5: continue
+        gx = X0 + np.arange(nx) * t['w'] / (nx - 1); gy = Y0 + np.arange(ny) * t['h'] / (ny - 1)
+        G = np.full((ny, nx), np.nan)
+        for j, yy in enumerate(gy):
+            d2 = (P[:, 0][None, :] - gx[:, None]) ** 2 + (P[:, 1][None, :] - yy) ** 2
+            w = np.where(d2 < 120 ** 2, 1.0 / (d2 + 400.0), 0.0)
+            sw = w.sum(1); ok = sw > 0
+            G[j, ok] = (w[ok] * P[:, 3][None, :]).sum(1) / sw[ok]
+        if np.isnan(G).all(): continue
+        # away from where anybody ran: the piece's overall slope (a tilted plane through its samples, kept
+        # gentle when they lie nearly on one line), blended in with the distance to the nearest sample
+        A = np.c_[np.ones(len(P)), (P[:, 0] - P[:, 0].mean()) / 1000, (P[:, 1] - P[:, 1].mean()) / 1000]
+        coef = np.linalg.solve(A.T @ A + np.diag([0, 2.0, 2.0]) * len(P) / 50, A.T @ P[:, 3])
+        GX, GY = np.meshgrid(gx, gy)
+        plane = coef[0] + coef[1] * (GX - P[:, 0].mean()) / 1000 + coef[2] * (GY - P[:, 1].mean()) / 1000
+        dist = ndi.distance_transform_edt(np.isnan(G)) * cell
+        _, (iy, ix) = ndi.distance_transform_edt(np.isnan(G), return_indices=True)
+        near = G[iy, ix]
+        w = np.exp(-(dist / 90.0) ** 2)
+        G = np.where(np.isnan(G), w * near + (1 - w) * plane, G)
+        G = ndi.gaussian_filter(G, 1.0)
+        out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()]})
+    return out

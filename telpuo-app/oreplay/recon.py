@@ -652,4 +652,26 @@ class Recon:
             if self._hn is not None and self._level: self._hn = self.heights_learned(picked, obs, cum, ele_of)
             out, picked = match()
         if self._hn is not None: fit['parts'] = {str(k): round(v, 1) for k, v in self._part_h.items()}
-        return {'legs': out, 'floors_fit': fit, 'px_s': self.px_s, 'cum': cum}
+        return {'legs': out, 'floors_fit': fit, 'px_s': self.px_s, 'cum': cum, 'hsamples': self.height_samples(out, obs, fit)}
+
+    def height_samples(self, out, obs, fit):
+        """Where the runner was on the map and how high, every 2 s off the stairs: [x, y, floor, metres
+        over floor 1]. From all runs together the 3D view learns the shape of the ground (the steep choir
+        stands, the gentle audience field, every stair's own height)."""
+        if not obs or not fit or not fit.get('levels'): return []
+        lv = fit['levels']; base = lv.get(1, lv.get('1'))
+        if base is None: return []
+        ob = {int(round(t)): e for t, e, h in obs}
+        hs = []
+        for L in out:
+            P = L.get('pts') or []
+            last = None
+            for k, pt in enumerate(P):
+                t = pt[0]
+                if abs(t - round(t)) > 1e-6 or (last is not None and t - last < 2): continue
+                fl = pt[3]
+                if any(P[q][3] != fl for q in range(max(0, k - 4), min(len(P), k + 5))): continue   # on the stairs
+                e = ob.get(int(round(t)))
+                if e is None: continue
+                hs.append([int(round(pt[1])), int(round(pt[2])), fl, round(e - base, 2)]); last = t
+        return hs
