@@ -172,6 +172,43 @@ def render(pdf_path, page=0):
         img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, 3).copy()
     return doc, p, img
 
+_COMPOSITE_CACHE = {}
+LV_ACCENTED = {('A', 'macron'): 'Ā', ('E', 'macron'): 'Ē', ('I', 'macron'): 'Ī', ('U', 'macron'): 'Ū',
+               ('C', 'caron'): 'Č', ('S', 'caron'): 'Š', ('Z', 'caron'): 'Ž',
+               ('G', 'below'): 'Ģ', ('K', 'below'): 'Ķ', ('L', 'below'): 'Ļ', ('N', 'below'): 'Ņ'}
+
+def composite_letters(p, font, shift):
+    """{code: letter} for the accented letters of an embedded font that keeps no letter table (subset
+    fonts): such a glyph is built from its base letter and an accent, so Ģ = G + a comma below,
+    Č = C + a caron, Ā = A + a macron (TELPO 2. posms: stair letters Ā Č Ē Ģ Ķ)."""
+    key = (id(p.parent), font)
+    if key in _COMPOSITE_CACHE: return _COMPOSITE_CACHE[key]
+    out = {}
+    try:
+        import io
+        from fontTools.ttLib import TTFont
+        for fi in p.get_fonts(full=True):
+            if not str(fi[3]).split('+')[-1] == font: continue
+            _, ext, _, buf = p.parent.extract_font(fi[0])
+            if not buf: continue
+            tt = TTFont(io.BytesIO(buf)); order = tt.getGlyphOrder(); gl = tt['glyf']
+            for code, gn in enumerate(order):
+                g = gl[gn]
+                if not g.isComposite() or len(g.components) != 2: continue
+                base, acc = g.components
+                bi = order.index(base.glyphName)
+                bl = chr(bi + shift) if 0 < bi + shift < 0x250 else ''
+                ag = gl[acc.glyphName]
+                if not hasattr(ag, 'yMin'): continue
+                w_, h_ = ag.xMax - ag.xMin, ag.yMax - ag.yMin
+                kind = 'below' if ag.yMax + acc.y < 0 else ('macron' if h_ < 0.36 * max(w_, 1) else 'caron')
+                L = LV_ACCENTED.get((bl.upper(), kind))
+                if L: out[code] = L if bl.isupper() else L.lower()
+    except Exception:
+        pass
+    _COMPOSITE_CACHE[key] = out
+    return out
+
 def text_spans(p, want):
     """Text pieces whose decoded text fully matches the regex `want`, as (text, rgb, size, rect in
     pixels). Some map PDFs store their font with its own character numbering (digits from \x13, the
@@ -191,6 +228,11 @@ def text_spans(p, want):
                 t = sp['text'].strip(' \t\r\n')
                 # a font whose numbering is known is always read through it (raw 'D' there is 'a': TELPO 2. posms)
                 dec = t if rx.fullmatch(t) and sp['font'] not in shift else None
+                if dec is None and sp['font'] in shift and any(ord(c) >= 0x60 for c in t):
+                    cm_ = composite_letters(p, sp['font'], shift[sp['font']])
+                    if all(ord(c) < 0x60 or ord(c) in cm_ for c in t):
+                        u = ''.join(cm_[ord(c)] if ord(c) in cm_ else chr(ord(c) + shift[sp['font']]) for c in t)
+                        if rx.fullmatch(u): dec = u
                 if dec is None and all(ord(c) < 0x60 for c in t):
                     shs = [shift[sp['font']]] if sp['font'] in shift else range(1, 64)
                     for sh in shs:
