@@ -16,6 +16,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - data:/data
+      # shared with autoupdate.sh on the server: the Cilpa page's "Update now" button and the update status
+      - ./update:/update
     ports:
       # Home network: http://<server-ip>:8092   (the tennis app uses 8090)
       - "${WEB_PORT:-8092}:8000"

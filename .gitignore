@@ -3,3 +3,4 @@ site/musicif/data/*.json
 site/musicif/data/*.lock
 __pycache__/
 *.pyc
+telpuo-app/update/

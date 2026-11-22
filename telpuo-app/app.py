@@ -100,7 +100,7 @@ def _fresh_pages(r):
 def _site_cors(r):
     # Let only kasparsleitis.com/serverinfo and /football read these answers from the browser.
     o = request.headers.get('Origin', '')
-    fb = request.path.startswith('/football-api/') or request.path.startswith('/api/cilpa')
+    fb = request.path.startswith('/football-api/') or request.path.startswith('/api/cilpa') or request.path == '/api/update'
     if (request.path in ('/api/server', '/api/admin') or fb) and o in SITE_ORIGINS:
         r.headers['Access-Control-Allow-Origin'] = o
         r.headers['Access-Control-Allow-Headers'] = 'X-Admin-Key, Content-Type' if fb else 'X-Admin-Key'
@@ -201,6 +201,29 @@ def api_cilpa_notes():
         with open(tmp, 'w', encoding='utf-8') as f: json.dump(notes, f, ensure_ascii=False, indent=1)
         os.replace(tmp, CILPA_NOTES)
     return jsonify(ok=True, saved=cur['saved'])
+
+# Manual update from the Cilpa page: the app leaves a request in /update (shared with the server), where
+# autoupdate.sh picks it up within about 10 seconds and writes back what it is doing (status.json).
+UPDATE_DIR = os.environ.get('UPDATE_DIR', '/update')
+
+@app.get('/api/update')
+def api_update_status():
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    out = {'running': _version(), 'started': STARTED, 'now': time.time(), 'shared': os.path.isdir(UPDATE_DIR)}
+    try:
+        with open(os.path.join(UPDATE_DIR, 'status.json'), encoding='utf-8') as f: out['host'] = json.load(f)
+    except Exception: out['host'] = None
+    try: out['requested'] = os.path.getmtime(os.path.join(UPDATE_DIR, 'request'))
+    except OSError: out['requested'] = None
+    r = jsonify(out); r.headers['Cache-Control'] = 'no-store'; return r
+
+@app.post('/api/update')
+def api_update_now():
+    if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not os.path.isdir(UPDATE_DIR):
+        return jsonify(error='The update folder is not shared with the app yet. It will be after the next automatic update.'), 409
+    with open(os.path.join(UPDATE_DIR, 'request'), 'w') as f: f.write(str(time.time()))
+    return jsonify(ok=True)
 
 # ------------------------------------------------------------------ pages
 def _page(name):

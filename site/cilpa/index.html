@@ -31,7 +31,7 @@ h3{font:700 19px/1.1 var(--f-display);letter-spacing:.03em;margin:0}
 h4{font:600 11.5px/1 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:2px 0 0}
 .btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font:500 13px var(--f-body);cursor:pointer;white-space:nowrap;text-decoration:none}
 .btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.sm{height:26px;padding:0 9px;font-size:12.5px}
+.btn.sm{height:26px;padding:0 9px;font-size:12.5px} .btn:disabled{opacity:.55;cursor:default}
 .btn:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .tabs{display:flex;gap:4px;flex-wrap:wrap}
 .tabs button{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:6px;height:30px;padding:0 10px;font:600 12.5px var(--f-body);cursor:pointer}
@@ -93,6 +93,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:12.5px}
   <div id="errBox" class="card err" hidden></div>
 
   <main id="main" hidden style="display:flex;flex-direction:column;gap:14px">
+    <section class="card" id="updCard">
+      <div class="top"><h3>Telpu O app · version</h3><span class="state" id="updState"><span class="dot"></span>…</span></div>
+      <dl class="facts" id="updFacts"></dl>
+      <div class="links"><button class="btn primary sm" id="updBtn" type="button">Update now</button>
+        <button class="btn sm" id="updRe" type="button">Refresh</button></div>
+      <p class="muted" id="updMsg" style="margin:0"></p>
+      <details id="updLogBox" hidden><summary>Last update log</summary><div class="cmd" id="updLog"></div></details>
+    </section>
     <section class="card"><div class="summary" id="summary"></div><div class="tabs" id="groups" role="group" aria-label="Show"></div></section>
     <section id="list" style="display:flex;flex-direction:column;gap:18px"></section>
     <section class="card" id="basics"></section>
@@ -133,8 +141,64 @@ async function load(){
   $('#signin').hidden = true; $('#errBox').hidden = true; $('#main').hidden = false;
   ['#outBtn','#reBtn','#q'].forEach(s => $(s).hidden = false);
   $('#updated').textContent = 'Checked ' + new Date(DATA.checked * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  render();
+  render(); loadUpd();
 }
+// ---- Telpu O app version and the manual update (autoupdate.sh on the server does the work)
+let UPD = null, updTimer = null, updWas = null;
+const ago = t => { if (!t) return '—'; const s = Math.max(0, Date.now() / 1000 - t);
+  return s < 90 ? Math.round(s) + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : new Date(t * 1000).toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}); };
+async function loadUpd(){
+  let r;
+  try { r = await fetch(API + '/api/update', {headers: {'X-Admin-Key': KEY}, cache: 'no-store'}); }
+  catch(e){ return showUpd(null, 'The app is not answering — it may be restarting after an update.'); }
+  if (!r.ok) return showUpd(null, r.status === 404 ? 'This server does not have the update button yet (it comes with the next automatic update).' : 'Server answered ' + r.status + '.');
+  showUpd(await r.json());
+}
+function showUpd(u, err){
+  if (u) UPD = u;
+  const h = UPD && UPD.host, run = UPD && UPD.running;
+  const busy = !!(UPD && (UPD.requested || (h && ['checking', 'updating'].includes(h.state))));
+  const behind = !!(h && run && h.github && run.commit !== h.github);
+  let dot = '', txt = 'Unknown';
+  if (err){ dot = 'down'; txt = 'Not answering'; }
+  else if (busy){ dot = ''; txt = UPD.requested ? 'Update asked for…' : (h.message || 'Updating…'); }
+  else if (h && h.state === 'failed'){ dot = 'down'; txt = 'Update failed'; }
+  else if (behind){ dot = 'down'; txt = 'Newer version on GitHub'; }
+  else if (h){ dot = 'up'; txt = 'Up to date'; }
+  $('#updState').innerHTML = `<span class="dot ${dot}"></span>${esc(txt)}`;
+  if (run) $('#updFacts').innerHTML = [
+    ['Running now', `<b>${esc(run.commit)}</b> · ${esc(run.change || '')}${run.date ? ' <span class="muted">(' + esc(new Date(run.date).toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})) + ')</span>' : ''}`],
+    ['Newest on GitHub', h ? `<b>${esc(h.github || '?')}</b> · ${esc(h.github_change || '')}` : '<span class="muted">not known yet</span>'],
+    ['App started', ago(UPD.started)],
+    ['Server last checked GitHub', h ? ago(h.checked) : '<span class="muted">not yet</span>'],
+    ['Last update', h && h.last_update ? ago(h.last_update) : '—'],
+  ].map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  $('#updMsg').textContent = err || (UPD && !UPD.shared ? 'The button starts working after the next automatic update (it needs a folder shared with the server).'
+    : !h ? 'Waiting for the server\'s update script to report (it runs every 5 minutes).'
+    : UPD.requested ? 'Asked. The server starts within about 10 seconds; building takes a few minutes, then the app restarts.'
+    : busy ? (h.message || '')
+    : behind && h.state !== 'failed' ? 'GitHub has a newer version. The server picks it up within 5 minutes by itself, or press Update now.'
+    : (h.message || ''));
+  $('#updBtn').disabled = busy || !UPD || !UPD.shared;
+  $('#updBtn').textContent = busy ? 'Updating…' : 'Update now';
+  if (h && h.log && h.log.length){ $('#updLogBox').hidden = false; $('#updLog').textContent = h.log.join('\n'); }
+  if (run && updWas && run.commit !== updWas) $('#updMsg').textContent = `Updated: now running ${run.commit}.`;
+  clearTimeout(updTimer);
+  if (busy || err) updTimer = setTimeout(loadUpd, 4000);
+  if (run && !busy && !err) updWas = run.commit;
+}
+$('#updRe').onclick = () => loadUpd();
+$('#updBtn').onclick = async () => {
+  $('#updBtn').disabled = true; $('#updMsg').textContent = 'Asking the server…';
+  try {
+    const r = await fetch(API + '/api/update', {method:'POST', headers: {'X-Admin-Key': KEY}});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ $('#updMsg').textContent = j.error || ('Server answered ' + r.status + '.'); $('#updBtn').disabled = false; return; }
+    $('#updMsg').textContent = 'Asked. The server starts within about 10 seconds; building takes a few minutes, then the app restarts.';
+  } catch(e){ $('#updMsg').textContent = 'The server did not answer.'; $('#updBtn').disabled = false; return; }
+  loadUpd();
+};
+
 function fail(msg){ $('#errBox').innerHTML = msg; $('#errBox').hidden = false; $('#updated').textContent = ''; }
 
 function stateOf(p){
