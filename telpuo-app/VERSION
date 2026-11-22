@@ -1,1 +1,1 @@
-{"commit": "3cbe451", "date": "2026-11-22T16:12:41+02:00", "change": "Server: install fontTools, needed to read accented stair letters (Ā Č Ē Ģ Ķ …) from map fonts"}
+{"commit": "076b246", "date": "2026-11-22T16:21:10+02:00", "change": "3D view: a floor drawn in several pieces gets a shift per piece (from its stair letters), its own texture, and controls/stairs/runner paths follow the piece they are in; on a site that is not a stack of equal floors (Mežaparks) floors stand at the heights the runners' watches measured"}
