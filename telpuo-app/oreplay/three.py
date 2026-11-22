@@ -188,3 +188,30 @@ def height_grids(tex, pieces, samples, cell=30):
         G = ndi.gaussian_filter(G, 1.0)
         out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()]})
     return out
+
+
+def shape_grids(tex, pieces, shape, cell=30):
+    """The known shape of the ground under map pieces (see app.SITE_SHAPES): each point's height lies between
+    the heights of the lines drawn across the piece, by its distance to each (two lines: straight between)."""
+    out = []
+    for t in tex:
+        if 'piece' not in t: continue
+        pc = pieces[t['piece']]; b = pc['box']; cx_, cy_ = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+        sp = next((s_ for s_ in shape if s_['floor'] == pc['floor'] and
+                   s_['within'][0] <= cx_ <= s_['within'][2] and s_['within'][1] <= cy_ <= s_['within'][3]), None)
+        if not sp: continue
+        ox, oy = pc['off']; X0, Y0 = t['x0'] + ox, t['y0'] + oy
+        nx = max(2, int(np.ceil(t['w'] / cell)) + 1); ny = max(2, int(np.ceil(t['h'] / cell)) + 1)
+        GX, GY = np.meshgrid(X0 + np.arange(nx) * t['w'] / (nx - 1), Y0 + np.arange(ny) * t['h'] / (ny - 1))
+        num = np.zeros_like(GX); den = np.zeros_like(GX)
+        for pts, h in sp['lines']:
+            P = np.array(pts, float); d = np.full(GX.shape, np.inf)
+            for (x1, y1), (x2, y2) in zip(P, P[1:]):
+                vx, vy = x2 - x1, y2 - y1; L2 = vx * vx + vy * vy or 1.0
+                u = np.clip(((GX - x1) * vx + (GY - y1) * vy) / L2, 0, 1)
+                d = np.minimum(d, np.hypot(GX - x1 - u * vx, GY - y1 - u * vy))
+            w = 1.0 / np.maximum(d, 3.0)
+            num += w * h; den += w
+        G = ndi.gaussian_filter(num / den, 0.7)
+        out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()]})
+    return out

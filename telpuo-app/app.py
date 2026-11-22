@@ -496,12 +496,18 @@ def _heights3d(mid, m, t):
         N, E, POLY, info = store.load_graph(mid)
         if info.get('stacked', True): return None
         runs = store.list_runs(mid)
-        key = (mid, int(m.get('built') or 0), tuple(sorted((r['id'], r.get('done') or r.get('updated') or 0) for r in runs)))
+        key = (mid, m.get('name'), int(m.get('built') or 0), tuple(sorted((r['id'], r.get('done') or r.get('updated') or 0) for r in runs)))
         if key in _HGRID: return _HGRID[key]
         samples = []
         for r in runs:
             samples += (store.get_run(r['id']) or {}).get('hsamples') or []
-        g = three.height_grids(t['tex'], t['pieces'], samples) or None
+        shape = site_shape_of(m)
+        g = three.height_grids(t['tex'], t['pieces'], samples) or []
+        if shape:                         # the site's known shape where given; the watches elsewhere
+            sg = three.shape_grids(t['tex'], t['pieces'], shape)
+            done_ = {x['piece'] for x in sg}
+            g = sg + [x for x in g if x['piece'] not in done_]
+        g = g or None
         _HGRID.clear(); _HGRID[key] = g
         return g
     except Exception:
@@ -903,6 +909,35 @@ def api_delete_run(rid):
 # on every floor -> 1:1750-1800, 1:1780 on average (the sheet says nothing true about scale: the plan was enlarged to fit).
 FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
                  'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
+
+# The real shape of the ground on certain outdoor sites, for the 3D view: [(name regex, [{'floor', 'within'
+# (sheet box holding the piece's centre), 'lines': [[[x, y], …], metres over floor 1], …}])]. Each map piece
+# is shaped between its lines (sheet pixels at 300 dpi, metres over floor 1), the watches being too smooth
+# for steep stands. Mezaparks Liela estrade (web: audience grandstand about 15 m high in all; the choir
+# stand's steps made steeper in the 2018 rebuild; the runners' watches: about 18 m up to 2-51):
+SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
+    # floor 1: the stage (flat), a step down to the field, the field rising gently to the a-h row, the
+    # ground floor of the grandstand building behind it
+    {'floor': 1, 'within': [1900, 2000, 3300, 3820], 'lines': [
+        [[[2510, 2180], [2660, 2140], [2810, 2184]], -1.2],
+        [[[2340, 2490], [2640, 2490], [2960, 2460]], -1.2],
+        [[[2300, 2560], [2640, 2565], [3000, 2540]], -2.5],
+        [[[2130, 3220], [2200, 3190], [2620, 3234], [3140, 3190], [3220, 3220]], 0.5],
+        [[[2180, 3440], [2600, 3740], [2820, 3720], [3150, 3460]], 1.6]]},
+    # floor 3: the audience grandstand, from the a-h row up to the top walkway (Q-T)
+    {'floor': 3, 'within': [2000, 1150, 3350, 2000], 'lines': [
+        [[[2170, 1190], [2350, 1270], [2630, 1285], [2900, 1270], [3190, 1180]], 3.0],
+        [[[2240, 1640], [2410, 1770], [2600, 1810], [2790, 1810], [2980, 1770], [3150, 1620]], 12.5]]},
+    # floor 5: the choir stand, steep, from its front edge by the stage to the top under the roof
+    {'floor': 5, 'within': [1250, 780, 1950, 1200], 'lines': [
+        [[[1260, 1190], [1400, 1150], [1560, 1120], [1720, 1150], [1940, 1180]], 0.0],
+        [[[1300, 1050], [1350, 960], [1450, 900], [1560, 860], [1680, 870], [1800, 930], [1900, 1060]], 17.8]]},
+])]
+
+def site_shape_of(m):
+    for rx, d in SITE_SHAPES:
+        if rx.search((m or {}).get('name') or ''): return d
+    return None
 
 # Flights that end on a dead-end landing on certain maps: [(name regex, [[letter, floor, 'up'|'dn'], …])].
 # (none at the moment; on TELPO 1. posms floor 2 stair A from floor 1 arrives at a half-floor corridor:

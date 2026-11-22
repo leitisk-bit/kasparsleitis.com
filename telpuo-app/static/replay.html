@@ -1038,7 +1038,7 @@ async function start(){
   // floors at their real heights when the watches measured them (a site like Mežaparks, not a stack of
   // equal floors); the spacing slider then stretches them (3 = true height)
   const LV = D.levels ? Object.fromEntries(Object.entries(D.levels).map(([k, v]) => [+k, v])) : null;
-  if (LV){ gapK = 6; const gs = document.getElementById('o3Gap'); if (gs){ gs.max = 12; gs.value = 6; } }   // real heights: start at 2x so slopes show
+  if (LV){ gapK = 3; const gs = document.getElementById('o3Gap'); if (gs){ gs.max = 12; gs.value = 3; } }   // real heights: true angles (slider to exaggerate)
   const yOf = fl => LV && fl in LV ? LV[fl] * gapK / 3 : (fl - 1) * H0 * gapK;
   const yOfF = z => { const a = Math.floor(z), b = Math.ceil(z); return a === b ? yOf(a) : yOf(a) + (yOf(b) - yOf(a)) * (z - a); };
   // the measured shape of the ground under each map piece (steep choir stands, gentle audience field):
@@ -1112,6 +1112,21 @@ async function start(){
       // each stair from the real height at its foot to the real height at its top (they differ)
       const ya = yAt(st.f1, st.a[0], st.a[1]), yb = yAt(st.f2, st.b[0], st.b[1]);
       const y0 = Math.min(ya, yb), y1 = Math.max(ya, yb), h = y1 - y0; if (h <= 0.3) return;
+      // an outdoor site (real heights): a straight flight from its foot to its top, at its real angle
+      const xa = st.a[0] * M - cx, za = st.a[1] * M - cz, xb = st.b[0] * M - cx, zb = st.b[1] * M - cz, Lh = Math.hypot(xb - xa, zb - za);
+      if (LV && Lh > 1.5){
+        const lowA = ya <= yb, X0 = lowA ? xa : xb, Z0 = lowA ? za : zb, dx = (lowA ? xb - xa : xa - xb) / Lh, dz = (lowA ? zb - za : za - zb) / Lh;
+        const n = Math.max(3, Math.min(90, Math.round(h / 0.17))), r = Lh / n, s = h / n, Wd = 2.4;
+        const sh = new THREE.Shape(); sh.moveTo(0, 0);
+        for (let i = 0; i < n; i++){ sh.lineTo(i * r, (i + 1) * s); sh.lineTo((i + 1) * r, (i + 1) * s); }
+        sh.lineTo(Lh, h - 0.35); sh.lineTo(0, -0.35); sh.lineTo(0, 0);
+        const geo = new THREE.ExtrudeGeometry(sh, { depth:Wd, bevelEnabled:false }); geo.translate(0, 0, -Wd / 2);
+        const fl = new THREE.Mesh(geo, (st.f2 > st.f1) === lowA ? stepUp : stepDn);
+        fl.position.set(X0, y0, Z0); fl.rotation.y = -Math.atan2(dz, dx); fl.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(fl);
+        const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edgeMat); ed.position.copy(fl.position); ed.rotation.copy(fl.rotation); stairGrp.add(ed);
+        const lab = textSprite(st.letter); lab.scale.multiplyScalar(0.8); lab.position.set((xa + xb) / 2, y0 + h / 2 + 1.6, (za + zb) / 2); lab.renderOrder = 6; lab.userData = { f1:st.f1, f2:st.f2 };
+        stairGrp.add(lab); return;
+      }
       const W = 3.2, Dp = 3.2;
       const shaft = new THREE.Mesh(new THREE.BoxGeometry(W, h, Dp), shaftMat); shaft.position.set(x, y0 + h / 2, z);
       shaft.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(shaft);
