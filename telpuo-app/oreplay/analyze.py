@@ -303,6 +303,31 @@ def analyze(pdf_path, page=0):
     if extra_tape: f['notes'].append('Tape drawn in ' + ', '.join(str(c) for c in extra_tape) + ' (course in ' + str(course_col) + ').')
     def is_tape_(c, _t=_is_tape): return _t(c) or any(_near(c, e, 12) for e in extra_tape)
     def is_course_(c, _c=_is_course): return _c(c) and not any(_near(c, e, 12) for e in extra_tape)
+    # walls as drawn (black strokes and black fills): under the course overprint the picture cannot show
+    # whether a wall goes on, the drawing can - the route never goes through a wall a course line or the
+    # start triangle happens to cover (TELPO 2. posms start, on the stage's wall)
+    f['wall_lines'], f['wall_polys'] = [], []
+    dark_ = lambda c: c is not None and sum(c) < 150
+    def _bez(p0, p1, p2, p3, n=6):
+        return [((1 - t) ** 3 * p0.x + 3 * (1 - t) ** 2 * t * p1.x + 3 * (1 - t) * t * t * p2.x + t ** 3 * p3.x,
+                 (1 - t) ** 3 * p0.y + 3 * (1 - t) ** 2 * t * p1.y + 3 * (1 - t) * t * t * p2.y + t ** 3 * p3.y) for t in [i / n for i in range(n + 1)]]
+    for d in drawings:
+        sc = _rgb(d.get('color')); fc = _rgb(d.get('fill')); wd = (d.get('width') or 1) * S
+        if not (dark_(sc) or dark_(fc)): continue
+        pts_all = []
+        for it in d['items']:
+            if it[0] == 'l': seg = [(it[1].x, it[1].y), (it[2].x, it[2].y)]
+            elif it[0] == 'c': seg = _bez(*it[1:5])
+            elif it[0] == 're': q = it[1]; seg = [(q.x0, q.y0), (q.x1, q.y0), (q.x1, q.y1), (q.x0, q.y1), (q.x0, q.y0)]
+            elif it[0] == 'qu': q = it[1]; seg = [(q.ul.x, q.ul.y), (q.ur.x, q.ur.y), (q.lr.x, q.lr.y), (q.ll.x, q.ll.y), (q.ul.x, q.ul.y)]
+            else: continue
+            seg = [(round(x * S, 1), round(y * S, 1)) for x, y in seg]
+            if dark_(sc):
+                for (x0, y0), (x1, y1) in zip(seg, seg[1:]): f['wall_lines'].append([x0, y0, x1, y1, round(max(wd, 2), 1)])
+            pts_all += seg
+        if dark_(fc) and len(pts_all) >= 3:
+            ar = abs(sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(pts_all, pts_all[1:] + pts_all[:1]))) / 2
+            if ar < 30000: f['wall_polys'].append(pts_all)     # (not a dark backdrop that rooms are drawn over)
     # vector masks: tape (never passable) and course overprint (to be looked through)
     f['tape_lines'], f['course_lines'] = [], []
     for d in drawings:

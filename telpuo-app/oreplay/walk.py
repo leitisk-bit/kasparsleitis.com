@@ -101,8 +101,22 @@ def walk_mask(img, features, cls=None, k=None):
         bridge = ov & (((sides[0] & sides[1]) & (dist[0] + dist[1] - 1 <= 10)) |
                        ((sides[2] & sides[3]) & (dist[2] + dist[3] - 1 <= 10)))
         walk &= ~bridge
+    # and wherever the drawing has a wall under the overprint, it is a wall
+    if (~known).any() and (features.get('wall_lines') or features.get('wall_polys')):
+        from PIL import Image as _I, ImageDraw as _D
+        wm = vector_mask(img.shape, features.get('wall_lines') or [])
+        if features.get('wall_polys'):
+            im_ = _I.new('L', (img.shape[1], img.shape[0]), 0); d_ = _D.Draw(im_)
+            for poly in features['wall_polys']: d_.polygon([tuple(p_) for p_ in poly], fill=255)
+            wm |= np.array(im_) > 0
+        walk &= ~(wm & ~known)
     for x0, y0, x1, y1 in features.get('start_finish_zone', []):
         x0, y0 = max(0, int(x0)), max(0, int(y0))
+        # only for a start or finish placed in a no-go area itself; one beside it (TELPO 2. posms start,
+        # by the stage) must not open the area around it
+        cx_, cy_ = min(cls.shape[1] - 1, x0 + 110), min(cls.shape[0] - 1, y0 + 50)
+        win = cls[max(0, cy_ - 6):cy_ + 7, max(0, cx_ - 6):cx_ + 7]
+        if not (win == k['pink']).mean() > 0.5: continue
         walk[y0:int(y1), x0:int(x1)] |= cls[y0:int(y1), x0:int(x1)] == k['pink']
     st = np.isin(cls, [k['red'], k['blue'], k['same']])
     # the step edge (landing colour) belongs to the steps: the thin white outline round small
