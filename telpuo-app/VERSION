@@ -1,1 +1,1 @@
-{"commit": "687d2e0", "date": "2026-11-22T14:42:12+02:00", "change": "Map reading: accented stair letters (Ā Č Ē Ģ Ī Ķ Ļ Ņ Š Ū Ž) from subset fonts without a letter table, recognised by base letter + accent"}
+{"commit": "e71dc50", "date": "2026-11-22T15:01:38+02:00", "change": "TELPO 2. posms map: start triangle drawn as 4 pieces and matched to the circles' colour and width (not a tape corner); stair letters matched to flights closest pair first, flight pieces cut by a course line joined; floor area reaches its stair letters (stair S and Ģ below the stands, 8-46)"}
