@@ -3,7 +3,8 @@
 Run:  python3 app.py            (dev, port 8090)
       gunicorn -w 1 --threads 4 -b 127.0.0.1:8090 app:app   (production behind nginx)
 """
-import os, time, json, math, re, traceback, threading, hmac, hashlib
+import os, time, json, math, re, traceback, threading, hmac, hashlib, collections
+import numpy as np
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
 from oreplay import store, analyze, walk, results, three, serverinfo
@@ -478,14 +479,33 @@ def api_reread(mid):
 def api_three(mid):
     m = _seen(mid)
     if not m.get('three'): return jsonify(error='No 3D data for this map yet.'), 404
-    t = m['three']; feat = store.get_features(mid)
-    return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'],
-                   tex=[dict(x, img=f"api/maps/{mid}/tex/{x['floor']}.webp?{int(m.get('built') or 0)}") for x in t['tex']],
-                   controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}), title=m.get('name', ''),
-                   stairs=_stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}))
+    t = m['three']; feat = store.get_features(mid); pieces = t.get('pieces')
+    tx = lambda x: f"api/maps/{mid}/tex/{x['floor']}" + (f"_{x['piece']}" if 'piece' in x else '') + f".webp?{int(m.get('built') or 0)}"
+    return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'], pieces=pieces,
+                   levels=_levels3d(mid),
+                   tex=[dict(x, img=tx(x)) for x in t['tex']],
+                   controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
+                   stairs=_stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces))
+
+def _levels3d(mid):
+    """Real height of each floor over floor 1, measured by the runners' watches (the middle of all runs),
+    for maps whose floors are not stacked plans of one building (Mežaparks); None otherwise (3.7 m apart)."""
+    try:
+        N, E, POLY, info = store.load_graph(mid)
+        if info.get('stacked', True): return None
+        got = collections.defaultdict(list)
+        for r in store.list_runs(mid):
+            rr = store.get_run(r['id']) or {}
+            lv = (rr.get('floors_fit') or {}).get('levels') or {}
+            base = lv.get('1', lv.get(1))
+            if base is None: continue
+            for k, v in lv.items(): got[_fnum(k)].append(v - base)
+        return {str(k): round(float(np.median(v)), 2) for k, v in got.items()} or None
+    except Exception:
+        return None
 
 _STAIRS = {}
-def _stairs3d(mid, built, off):
+def _stairs3d(mid, built, off, pieces=None):
     """Stairwells for the 3D view: one piece per letter between two floors it links, at the stairwell's
     place on each floor (lined up like the floor textures)."""
     key = (mid, built)
@@ -508,7 +528,9 @@ def _stairs3d(mid, built, off):
             for f in (k[1], k[2]):
                 pts = pos.get((f, L)) or []
                 if not pts: break
-                o = off.get(f) or [0, 0]
+                mx, my = sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts)
+                pc = three.piece_of(pieces, f, mx, my) if pieces else None
+                o = pc['off'] if pc else (off.get(f) or [0, 0])
                 ends.append([round(sum(q[0] for q in pts) / len(pts) - o[0], 1), round(sum(q[1] for q in pts) / len(pts) - o[1], 1)])
             if len(ends) == 2: out.append({'letter': L, 'f1': k[1], 'f2': k[2], 'a': ends[0], 'b': ends[1]})
     except Exception: traceback.print_exc()
@@ -517,7 +539,7 @@ def _stairs3d(mid, built, off):
 
 @app.get('/api/maps/<mid>/tex/<floor>.webp')
 def api_tex(mid, floor):
-    if not re.fullmatch(r'-?\d+(\.\d+)?', floor): abort(404)
+    if not re.fullmatch(r'-?\d+(\.\d+)?(_\d+)?', floor): abort(404)
     _seen(mid)
     p = os.path.join(store.map_dir(mid), f'tex{floor}.webp')
     if not os.path.exists(p): abort(404)

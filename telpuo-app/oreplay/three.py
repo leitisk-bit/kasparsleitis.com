@@ -30,6 +30,59 @@ def floor_offsets(N, floors):
     return {f: [round(float(v[0]), 1), round(float(v[1]), 1)] for f, v in off.items()}
 
 
+def piece_offsets(N, feat):
+    """Shift of every separately drawn piece of every floor, so its stairwells sit over the same letters
+    already placed (floor 1 first). A floor may be drawn in several pieces at different places on the
+    sheet (TELPO 2. posms: floor 3 = the top of the choir stands + an arc by the stage building), each needing
+    its own shift. Returns [{'floor', 'box', 'off'}]."""
+    pieces = [{'floor': f['floor'], 'box': list(b), 'off': None} for f in feat.get('floors', []) for b in f['boxes']]
+    def inside(pc, x, y, m=40):
+        b = pc['box']; return b[0] - m <= x <= b[2] + m and b[1] - m <= y <= b[3] + m
+    letters = []                                          # (piece index, letter, x, y)
+    for n, (fl, x, y) in N.items():
+        p = n.split('_')
+        if len(p) != 3 or p[2] not in ('up', 'dn'): continue
+        cand = [i for i, pc in enumerate(pieces) if pc['floor'] == fl and inside(pc, x, y)]
+        if cand: letters.append((cand[0], p[1], x, y))
+    by = defaultdict(list)
+    for i, L, x, y in letters: by[i].append((L, x, y))
+    ref = [i for i, pc in enumerate(pieces) if pc['floor'] == 1] or ([0] if pieces else [])
+    ref.sort(key=lambda i: -len(by[i]))
+    if ref: pieces[ref[0]]['off'] = [0.0, 0.0]
+    for _ in range(len(pieces)):
+        best = None
+        for i, pc in enumerate(pieces):
+            if pc['off'] is not None: continue
+            ds = []
+            for L, x, y in by[i]:
+                for j, pj in enumerate(pieces):
+                    if pj['off'] is None or pj['floor'] == pc['floor']: continue
+                    for L2, x2, y2 in by[j]:
+                        if L2 == L: ds.append((x - (x2 - pj['off'][0]), y - (y2 - pj['off'][1]), L))
+            if not ds: continue
+            # the shift most letters agree on (a letter may also name an unrelated stair elsewhere)
+            sup = [[d for d in ds if abs(d[0] - c[0]) < 60 and abs(d[1] - c[1]) < 60] for c in ds]
+            k = max(range(len(ds)), key=lambda q: len({d[2] for d in sup[q]}))
+            n_ok = len({d[2] for d in sup[k]})
+            if best is None or n_ok > best[0]:
+                best = (n_ok, i, [float(np.mean([d[0] for d in sup[k]])), float(np.mean([d[1] for d in sup[k]]))])
+        if best is None: break
+        pieces[best[1]]['off'] = [round(best[2][0], 1), round(best[2][1], 1)]
+    for pc in pieces:
+        if pc['off'] is None: pc['off'] = [0.0, 0.0]      # shares no stair with anything: stays put
+    return pieces
+
+
+def piece_of(pieces, fl, x, y):
+    """The piece of floor `fl` a point lies in (or nearest to)."""
+    best = None
+    for pc in pieces:
+        if pc['floor'] != fl: continue
+        b = pc['box']; d = np.hypot(max(b[0] - x, 0, x - b[2]), max(b[1] - y, 0, y - b[3]))
+        if best is None or d < best[0]: best = (d, pc)
+    return best[1] if best else None
+
+
 def build(img, feat, N, out_dir):
     floors = [f['floor'] for f in feat.get('floors', [])]
     off = floor_offsets(N, floors)
@@ -64,15 +117,33 @@ def build(img, feat, N, out_dir):
         I.save(os.path.join(out_dir, f"tex{fl['floor']}.webp"), 'WEBP', quality=82)
         o = off.get(fl['floor'], [0, 0])
         tex.append({'floor': fl['floor'], 'x0': x0 - o[0], 'y0': y0 - o[1], 'w': x1 - x0, 'h': y1 - y0})
-    return {'offsets': off, 'tex': tex, 'floorH': 3.7}
+    out = {'offsets': off, 'tex': tex, 'floorH': 3.7}
+    # a floor drawn in pieces at different places on the sheet: each piece its own texture and shift
+    pieces = piece_offsets(N, feat)
+    if any(sum(1 for q in pieces if q['floor'] == pc['floor']) > 1 for pc in pieces) or feat.get('_pieces'):
+        ptex = []
+        for i, pc in enumerate(pieces):
+            bx = pc['box']; x0, y0 = max(0, int(bx[0]) - 24), max(0, int(bx[1]) - 24)
+            x1, y1 = min(W, int(bx[2]) + 24), min(H, int(bx[3]) + 24)
+            c = img[y0:y1, x0:x1].astype(int)
+            solid = ~(c.min(axis=2) > 235)
+            keep = ndi.binary_fill_holes(ndi.binary_dilation(ndi.binary_opening(solid, structure=np.ones((9, 9))), iterations=3) & solid)
+            rgba = np.dstack([c.astype(np.uint8), (keep * 255).astype(np.uint8)])
+            I = Image.fromarray(rgba, 'RGBA')
+            I = I.resize((max(1, int(I.width * TEX_SCALE)), max(1, int(I.height * TEX_SCALE))), Image.LANCZOS)
+            I.save(os.path.join(out_dir, f"tex{pc['floor']}_{i}.webp"), 'WEBP', quality=82)
+            ptex.append({'floor': pc['floor'], 'piece': i, 'x0': x0 - pc['off'][0], 'y0': y0 - pc['off'][1], 'w': x1 - x0, 'h': y1 - y0})
+        out.update(tex=ptex, pieces=pieces)
+    return out
 
 
-def controls(feat, off):
+def controls(feat, off, pieces=None):
     ctrls = []
     for c in feat.get('controls', []):
         fl = c.get('floor')
         if fl is None: continue
-        o = off.get(fl) or off.get(str(fl)) or [0, 0]
+        pc = piece_of(pieces, fl, c['x'], c['y']) if pieces else None
+        o = pc['off'] if pc else (off.get(fl) or off.get(str(fl)) or [0, 0])
         lab = {'start': 'Start', 'finish': 'Finish'}.get(c['kind']) or (f"{c['n']}-{c['code']}" if c.get('code') else str(c['n']))
         ctrls.append({'kind': c['kind'], 'label': lab, 'x': c['x'] - o[0], 'y': c['y'] - o[1], 'floor': fl})
     return ctrls
