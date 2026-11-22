@@ -1,1 +1,1 @@
-{"commit": "bc65fa3", "date": "2026-11-22T15:11:47+02:00", "change": "Watch altitude: floors kept at least 2 m apart only where they are stacked over one footprint (floor plans of about the same size); a site made of parts (Mežaparks) gives each floor its own height"}
+{"commit": "3cbe451", "date": "2026-11-22T16:12:41+02:00", "change": "Server: install fontTools, needed to read accented stair letters (Ā Č Ē Ģ Ķ …) from map fonts"}
