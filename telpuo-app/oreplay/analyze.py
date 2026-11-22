@@ -644,8 +644,9 @@ def analyze(pdf_path, page=0):
         fc = _rgb(d.get('fill')); r = d['rect']
         if _is_red(fc) and len(d['items']) == 3 and 2 < r.width < 9 and 2 < r.height < 9:
             heads.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S))
-        # (TELPO maps draw each arrowhead as two red strokes, not a filled triangle)
-        elif not fc and _is_red(_rgb(d.get('color'))) and ''.join(i[0] for i in d['items']) == 'll' and 1.5 < r.width < 9 and 1.5 < r.height < 9:
+        # (TELPO maps draw each arrowhead as two red strokes, not a filled triangle; on 2. posms the whole
+        # sign is only 2 mm across, turned, in the maze on floor -1)
+        elif not fc and _is_red(_rgb(d.get('color'))) and ''.join(i[0] for i in d['items']) == 'll' and 0.8 < r.width < 9 and 0.8 < r.height < 9 and max(r.width, r.height) > 1.2:
             heads.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S))
     f['crossings'] = []
     used_h = set()

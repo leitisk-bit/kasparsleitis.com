@@ -119,6 +119,12 @@ def walk_mask(img, features, cls=None, k=None):
     for c in features.get('crossings', []):
         x0, y0, x1, y1 = c['box']
         walk[int(y0):int(y1), int(x0):int(x1)] = False
+        # the crossing itself, out to just short of its arms: no turning there (a small sign in a wide
+        # junction would otherwise be walked round - TELPO 2. posms, floor -1)
+        if c.get('arms') and 'x' in c and max(x1 - x0, y1 - y0) < 35:
+            rr = 0.8 * np.mean([math.hypot(p_[0] - c['x'], p_[1] - c['y']) for p_ in c['arms'].values()])
+            yy, xx = np.ogrid[:walk.shape[0], :walk.shape[1]]
+            walk[(xx - c['x']) ** 2 + (yy - c['y']) ** 2 <= rr * rr] = False
     lab, n = ndi.label(walk); sizes = ndi.sum(walk, lab, range(n + 1))
     return walk & (sizes[lab] >= 300), cls, k
 
