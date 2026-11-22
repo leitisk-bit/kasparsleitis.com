@@ -536,11 +536,11 @@ def _stairs3d(mid, built, off, pieces=None):
         pos = {}
         for n, (fl, x, y) in N.items():
             p = n.split('_')
-            if len(p) == 3 and p[2] in ('up', 'dn'): pos.setdefault((_fnum(p[0]), p[1]), []).append((x, y))
+            if len(p) == 3 and p[2] in ('up', 'dn'): pos.setdefault((_fnum(p[0]), p[1].split('#')[0]), []).append((x, y))
         seen = set()
         for a, b, px, fl, _ in E:
             if not fl: continue
-            fa, L = _fnum(a.split('_')[0]), a.split('_')[1]; fb = _fnum(b.split('_')[0])
+            fa, L = _fnum(a.split('_')[0]), a.split('_')[1].split('#')[0]; fb = _fnum(b.split('_')[0])
             k = (L, min(fa, fb), max(fa, fb))
             if k in seen: continue
             seen.add(k)

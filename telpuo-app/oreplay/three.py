@@ -13,7 +13,7 @@ def floor_offsets(N, floors):
     S = defaultdict(lambda: defaultdict(list))
     for n, (fl, x, y) in N.items():
         p = n.split('_')
-        if len(p) == 3 and p[2] in ('up', 'dn'): S[p[1]][fl].append((x, y))
+        if len(p) == 3 and p[2] in ('up', 'dn'): S[p[1].split('#')[0]][fl].append((x, y))
     C = {c: {fl: np.mean(v, axis=0) for fl, v in d.items()} for c, d in S.items()}
     floors = sorted(floors)
     if not floors: return {}
@@ -43,7 +43,7 @@ def piece_offsets(N, feat):
         p = n.split('_')
         if len(p) != 3 or p[2] not in ('up', 'dn'): continue
         cand = [i for i, pc in enumerate(pieces) if pc['floor'] == fl and inside(pc, x, y)]
-        if cand: letters.append((cand[0], p[1], x, y))
+        if cand: letters.append((cand[0], p[1].split('#')[0], x, y))
     by = defaultdict(list)
     for i, L, x, y in letters: by[i].append((L, x, y))
     ref = [i for i, pc in enumerate(pieces) if pc['floor'] == 1] or ([0] if pieces else [])

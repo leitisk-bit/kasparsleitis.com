@@ -13,6 +13,7 @@ Rules (map legend):
 import math, collections, os
 import numpy as np
 from scipy import ndimage as ndi
+from scipy.spatial import cKDTree
 from skimage.graph import MCP_Geometric
 import networkx as nx
 
@@ -150,13 +151,17 @@ def flights(cls, k, features):
                     xs = xs + sl[1].start + x0; ys = ys + sl[0].start + y0
                     cx, cy = xs.mean(), ys.mean()
                     j = int(np.argmin((xs - cx) ** 2 + (ys - cy) ** 2))
-                    blobs.append([tag, cx, cy, int(xs[j]), int(ys[j]), len(xs), (xs.min(), ys.min(), xs.max(), ys.max())])
+                    blobs.append([tag, cx, cy, int(xs[j]), int(ys[j]), len(xs), (xs.min(), ys.min(), xs.max(), ys.max()),
+                                  np.stack([xs, ys], 1)])
         # a piece of a flight cut off by a course line over it is part of that flight, not one of its own
         blobs.sort(key=lambda b_: -b_[5]); keep_ = []
         for b_ in blobs:
             bx = b_[6]
+            # (it must lie right against the flight: a small flight of its own beside a long diagonal one sits
+            # inside that one's box without touching it - TELPO 2. posms: K beside T, C beside Q on floor 3)
             host = next((h for h in keep_ if h[0] == b_[0] and b_[5] < 0.25 * h[5] and
-                         bx[0] <= h[6][2] + 4 and bx[2] >= h[6][0] - 4 and bx[1] <= h[6][3] + 4 and bx[3] >= h[6][1] - 4), None)
+                         bx[0] <= h[6][2] + 4 and bx[2] >= h[6][0] - 4 and bx[1] <= h[6][3] + 4 and bx[3] >= h[6][1] - 4
+                         and cKDTree(h[7]).query(b_[7], k=1, distance_upper_bound=9)[0].min() < 9), None)
             if host is None: keep_.append(b_)
         blobs = keep_
         # letters by matching, closest pairs first: each printed letter names one flight of each colour, so
@@ -164,23 +169,37 @@ def flights(cls, k, features):
         # (TELPO 2. posms: stair S between two small Ģ flights, 8-46)
         pairs = sorted((math.hypot(s_['x'] - b_[1], s_['y'] - b_[2]), bi, li)
                        for bi, b_ in enumerate(blobs) for li, s_ in enumerate(lab_here))
-        done_b, used = set(), set()
+        done_b, used, asg = set(), set(), {}
         for dd, bi, li in pairs:
             if dd > 130: break
             tag = blobs[bi][0]
             if bi in done_b or (li, tag) in used: continue
-            done_b.add(bi); used.add((li, tag))
-            _, cx, cy, px, py, npx, _bx = blobs[bi]
-            name = f"{fl}_{lab_here[li]['letter']}_{tag}"
-            if name not in out or npx > out[name][3]:
-                out[name] = (fl, px, py, npx)
+            done_b.add(bi); used.add((li, tag)); asg[bi] = li
+        dist = lambda bi, li: math.hypot(lab_here[li]['x'] - blobs[bi][1], lab_here[li]['y'] - blobs[bi][2])
         for bi, b_ in enumerate(blobs):              # a flight whose near letters all went to closer ones
-            if bi in done_b:                         # keeps its nearest letter as before
-                continue
-            tag, cx, cy, px, py, npx, _bx = b_
-            best = min(lab_here, key=lambda s_: math.hypot(s_['x'] - cx, s_['y'] - cy))
-            if math.hypot(best['x'] - cx, best['y'] - cy) > 130: continue
-            name = f"{fl}_{best['letter']}_{tag}"
+            if bi in asg: continue                   # keeps its nearest letter as before
+            li = min(range(len(lab_here)), key=lambda l_: dist(bi, l_))
+            if dist(bi, li) <= 130: asg[bi] = li
+        # One letter printed between two flights of the same colour names both (TELPO 2. posms floor 2: K
+        # between two red flights). Matching one flight per letter handed the second one a letter further
+        # off; it takes its nearest letter back when that is clearly nearer and the flight holding that
+        # letter is of about the same size (a big flight between two small ones keeps its own letter).
+        holder = {(li, blobs[bi][0]): bi for bi, li in asg.items()}
+        dup = {}
+        for bi, li in list(asg.items()):
+            ln = min(range(len(lab_here)), key=lambda l_: dist(bi, l_))
+            if ln == li or lab_here[ln]['letter'] == lab_here[li]['letter']: continue
+            h = holder.get((ln, blobs[bi][0]))
+            if h is None or h == bi: continue
+            if dist(bi, li) > 1.5 * dist(bi, ln) and 0.5 <= blobs[bi][5] / blobs[h][5] <= 2:
+                dup[bi] = ln
+        for bi, li in sorted(asg.items(), key=lambda t_: -blobs[t_[0]][5]):
+            tag, cx, cy, px, py, npx, _bx, _pts = blobs[bi]
+            if bi in dup:
+                L_ = lab_here[dup[bi]]['letter']; j_ = 2
+                while f"{fl}_{L_}#{j_}_{tag}" in out: j_ += 1
+                out[f"{fl}_{L_}#{j_}_{tag}"] = (fl, px, py, npx); continue
+            name = f"{fl}_{lab_here[li]['letter']}_{tag}"
             if name not in out: out[name] = (fl, px, py, npx)
     return {n: v[:3] for n, v in out.items()}
 
@@ -484,7 +503,7 @@ def suggest_pockets(cls, k, features, FL):
 def build(img, features, progress=None):
     """Returns N (name -> (floor, x, y)), E (a, b, px, floors, directed), POLY, info."""
     walk, cls, k = walk_mask(img, features)
-    FL = flights(cls, k, features)
+    FL = flights(cls, k, features); FL0 = dict(FL)
     doors = set()                      # strict stairs: flights with a door of their own, even into a dead end
     strict = features.get('stair_rule') == 'legend'
     if strict:                                                 # per map, switched on in the Stairs tab
@@ -592,11 +611,11 @@ def build(img, features, progress=None):
     by_letter = collections.defaultdict(set)
     for n in N:
         parts = n.split('_')
-        if len(parts) == 3 and parts[2] in ('up', 'dn'): by_letter[parts[1]].add(fnum(parts[0]))
+        if len(parts) == 3 and parts[2] in ('up', 'dn'): by_letter[parts[1].split('#')[0]].add(fnum(parts[0]))
     for n in list(N):
         parts = n.split('_')
         if len(parts) != 3 or parts[2] not in ('up', 'dn'): continue
-        f, L, tag = fnum(parts[0]), parts[1], parts[2]
+        f, L, tag = fnum(parts[0]), parts[1].split('#')[0], parts[2]      # (K#2: a second flight lettered K)
         cand = sorted(x for x in by_letter[L] if (x > f if tag == 'up' else x < f))
         if not cand: continue
         g = cand[0] if tag == 'up' else cand[-1]
@@ -607,6 +626,11 @@ def build(img, features, progress=None):
         if tag == 'dn' and any(str(c_[0]) == L and {fnum(c_[1]), fnum(c_[2])} == {f, g}
                                for c_ in features.get('stair_up_only') or []): continue
         if m_: add(n, m_, 0.0, 1)
+        for v_ in N:                     # the floor's other flights with this letter (K#2)
+            q_ = v_.split('_')
+            if m_ and len(q_) == 3 and '#' in q_[1] and q_[1].split('#')[0] == L and fnum(q_[0]) == g \
+                    and q_[2] == m_.split('_')[2]:
+                add(n, v_, 0.0, 1)
     # The up and down halves of a stairwell on one floor. When each half has its own door onto the floor
     # (4. posms: one half goes down to -1, the other up to 2) they are separate: you cannot walk in
     # through one and out through the other. When a half has no door of its own (walled in, or its door
@@ -652,6 +676,31 @@ def build(img, features, progress=None):
         if any(math.hypot(bx - mx, by - my) < 75 and (not strict or ln_ >= 40)
                for bx, by, ln_ in features.get('stair_bars', [])): continue
         add(n, o, d, 0); add(o, n, d, 0)
+    # A flight closed at this floor (no door: a purple bracket across its top, TELPO 2. posms Q and T on
+    # floor 3) ends on a landing shared with other flights drawn onto it (the small C and K flights down to
+    # floor 2): from the landing you go on by those; and a small flight drawn onto a big one's landing (E
+    # beside R) is left through that one. Joined where one of them has no door of its own on this floor
+    # and one drawn stair symbol (steps and landing together) holds both.
+    has_door = collections.Counter(a_ for a_, b_, px_, fl_, _ in E if not fl_)
+    shut = [n for n in N if len(n.split('_')) == 3 and n.split('_')[2] in ('up', 'dn') and n in FL0
+            and not has_door[n]]          # (a door onto a speck of landing that leads nowhere counts as none)
+    if shut:
+        symp = np.isin(cls, [k['red'], k['blue'], k['landing']])
+        slab, _ = ndi.label(ndi.binary_closing(symp, iterations=2))
+        def comp(n_):
+            f_, x_, y_ = FL0[n_]; y0_, x0_ = max(0, y_ - 3), max(0, x_ - 3)
+            ids = slab[y0_:y_ + 4, x0_:x_ + 4]; ids = ids[ids > 0]
+            return int(np.bincount(ids).argmax()) if len(ids) else 0
+        flz = [n_ for n_ in N if len(n_.split('_')) == 3 and n_.split('_')[2] in ('up', 'dn') and n_ in FL0]
+        cid = {n_: comp(n_) for n_ in flz}
+        done_ = set()
+        for a_ in shut:
+            for b_ in flz:
+                if b_ == a_ or (b_, a_) in done_: continue
+                done_.add((a_, b_))
+                if a_.split('_')[1].split('#')[0] == b_.split('_')[1].split('#')[0] or N[a_][0] != N[b_][0] or not cid[a_] or cid[a_] != cid[b_]: continue
+                d = math.hypot(N[a_][1] - N[b_][1], N[a_][2] - N[b_][2])
+                if d < 150: add(a_, b_, d, 0); add(b_, a_, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():
         if fl_name in N and c in N:

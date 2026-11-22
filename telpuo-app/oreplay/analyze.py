@@ -288,11 +288,26 @@ def analyze(pdf_path, page=0):
                         lg |= r; changed = True
             legend = [lg.x0 * S - 20, lg.y0 * S - 60, lg.x1 * S + 200, lg.y1 * S + 40]
     f['ignore'] = [legend] if legend else []
+    # Some maps draw the course in one purple and the no-crossing tape in another that our colour
+    # tests would also take for course (TELPO 2. posms: course 170,74,156, tape 154,37,143 - the
+    # legend's "Ierobezojosa lente" swatch). The course colour is the one the control circles are
+    # drawn in; another purple that draws no circle is tape.
+    circ_c, all_c = collections.Counter(), collections.Counter()
+    for d in drawings:
+        sc = _rgb(d.get('color'))
+        if not _is_course(sc) or d.get('fill'): continue
+        all_c[sc] += 1; r = d['rect']; kinds = ''.join(i[0] for i in d['items'])
+        if set(kinds) == {'c'} and 6 < r.width < 30 and abs(r.width - r.height) < 1.5: circ_c[sc] += 1
+    course_col = circ_c.most_common(1)[0][0] if circ_c else None
+    extra_tape = [c for c, n in all_c.items() if course_col and n >= 3 and not circ_c.get(c) and not _near(c, course_col, 20)]
+    if extra_tape: f['notes'].append('Tape drawn in ' + ', '.join(str(c) for c in extra_tape) + ' (course in ' + str(course_col) + ').')
+    def is_tape_(c, _t=_is_tape): return _t(c) or any(_near(c, e, 12) for e in extra_tape)
+    def is_course_(c, _c=_is_course): return _c(c) and not any(_near(c, e, 12) for e in extra_tape)
     # vector masks: tape (never passable) and course overprint (to be looked through)
     f['tape_lines'], f['course_lines'] = [], []
     for d in drawings:
         sc = _rgb(d.get('color')); fc = _rgb(d.get('fill')); wd = (d.get('width') or 1) * S
-        for key, test in (('tape_lines', _is_tape), ('course_lines', _is_course)):
+        for key, test in (('tape_lines', is_tape_), ('course_lines', is_course_)):
             if test(sc) or test(fc):
                 for it in d['items']:
                     if it[0] == 'l': f[key].append([round(it[1].x * S, 1), round(it[1].y * S, 1), round(it[2].x * S, 1), round(it[2].y * S, 1), round(max(wd, 3), 1)])
@@ -307,7 +322,7 @@ def analyze(pdf_path, page=0):
     f['stair_bars'] = []
     for d in drawings:
         sc = _rgb(d.get('color')); fc = _rgb(d.get('fill'))
-        if not (_is_tape(sc) or _is_tape(fc)): continue
+        if not (is_tape_(sc) or is_tape_(fc)): continue
         r = d['rect']; w_, h_ = r.width * S, r.height * S
         kinds = ''.join(i[0] for i in d['items'])
         # (a small FILLED purple block, as on the 3. posms maps, closes only the door: runners pass by
@@ -322,7 +337,7 @@ def analyze(pdf_path, page=0):
     circles, tri, lines, arcs = [], [], [], []; cw_, tw_ = [], []
     for d in drawings:
         sc = _rgb(d.get('color')); fc = _rgb(d.get('fill'))
-        if not _is_course(sc) or fc: continue
+        if not is_course_(sc) or fc: continue
         r = d['rect']; kinds = ''.join(i[0] for i in d['items'])
         if set(kinds) == {'c'} and 6 < r.width < 30 and abs(r.width - r.height) < 1.5:
             circles.append(((r.x0 + r.x1) / 2 * S, (r.y0 + r.y1) / 2 * S, r.width / 2 * S)); cw_.append((d.get('width') or 0, sc))

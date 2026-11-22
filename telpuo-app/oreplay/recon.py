@@ -514,7 +514,7 @@ class Recon:
     def describe(self, p):
         segs = []
         for u, v in zip(p, p[1:]):
-            if self.G[u][v]['fl']: segs.append([u.split('_')[1], self.N[u][0], self.N[v][0]])
+            if self.G[u][v]['fl']: segs.append([u.split('_')[1].split('#')[0], self.N[u][0], self.N[v][0]])
         out = []
         for L, a, b in segs:
             if out and out[-1][0] == L and out[-1][-1] == a:
