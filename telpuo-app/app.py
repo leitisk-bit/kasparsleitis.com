@@ -1072,6 +1072,10 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
         tops, bots, sides = at(main, f3), at(main, f1), (at(branch, f2) if branch else [])
         if not st or not tops or not bots or (branch and not sides): continue      # (P, U, O, V: no side flights)
         st['imperial'] = {'branch': branch, 'top': tops[0], 'bottom': bots[0], 'sides': sides, 'f2': f2}
+        # the landing as the map draws it: the branch letter's symbol on floor 3 (the little platform by the
+        # top edge where the side flights leave), the one nearest its top letter
+        lands = at(branch, f3) if branch else []
+        if lands: st['imperial']['land'] = min(lands, key=lambda q: math.hypot(q[0] - tops[0][0], q[1] - tops[0][1]))
         # Kaspars: they all run down outwards, away from the field, as far as the map goes there
         pc = three.piece_of(pieces, f3, *tops[0]) if pieces else None
         if pc:
