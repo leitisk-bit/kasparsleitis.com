@@ -540,7 +540,7 @@ def _heights3d(mid, m, t):
         shape = site_shape_of(m)
         g = three.height_grids(t['tex'], t['pieces'], samples) or []
         if shape:                         # the site's known shape where given; the watches elsewhere
-            sg = three.shape_grids(t['tex'], t['pieces'], shape)
+            sg = three.shape_grids(t['tex'], t['pieces'], shape, sampler=site_lidar_of(m))
             g = sg      # (the other pieces are floors inside buildings: flat at their level, not bent by watch noise)
         g = g or None
         _HGRID.clear(); _HGRID[key] = g
@@ -1026,7 +1026,7 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
         [[[2130, 3220], [2200, 3190], [2620, 3234], [3140, 3190], [3220, 3220]], 0.5],
         [[[2180, 3440], [2600, 3740], [2820, 3720], [3150, 3460]], 1.6]]},
     # floor 3: the audience grandstand, from the a-h row up to the top walkway (Q-T)
-    {'floor': 3, 'within': [2000, 1150, 3350, 2000], 'lines': [
+    {'floor': 3, 'within': [2000, 1150, 3350, 2000], 'lidar': True, 'lines': [
         [[[2170, 1190], [2350, 1270], [2630, 1285], [2900, 1270], [3190, 1180]], 3.0],
         # (the back rows: 10 m up on 10 m concrete columns, two storeys of toilets and kiosks under them -
         # ir.lv 2017, "Skatitaju zonas aizmugurejas rindas tiks paceltas desmit metru augstuma")
@@ -1051,7 +1051,7 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'floors': (1, 2, 3),
                  # the grandstand (floor 3) is drawn as it is: bending it to put its edge letters on the
                  # floor-1 letters squeezed it into a thin crescent - those stairs run between the two
-                 'keep_floors': (3,)})]
+                 'keep_floors': (3,), 'under': True})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
@@ -1092,6 +1092,12 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
             foot = e2 if d2 > d1 else e1
             band = math.hypot(e2[0] - e1[0], e2[1] - e1[1])
             if math.hypot(bots[0][0] - tops[0][0], bots[0][1] - tops[0][1]) < 0.5 * band:
+                if cfg.get('under'):
+                    # the 2022 LiDAR: nothing stands outside the back edge - they go down under the field's
+                    # concrete (Kaspars: yes), so the same run inwards from the edge, its landing with it
+                    foot = (2 * tops[0][0] - foot[0], 2 * tops[0][1] - foot[1])
+                    if 'land' in st['imperial']:
+                        l_ = st['imperial']['land']; st['imperial']['land'] = [round(2 * tops[0][0] - l_[0], 1), round(2 * tops[0][1] - l_[1], 1)]
                 st['imperial']['foot'] = [round(foot[0], 1), round(foot[1], 1)]
             break
         # Kaspars: they all run down outwards, away from the field, as far as the map goes there
@@ -1124,6 +1130,38 @@ def _map_reach(mid, fl, p, u, texs, step=3.0, most=400):
             return d
     except Exception: traceback.print_exc()
     return most
+
+# Measured heights (Riga open LiDAR 2022, CC BY 4.0, Rigas valstspilsetas pasvaldiba; grid made by the
+# telpuo-estrade-data workflow): [(name regex, {'grid', 'reg': map (placed sheet px) -> LKS-92, E + iN =
+# s * (x - i y) + t, fitted on the audience field's back edge (median 1.7 m), 'zero': LAS-2000,5 height of the
+# ground outside the field (floor 1)})]
+SITE_LIDAR = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
+               {'grid': 'sitedata/estrade_grid.npz', 's': (0.11985996122887088, 0.09529109415120708),
+                't': (508621.9608121599, 319170.42137117626), 'zero': 8.3, 'max': 13.8})]
+_LIDAR = {}
+
+def site_lidar_of(m):
+    """A sampler (placed sheet px -> metres over floor 1, NaN where the survey has nothing usable) or None."""
+    cfg = next((d for rx, d in SITE_LIDAR if rx.search((m or {}).get('name') or '')), None)
+    if not cfg: return None
+    try:
+        if cfg['grid'] not in _LIDAR:
+            z = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), cfg['grid']))
+            top = z['top_cm'].astype(np.float32); top[top == -32768] = np.nan
+            _LIDAR[cfg['grid']] = (top / 100.0, float(z['x0']), float(z['y1']), float(z['cell']))
+        top, x0, y1, cell = _LIDAR[cfg['grid']]
+    except Exception:
+        traceback.print_exc(); return None
+    s_, t_ = complex(*cfg['s']), cfg['t']
+    def sample(X, Y):
+        c = s_ * (np.asarray(X, float) - 1j * np.asarray(Y, float))
+        col = np.round((c.real + t_[0] - x0) / cell).astype(int); row = np.round((y1 - (c.imag + t_[1])) / cell).astype(int)
+        ok = (row >= 0) & (row < top.shape[0]) & (col >= 0) & (col < top.shape[1])
+        Z = np.full(np.shape(X), np.nan, np.float32)
+        Z[ok] = top[row[ok], col[ok]] - cfg['zero']
+        Z[(Z > cfg['max']) | (Z < -3)] = np.nan          # (trees, roofs; nothing below the field)
+        return Z
+    return sample
 
 def site_shape_of(m):
     for rx, d in SITE_SHAPES:

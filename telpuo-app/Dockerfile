@@ -13,6 +13,7 @@ COPY app.py VERSION ./
 COPY oreplay ./oreplay
 COPY static ./static
 COPY cilpa ./cilpa
+COPY sitedata ./sitedata
 
 ENV OREPLAY_DATA=/data
 VOLUME /data
