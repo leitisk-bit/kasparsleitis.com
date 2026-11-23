@@ -1227,9 +1227,13 @@ async function start(){
         };
         const LW = 6;
         const land = new THREE.Mesh(new THREE.BoxGeometry(LW, 0.3, LW), stepUp); land.position.set(lx, Lh - 0.15, lz); stairGrp.add(land);
-        between(tx, top, tz, lx, Lh, lz, 3, stepUp);
-        between(lx, Lh, lz, bx, ground, bz, 3, stepUp);
-        sides.forEach(p => between(lx, Lh, lz, p[0], f2y, p[1], 2.4, stepDn));
+        // every flight meets the landing at its edge, not in its middle (Kaspars)
+        const edge = (x, z) => { const dx = x - lx, dz = z - lz, m = Math.max(Math.abs(dx), Math.abs(dz)) || 1, t = Math.min(1, (LW / 2) / m);
+                                 return [lx + dx * t, lz + dz * t]; };
+        const [e1x, e1z] = edge(tx, tz), [e2x, e2z] = edge(bx, bz);
+        between(tx, top, tz, e1x, Lh, e1z, 3, stepUp);
+        between(e2x, Lh, e2z, bx, ground, bz, 3, stepUp);
+        sides.forEach(p => { const [ex, ez] = edge(p[0], p[1]); between(ex, Lh, ez, p[0], f2y, p[1], 2.4, stepDn); });
         tag(st.letter, (tx + lx) / 2, (top + Lh) / 2 + 1.6, (tz + lz) / 2, st);
         tag(im.branch, lx, Lh + 1.4, lz, st);
         return;
