@@ -14,5 +14,10 @@ if __name__ == "__main__":
             if free:
                 import model
                 model.predict(con)
+                try:
+                    import telegram              # picks that change once the real XI is known
+                    telegram.bet_alerts(con, hours=3)
+                except Exception as e:  # noqa
+                    print("telegram failed:", e, flush=True)
             else:
                 print("a data / model job is running — it will use the new lineups", flush=True)

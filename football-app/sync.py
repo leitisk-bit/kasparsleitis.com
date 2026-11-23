@@ -205,11 +205,26 @@ def run(kind: str, seasons=None, limit=None):
         model.run(con)
         if kind == "update":
             weekly(con, model)
+            try:
+                import telegram                  # new Bet on picks -> Telegram, morning report after the nightly run
+                telegram.bet_alerts(con)
+                if datetime.now(timezone.utc).hour >= 4:
+                    telegram.daily_report(con)
+            except Exception as e:  # noqa
+                print("  telegram failed:", e, flush=True)
     except QuotaExhausted as e:
         _log_end(con, log_id, client, total, f"daily quota reached, resume tomorrow: {e}")
+        try:
+            import telegram; telegram.alert(con, f"API daily quota reached: {e}")
+        except Exception:  # noqa
+            pass
         print("Daily quota reached — run the same command again tomorrow, it continues where it stopped.")
     except Exception as e:  # noqa
         _log_end(con, log_id, client, total, f"error: {e}")
+        try:
+            import telegram; telegram.alert(con, f"{kind} failed: {e}")
+        except Exception:  # noqa
+            pass
         raise
     finally:
         con.close()
