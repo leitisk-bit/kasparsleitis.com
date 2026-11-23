@@ -988,37 +988,40 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
         [[[1300, 1050], [1350, 960], [1450, 900], [1560, 860], [1680, 870], [1800, 930], [1900, 1060]], 17.8]]},
 ])]
 
-# How the stairs of certain outdoor sites are built, for the 3D view. Mezaparks: the raised south part of the
-# audience field (floor 3) stands on a concrete building with two storeys under it (floors 1 and 2); its
-# back edge is up to about 15 m high, and stairs run down along the outside of that back wall all round the
-# perimeter (P-U), and along its two sides (O, V), from the top edge to the ground. Each is drawn hugging
-# the wall: from its door on the top edge, along the wall towards its door below, at a usual outdoor stair
-# slope, landing outside the wall.
+# How the stairs of certain outdoor sites are built, for the 3D view. Mezaparks (the photos; Kaspars):
+# the grandstand south of the field is seat blocks between wide aisle stairs that run straight down the
+# stand from its top edge towards the field, like spokes. P-U on the top edge are the tops of those aisles:
+# each is drawn from its letter straight towards the field's centre, down the stand's slope to its front
+# edge (where the a-h stairs come up from the field). O and V run down the stand's two sides the same way.
 SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
-                {'outer': list('PQRSTUOV'), 'floors': (1, 3), 'rise': 10.5, 'slope': 32, 'width': 3.5})]
+                {'aisles': list('PQRSTUOV'), 'front': list('abcdefgh'), 'floors': (1, 3), 'width': 4.0})]
+
+def _fit_circle(P):
+    P = np.asarray(P, float)
+    A = np.c_[2 * P, np.ones(len(P))]; sol = np.linalg.lstsq(A, (P ** 2).sum(1), rcond=None)[0]
+    return sol[:2]
 
 def _site_stairs(m, out, mpp):
     cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None)
     if not cfg: return out
     f1, f2 = cfg['floors']
-    sel = [st for st in out if st['letter'] in cfg['outer'] and (st['f1'], st['f2']) == (f1, f2)]
-    if len(sel) < 3: return out
-    # the back wall's curve: a circle through the stairs' top doors (least squares)
-    T = np.array([st['b'] for st in sel], float)
-    A = np.c_[2 * T, np.ones(len(T))]; sol = np.linalg.lstsq(A, (T ** 2).sum(1), rcond=None)[0]
-    C = sol[:2]
-    run = cfg['rise'] / math.tan(math.radians(cfg['slope'])) / mpp
-    half = (cfg['width'] / 2 + 0.6) / mpp
+    sel = [st for st in out if st['letter'] in cfg['aisles'] and (st['f1'], st['f2']) == (f1, f2)]
+    fr = [st for st in out if st['letter'] in cfg['front'] and (st['f1'], st['f2']) == (f1, f2)]
+    if len(sel) < 3 or len(fr) < 2: return out
+    # the aisles fan out from the middle of the field's curved front edge (the a-h row), as drawn
+    C = _fit_circle([st['b'] for st in fr])
+    Rf = float(np.mean([np.hypot(*(np.array(st['b']) - C)) for st in fr]))
+    ang = lambda q: math.atan2(q[1] - C[1], q[0] - C[0])
+    fr_sorted = sorted(fr, key=lambda st: ang(st['b'])); sel_sorted = sorted(sel, key=lambda st: ang(st['b']))
+    # each aisle ends at the a-h stair it lines up with (in turn round the curve: O-a, P-b, ... V-h)
+    pair = {}
+    if len(fr_sorted) == len(sel_sorted):
+        pair = {id(t_): f_ for t_, f_ in zip(sel_sorted, fr_sorted)}
     for st in sel:
-        top = np.array(st['b'], float); low = np.array(st['a'], float)
-        nrm = top - C; nrm /= (np.linalg.norm(nrm) or 1)
-        tg = np.array([-nrm[1], nrm[0]])
-        if np.dot(low - top, tg) < 0: tg = -tg                 # along the wall, towards its door below
-        t0 = top + nrm * half
-        st['b'] = [round(float(t0[0]), 1), round(float(t0[1]), 1)]
-        e = t0 + tg * run
-        st['a'] = [round(float(e[0]), 1), round(float(e[1]), 1)]
-        st['w'] = cfg['width'] / mpp; st['hug'] = True
+        top = np.array(st['b'], float); r = top - C; R = np.hypot(*r) or 1.0
+        foot = np.array(pair[id(st)]['b'], float) if id(st) in pair else C + r / R * min(R - 2 / mpp, Rf + 1 / mpp)
+        st['a'] = [round(float(foot[0]), 1), round(float(foot[1]), 1)]
+        st['w'] = cfg['width'] / mpp; st['aisle'] = True           # both ends on the stand's surface
     return out
 
 def site_shape_of(m):

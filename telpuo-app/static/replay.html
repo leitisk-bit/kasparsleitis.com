@@ -1172,7 +1172,8 @@ async function start(){
     (D.stairs || []).forEach(st => {
       const x = (st.a[0] + st.b[0]) / 2 * M - cx, z = (st.a[1] + st.b[1]) / 2 * M - cz;
       // each stair from the real height at its foot to the real height at its top (they differ)
-      const ya = yAt(st.f1, st.a[0], st.a[1]), yb = yAt(st.f2, st.b[0], st.b[1]);
+      // (an aisle stair lies on the stand: both its ends on the upper floor's surface)
+      const ya = st.aisle ? yAt(st.f2, st.a[0], st.a[1]) + 0.15 : yAt(st.f1, st.a[0], st.a[1]), yb = yAt(st.f2, st.b[0], st.b[1]) + (st.aisle ? 0.15 : 0);
       const y0 = Math.min(ya, yb), y1 = Math.max(ya, yb), h = y1 - y0; if (h <= 0.3) return;
       // an outdoor site (real heights): a straight flight from its foot to its top, at its real angle
       const xa = st.a[0] * M - cx, za = st.a[1] * M - cz, xb = st.b[0] * M - cx, zb = st.b[1] * M - cz, Lh = Math.hypot(xb - xa, zb - za);
