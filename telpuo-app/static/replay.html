@@ -1223,49 +1223,68 @@ async function start(){
       // Mezaparks (Kaspars): from the top edge down to a wide landing; the main flight goes on to the ground,
       // two side flights turn back from the landing on both sides of the upper flight, down to floor 2
       if (st.imperial && LV && st.imperial.u){
-        // Kaspars' staircase, built like a real one and fixed at both ends: it starts at its letter on the top
-        // edge (floor 3) and ends at its letter on the ground (floor 1). Flights at one stair slope (about
-        // 35 degrees), 3 m wide, with a wide landing and handrails. When the two letters are far enough apart
-        // it runs straight from one to the other; when they are closer it goes out past the bottom letter to
-        // the landing and turns back down beside itself (switchback). Side flights (C, E, G, K) run from the
-        // landing to their own doors on floor 2.
-        const im = st.imperial;
+        // Kaspars' staircase (the example he approved), joined to its letters at both ends: the upper flight
+        // starts at its letter on the top edge (floor 3, about 12 m up) and runs outwards down to a wide landing;
+        // from that landing the two side flights turn back, one on each side, down to their doors on floor 2
+        // (C, E, G, K). The main flight carries straight on from the landing. Where the ground letter lies
+        // ahead of it, it runs straight to it; where the ground letter is back under the top (R, S) or off to
+        // the side (Q, T), the main flight ends on a second wide landing and turns back, one full-width flight
+        // that ends on the ground letter. Every flight 25-42 degrees, nothing narrower than 2.4 m.
+        const im = st.imperial, S0 = Math.tan(33 * Math.PI / 180), SMIN = Math.tan(25 * Math.PI / 180), SMAX = Math.tan(42 * Math.PI / 180);
         const [TX, TZ] = WX(st.f2, im.top[0], im.top[1]), [BX, BZ] = WX(st.f1, im.bottom[0], im.bottom[1]);
         const top = yAt(st.f2, im.top[0], im.top[1]), ground = yAt(st.f1, im.bottom[0], im.bottom[1]), f2y = yOf(im.f2);
-        const H = top - ground, k = 0.7, w = 3, LD = 4, LW = 2 * w + 1.5, need = H / k;
-        let D = Math.hypot(BX - TX, BZ - TZ), dx, dz;
-        if (D > 0.5){ dx = (BX - TX) / D; dz = (BZ - TZ) / D; } else { dx = im.u[0]; dz = im.u[1]; D = 0; }
-        const vx = -dz, vz = dx;
-        let ends;                                            // [top end, landing near/far points, bottom end]
-        if (D >= need + LD){                                 // straight: top, landing in between, bottom
-          const run = (D - LD) / 2, Lh = top - H / 2;
-          const l0x = TX + dx * run, l0z = TZ + dz * run, l1x = l0x + dx * LD, l1z = l0z + dz * LD;
-          downFlight(TX, top, TZ, dx, dz, run, top - Lh, w, stairMat);
-          slab(l0x, Lh, l0z, dx, dz, LD, LW, stairMat);
-          downFlight(l1x, Lh, l1z, dx, dz, run, Lh - ground, w, stairMat);
-          ends = { Lh, cx: (l0x + l1x) / 2, cz: (l0z + l1z) / 2, ax: dx, az: dz };
-          rail(TX, top, TZ, l0x, Lh, l0z, w); rail(l1x, Lh, l1z, BX, ground, BZ, w);
-        } else {                                             // switchback: out past the bottom letter, then back to it
-          const run1 = (need + D) / 2, run2 = (need - D) / 2, Lh = top - H * run1 / (run1 + run2), sh = w / 2 + 0.25;
-          const ux0 = TX - vx * sh, uz0 = TZ - vz * sh;                       // upper flight, on one side
-          const lx = ux0 + dx * run1, lz = uz0 + dz * run1;                   // reaches the landing
-          downFlight(ux0, top, uz0, dx, dz, run1, top - Lh, w, stairMat);
-          slab(lx - vx * (w / 2 + 0.25) * 0 , Lh, lz, dx, dz, LD, LW, stairMat);
-          const bx0 = lx + vx * 2 * sh, bz0 = lz + vz * 2 * sh;               // lower flight, beside it, coming back
-          downFlight(bx0, Lh, bz0, -dx, -dz, run2, Lh - ground, w, stairMat);
-          ends = { Lh, cx: lx + dx * LD / 2 + vx * sh, cz: lz + dz * LD / 2 + vz * sh, ax: dx, az: dz };
-          rail(ux0, top, uz0, lx, Lh, lz, w); rail(bx0, Lh, bz0, bx0 - dx * run2, ground, bz0 - dz * run2, w);
-        }
-        // side flights from the landing's edge to each side door on floor 2
-        (im.sides || []).forEach(p => {
-          const [sx, sz] = WX(im.f2, p[0], p[1]);
-          const ddx = sx - ends.cx, ddz = sz - ends.cz, dd = Math.hypot(ddx, ddz) || 1;
-          const ex = ends.cx + ddx / dd * Math.min(dd, LW / 2), ez = ends.cz + ddz / dd * Math.min(dd, LW / 2);
-          const L = Math.hypot(sx - ex, sz - ez), r = ends.Lh - f2y;
-          if (r > 0.2 && L > 0.3) downFlight(ex, ends.Lh, ez, (sx - ex) / L, (sz - ez) / L, L, r, 2.4, stairMat);
+        const H = top - ground, w = 3, cw = 2.4, gap = 0.5, LD = 3.5, off = w / 2 + gap + cw / 2, LW = w + 2 * (cw + gap) + 1;
+        const sides = (im.sides || []).map(p => WX(im.f2, p[0], p[1]));
+        const flat = (fx, fy, fz, tx, ty, tz, wd) => {               // one flight from (f) down to (t), with rails
+          const L = Math.hypot(tx - fx, tz - fz); if (L < 0.3 || fy - ty < 0.2) return;
+          downFlight(fx, fy, fz, (tx - fx) / L, (tz - fz) / L, L, fy - ty, wd, stairMat); rail(fx, fy, fz, tx, ty, tz, wd);
+        };
+        const D = Math.hypot(BX - TX, BZ - TZ);
+        let ux = im.u[0], uz = im.u[1];
+        // straight to the ground letter when it lies ahead and far enough for one flight-landing-flight
+        const ahead = D > 2 ? ((BX - TX) * ux + (BZ - TZ) * uz) / D : 0, straight = ahead > 0.85 && (D - LD) * SMAX >= H;
+        if (straight){ ux = (BX - TX) / D; uz = (BZ - TZ) / D; }
+        const vx = -uz, vz = ux;
+        // the upper flight and the side flights share the drop to floor 2 evenly (an imperial staircase): the
+        // side flights come back to the building at floor-2 level, and a short level walk takes them in to
+        // their doors (the doors are inside, under the stand - no stair may run under the stand's surface)
+        let run1 = straight ? (H * 0.45) / S0 : (sides.length ? (top - f2y) / (2 * S0) + 1.0 : (H * 0.45) / S0);
+        const sideAt = (r1, Lh) => sides.map(([sx, sz]) => {
+          const l0x = TX + ux * r1, l0z = TZ + uz * r1, sd = ((sx - TX) * vx + (sz - TZ) * vz) >= 0 ? 1 : -1;
+          const ex = l0x + vx * sd * off, ez = l0z + vz * sd * off, L = Math.max(0.5, Math.hypot(sx - ex, sz - ez));
+          const run = Math.min(L, (Lh - f2y) / S0);
+          return [ex, ez, ex + (sx - ex) / L * run, ez + (sz - ez) / L * run, sx, sz];
         });
+        if (straight) run1 = Math.min(run1, (D - LD) * 0.6);
+        const Lh = top - Math.min(S0 * run1, H * 0.6);
+        const l0x = TX + ux * run1, l0z = TZ + uz * run1, l1x = l0x + ux * LD, l1z = l0z + uz * LD;
+        flat(TX, top, TZ, l0x, Lh, l0z, w);
+        slab(l0x, Lh, l0z, ux, uz, LD, LW, stairMat);
+        sideAt(run1, Lh).forEach(([ex, ez, fx, fz, sx, sz]) => {
+          flat(ex, Lh, ez, fx, f2y, fz, cw);
+          const L = Math.hypot(sx - fx, sz - fz);          // the level walk on floor 2 in to the door
+          if (L > 0.3) slab(fx, f2y, fz, (sx - fx) / L, (sz - fz) / L, L, cw, stairMat);
+        });
+        if (straight){
+          flat(l1x, Lh, l1z, BX, ground, BZ, w);
+        } else {
+          // main flight on outwards to a second landing, then back, one full-width flight to the ground letter
+          let sd = ((BX - TX) * vx + (BZ - TZ) * vz) >= 0 ? 1 : -1; const off2 = LW / 2 + w / 2 + 0.3;   // clear of the landing above
+          let m = 2, err = 1e9;
+          for (let mm = 1; mm <= 30; mm += 0.25){
+            const h2 = Lh - S0 * mm; if (h2 <= ground + 0.5) break;
+            const px = l1x + ux * mm + vx * sd * off2, pz = l1z + uz * mm + vz * sd * off2;
+            const sR = (h2 - ground) / Math.max(0.5, Math.hypot(BX - px, BZ - pz)), e = Math.abs(sR - S0);
+            if (e < err){ err = e; m = mm; }
+          }
+          const h2 = Lh - S0 * m, p2x = l1x + ux * m, p2z = l1z + uz * m;
+          flat(l1x, Lh, l1z, p2x, h2, p2z, w);
+          // the landing: from the end of the main flight outwards, wide enough for both flights side by side
+          slab(p2x + vx * sd * off2 / 2, h2, p2z + vz * sd * off2 / 2, ux, uz, LD, off2 + w, stairMat);
+          flat(p2x + vx * sd * off2, h2, p2z + vz * sd * off2, BX, ground, BZ, w);
+        }
         tag(st.letter, TX, top + 1.6, TZ, st);
-        if (im.branch) tag(im.branch, ends.cx, ends.Lh + 1.4, ends.cz, st);
+        if (im.branch) tag(im.branch, l0x, Lh + 1.4, l0z, st);
         return;
       }
       if (st.imperial && LV){
