@@ -1033,7 +1033,7 @@ async function start(){
   renderer.setPixelRatio(Math.min(2, devicePixelRatio)); box.prepend(renderer.domElement);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, 1, 0.5, 3000);
   const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495;
-  window.IOR3D = { camera, controls, WX: (...a) => WX(...a) };   // (for looking at a spot when checking the view)
+  window.IOR3D = { camera, controls, scene, WX: (...a) => WX(...a) };   // (for looking at a spot when checking the view)
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.2));
   const M = D.mpp, H0 = D.floorH; let gapK = 3;
   // floors at their real heights when the watches measured them (a site like Mežaparks, not a stack of
@@ -1111,7 +1111,11 @@ async function start(){
         for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++){ const ii = i + di, jj = j + dj;
           const x_ = ii < 0 || jj < 0 || ii >= W || jj >= H ? 0 : src[jj * W + ii]; if (grow) v |= x_; else v &= x_; }
         o[j * W + i] = v; } return o; };
-    return morph(morph(morph(morph(m, true), false), false), true);
+    // (opened by three cells: stair symbols drawn sticking out of a stand's edge are not part of the stand)
+    let r = morph(m, true); r = morph(r, false);
+    for (let n = 0; n < 3; n++) r = morph(r, false);
+    for (let n = 0; n < 3; n++) r = morph(r, true);
+    return r;
   }
   scene.add(new THREE.DirectionalLight(0xffffff, 1.2).translateX(-60).translateY(120).translateZ(90));
   // (see-through: the floors and the route inside the building under the stands stay visible)
@@ -1188,6 +1192,9 @@ async function start(){
   const edgeMat = new THREE.LineBasicMaterial({ color:0x6b4fc0, transparent:true, opacity:0.45 });
   const stepUp = new THREE.MeshLambertMaterial({ color:0xE3262B, transparent:true, opacity:0.45, depthWrite:false });
   const stepDn = new THREE.MeshLambertMaterial({ color:0x2F7FE0, transparent:true, opacity:0.45, depthWrite:false });
+  // outdoor concrete-and-steel stairs (Mezaparks): solid light concrete, dark steel handrails
+  const stairMat = new THREE.MeshLambertMaterial({ color:0xd9d4ca });
+  const railMat = new THREE.LineBasicMaterial({ color:0x4a4a4a });
   const stairLabels = {};
   function buildStairs(){
     stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); });
@@ -1211,38 +1218,33 @@ async function start(){
       // Mezaparks (Kaspars): from the top edge down to a wide landing; the main flight goes on to the ground,
       // two side flights turn back from the landing on both sides of the upper flight, down to floor 2
       if (st.imperial && LV && st.imperial.u){
-        // Kaspars' staircase: from its letter on the top edge (floor 3) down outwards to a wide landing; on
-        // from the landing to its letter on the ground (floor 1); two side flights from the landing to its
-        // side doors on floor 2 (C, E, G, K). Every end is at its own letter.
+        // Kaspars' staircase, built like a real one: every flight at one stair slope (about 33 degrees,
+        // 17 cm steps), 3 m wide, with handrails; it lands on its letter on the ground (floor 1) and climbs
+        // back in from there, away from the outside: lower flight, a wide landing, upper flight up to the top
+        // edge (floor 3); from the landing two side flights turn back beside the upper one, down to floor 2.
         const im = st.imperial, ux = im.u[0], uz = im.u[1], vx = -uz, vz = ux;
-        const [X, Z] = WX(st.f2, im.top[0], im.top[1]), [BX, BZ] = WX(st.f1, im.bottom[0], im.bottom[1]);
-        const sides = im.sides.map(p => WX(im.f2, p[0], p[1]));
+        const [BX, BZ] = WX(st.f1, im.bottom[0], im.bottom[1]);
         const top = yAt(st.f2, im.top[0], im.top[1]), f2y = yOf(im.f2), ground = yAt(st.f1, im.bottom[0], im.bottom[1]);
-        const w = 3, cw = 2.4, LD = 4, LW = 9;
-        const out = (BX - X) * ux + (BZ - Z) * uz;          // how far out the ground letter is
-        const Lh = Math.min(top - 1.5, Math.max(f2y + 1.0, ground + (top - ground) * 0.55));
-        let k = 0.75, run1 = (top - Lh) / k;
-        const straight = out > run1 + LD + 3;               // room to go on outwards, else turn back
-        if (straight) run1 = Math.max(2, Math.min(run1, out - LD - (Lh - ground) / 1.2));
-        const lx = X + ux * run1, lz = Z + uz * run1;       // where the landing starts
-        const cxl = lx + ux * LD / 2, czl = lz + uz * LD / 2;
-        const sideOff = straight ? 0 : (w / 2 + 0.4);       // turning back: the two flights side by side
-        downFlight(X - vx * sideOff, top, Z - vz * sideOff, ux, uz, run1, top - Lh, w, stepUp);
-        slab(lx, Lh, lz, ux, uz, LD, LW, stepUp);
-        const edgePt = (x, z) => {                          // the landing's edge towards (x, z)
-          const dx = x - cxl, dz = z - czl, a = dx * ux + dz * uz, b = dx * vx + dz * vz;
-          const t = Math.min(1, Math.min((LD / 2) / Math.max(1e-6, Math.abs(a)), (LW / 2) / Math.max(1e-6, Math.abs(b))));
-          return [cxl + dx * t, czl + dz * t];
-        };
-        const to = (x0, y0, z0, x1, y1, z1, wd, mat) => { const L = Math.hypot(x1 - x0, z1 - z0); if (y0 - y1 > 0.2 && L > 0.3) downFlight(x0, y0, z0, (x1 - x0) / L, (z1 - z0) / L, L, y0 - y1, wd, mat); };
-        if (straight){ const [ex, ez] = edgePt(BX, BZ); to(ex, Lh, ez, BX, ground, BZ, w, stepUp); }
-        else {                                              // back from the landing, beside the upper flight, to the letter
-          const sx = lx + vx * sideOff, sz = lz + vz * sideOff;
-          to(sx, Lh, sz, BX + vx * sideOff, ground, BZ + vz * sideOff, w, stepUp);
-        }
-        sides.forEach(p => { const [ex, ez] = edgePt(p[0], p[1]); to(ex, Lh, ez, p[0], f2y, p[1], cw, stepDn); });
-        tag(st.letter, X + ux * run1 / 2, top + 1.6, Z + uz * run1 / 2, st);
-        tag(im.branch, cxl, Lh + 1.4, czl, st);
+        const k = 0.65, w = 3, cw = 2.4, gap = 0.6, LD = 4, LW = w + 2 * (cw + gap) + 1;
+        const Lh = Math.min(top - 1.5, Math.max(f2y + 1.5, f2y + (top - f2y) * 0.4));
+        const runL = (Lh - ground) / k, run1 = (top - Lh) / k, runC = (Lh - f2y) / k;
+        // from the ground letter back in: landing, then the upper flight's top
+        const lx = BX - ux * runL, lz = BZ - uz * runL;                  // the landing's outer edge
+        const ix = lx - ux * LD, iz = lz - uz * LD;                       // its inner edge
+        const X = ix - ux * run1, Z = iz - uz * run1;                     // the top of the upper flight
+        downFlight(X, top, Z, ux, uz, run1, top - Lh, w, stairMat);
+        slab(ix, Lh, iz, ux, uz, LD, LW, stairMat);
+        downFlight(lx, Lh, lz, ux, uz, runL, Lh - ground, w, stairMat);
+        const off = w / 2 + gap + cw / 2;
+        for (const sd of [-1, 1]) downFlight(ix + vx * sd * off, Lh, iz + vz * sd * off, -ux, -uz, runC, Lh - f2y, cw, stairMat);
+        // handrails, 1 m above the steps, on both sides of each flight
+        const rail = (x0, y0, z0, x1, y1, z1, wd) => { for (const sd of [-1, 1]){ const ox = vx * sd * wd / 2, oz = vz * sd * wd / 2;
+          const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x0 + ox, y0 + 1, z0 + oz), new THREE.Vector3(x1 + ox, y1 + 1, z1 + oz)]);
+          stairGrp.add(new THREE.Line(g, railMat)); } };
+        rail(X, top, Z, ix, Lh, iz, w); rail(lx, Lh, lz, BX, ground, BZ, w);
+        for (const sd of [-1, 1]) rail(ix + vx * sd * off, Lh, iz + vz * sd * off, ix + vx * sd * off - ux * runC, f2y, iz + vz * sd * off - uz * runC, cw);
+        tag(st.letter, (X + ix) / 2, top + 1.6, (Z + iz) / 2, st);
+        tag(im.branch, ix - ux * runC / 2 + vx * (off + 1.6), Lh + 1.2, iz - uz * runC / 2 + vz * (off + 1.6), st);
         return;
       }
       if (st.imperial && LV){
