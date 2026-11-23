@@ -3,28 +3,76 @@
   "basics": {
     "title": "Server & access basics",
     "items": [
-      {"label": "Ubuntu server (Lenovo M710q, 'Tennis server')", "value": "192.168.2.115 on the home network, user home"},
-      {"label": "Log in from the MacBook", "cmd": "ssh home@192.168.2.115"},
-      {"label": "From outside home", "value": "Turn on Tailscale (phone; Mac planned), then use the same 192.168.2.115 addresses"},
-      {"label": "What's running (Docker)", "cmd": "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'"},
-      {"label": "What's running (services)", "cmd": "systemctl list-units --type=service --state=running | grep -Ei 'football|picture|netdata|uptime|nginx'"},
-      {"label": "Home network", "value": "ISP router + own ASUS RT-N18U (double NAT): public sites go through the Cloudflare Tunnel, no router ports needed"},
-      {"label": "Admin password", "value": "One admin password (ADMIN_KEY in ~/kasparsleitis.com/telpuo-app/.env) opens /cilpa, /serverinfo, /football and the replay admin"}
+      {
+        "label": "Ubuntu server (Lenovo M710q, 'Tennis server')",
+        "value": "192.168.2.115 on the home network, user home"
+      },
+      {
+        "label": "Log in from the MacBook",
+        "cmd": "ssh home@192.168.2.115"
+      },
+      {
+        "label": "From outside home (Tailscale)",
+        "value": "Turn Tailscale on (phone or Mac, same Tailscale account), then use the server's Tailscale address 100.101.61.114 instead of 192.168.2.115 — e.g. Jellyfin: http://100.101.61.114:8096"
+      },
+      {
+        "label": "Log in from outside home",
+        "cmd": "ssh home@100.101.61.114"
+      },
+      {
+        "label": "What's running (Docker)",
+        "cmd": "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'"
+      },
+      {
+        "label": "What's running (services)",
+        "cmd": "systemctl list-units --type=service --state=running | grep -Ei 'football|picture|netdata|uptime|nginx'"
+      },
+      {
+        "label": "Home network",
+        "value": "ISP router + own ASUS RT-N18U (double NAT): public sites go through the Cloudflare Tunnel, no router ports needed"
+      },
+      {
+        "label": "Admin password",
+        "value": "One admin password (ADMIN_KEY in ~/kasparsleitis.com/telpuo-app/.env) opens /cilpa, /serverinfo, /football and the replay admin"
+      }
     ]
   },
   "groups": [
-    {"id": "fws", "title": "Fun World Statistics"},
-    {"id": "sport", "title": "Sport & betting"},
-    {"id": "o", "title": "Orienteering"},
-    {"id": "web", "title": "Websites & server"},
-    {"id": "home", "title": "Home & other"}
+    {
+      "id": "fws",
+      "title": "Fun World Statistics"
+    },
+    {
+      "id": "sport",
+      "title": "Sport & betting"
+    },
+    {
+      "id": "o",
+      "title": "Orienteering"
+    },
+    {
+      "id": "web",
+      "title": "Websites & server"
+    },
+    {
+      "id": "home",
+      "title": "Home & other"
+    }
   ],
   "projects": [
     {
-      "id": "studio", "group": "fws", "name": "Fun World Studio (video maker)", "status": "live",
+      "id": "studio",
+      "group": "fws",
+      "name": "Fun World Studio (video maker)",
+      "status": "live",
       "where": "MacBook — ~/Movies/FunWorldStats",
       "chat": "Claude project \"Fun World Statistics\" (video factory chats); data research in its own topic chat",
-      "open": [{"label": "Studio (only on the Mac)", "url": "http://localhost:8787"}],
+      "open": [
+        {
+          "label": "Studio (only on the Mac)",
+          "url": "http://localhost:8787"
+        }
+      ],
       "start": [
         "Double-click “Fun World Studio.command” in ~/Movies/FunWorldStats",
         "or in Terminal: cd ~/Movies/FunWorldStats && ./start_studio.sh",
@@ -37,24 +85,44 @@
         "AI Pictures set up on the Mac for “AI pictures” (optional, ~9 GB)"
       ],
       "notes": "The studio makes the videos; Claude researches data and writes stories. Shorts max 90 s. One button publishes to YouTube + Facebook + Instagram; TikTok app is in production review.",
-      "check": {"mac": true}
+      "check": {
+        "mac": true
+      }
     },
     {
-      "id": "picture-reel", "group": "fws", "name": "Picture Reel (free pictures → video)", "status": "live",
+      "id": "picture-reel",
+      "group": "fws",
+      "name": "Picture Reel (free pictures → video)",
+      "status": "live",
       "where": "Ubuntu server, port 8642 (systemd service picture-reel); client on the Mac in ~/Movies/FunWorldStats/picture-reel",
       "chat": "Its own chat (made in Cowork)",
-      "open": [{"label": "Picture Reel (home network)", "url": "http://192.168.2.115:8642"}],
+      "open": [
+        {
+          "label": "Picture Reel (home network)",
+          "url": "http://192.168.2.115:8642"
+        }
+      ],
       "start": [
-        "On the server: sudo systemctl start picture-reel", "Check it: systemctl status picture-reel",
+        "On the server: sudo systemctl start picture-reel",
+        "Check it: systemctl status picture-reel",
         "Is it reachable from the Mac? cd ~/Movies/FunWorldStats/picture-reel && python3 reel_client.py --check"
       ],
-      "needs": ["Server running; Mac on the home network or Tailscale"],
-      "update": ["On the Mac: cd ~/Movies/FunWorldStats/picture-reel && ./update_server.sh"],
+      "needs": [
+        "Server running; Mac on the home network or Tailscale"
+      ],
+      "update": [
+        "On the Mac: cd ~/Movies/FunWorldStats/picture-reel && ./update_server.sh"
+      ],
       "notes": "Remove completely: delete the picture-reel folder on the Mac; on the server sudo systemctl disable --now picture-reel && rm -rf ~/picture-reel",
-      "check": {"port": 8642}
+      "check": {
+        "port": 8642
+      }
     },
     {
-      "id": "ai-pictures", "group": "fws", "name": "AI Pictures (local image generator)", "status": "live",
+      "id": "ai-pictures",
+      "group": "fws",
+      "name": "AI Pictures (local image generator)",
+      "status": "live",
       "where": "MacBook — ~/Movies/FunWorldStats/ai-pictures",
       "chat": "Its own chat (AI pictures app)",
       "open": [],
@@ -62,39 +130,90 @@
         "Used automatically by the studio (🎨 AI pictures tab)",
         "Terminal: cd ~/Movies/FunWorldStats/ai-pictures && .venv/bin/python ai_pictures.py \"castle at sunrise\""
       ],
-      "needs": ["Once: ./setup_ai.sh (Stable Diffusion XL + Lightning, ~15 GB free disk)", "Apple Silicon Mac, 16 GB RAM recommended"],
+      "needs": [
+        "Once: ./setup_ai.sh (Stable Diffusion XL + Lightning, ~15 GB free disk)",
+        "Apple Silicon Mac, 16 GB RAM recommended"
+      ],
       "notes": "Free, no AI credits, works offline after setup. Delete the folder to remove it.",
-      "check": {"mac": true}
+      "check": {
+        "mac": true
+      }
     },
     {
-      "id": "fws-site", "group": "fws", "name": "funworldstatistics.com (website)", "status": "live",
+      "id": "fws-site",
+      "group": "fws",
+      "name": "funworldstatistics.com (website)",
+      "status": "live",
       "where": "Ubuntu server — nginx, /var/www/funworldstatistics.com",
       "chat": "Claude project \"Fun World Statistics\"",
       "repo": "leitisk-bit/funworldstatistics (private)",
       "open": [
-        {"label": "Website", "url": "https://funworldstatistics.com"},
-        {"label": "Privacy", "url": "https://funworldstatistics.com/privacy/"},
-        {"label": "Terms", "url": "https://funworldstatistics.com/terms/"},
-        {"label": "Channel history CSV", "url": "https://funworldstatistics.com/data/channel-history.csv"}
+        {
+          "label": "Website",
+          "url": "https://funworldstatistics.com"
+        },
+        {
+          "label": "Privacy",
+          "url": "https://funworldstatistics.com/privacy/"
+        },
+        {
+          "label": "Terms",
+          "url": "https://funworldstatistics.com/terms/"
+        },
+        {
+          "label": "Channel history CSV",
+          "url": "https://funworldstatistics.com/data/channel-history.csv"
+        }
       ],
-      "start": ["Nothing to start: nginx serves it; pushing to main is live within ~2 minutes (cron every 2 min)"],
-      "update": ["Force a deploy on the server: sudo /opt/funworldstatistics/deploy/deploy.sh --force", "Deploy log: /var/log/funworldstatistics-deploy.log"],
-      "needs": ["nginx + certbot HTTPS on the server", "/etc/funworldstatistics.env with YT_API_KEY for the live YouTube numbers (refresh :00 and :30)"],
-      "check": {"url": "https://funworldstatistics.com"}
+      "start": [
+        "Nothing to start: nginx serves it; pushing to main is live within ~2 minutes (cron every 2 min)"
+      ],
+      "update": [
+        "Force a deploy on the server: sudo /opt/funworldstatistics/deploy/deploy.sh --force",
+        "Deploy log: /var/log/funworldstatistics-deploy.log"
+      ],
+      "needs": [
+        "nginx + certbot HTTPS on the server",
+        "/etc/funworldstatistics.env with YT_API_KEY for the live YouTube numbers (refresh :00 and :30)"
+      ],
+      "check": {
+        "url": "https://funworldstatistics.com"
+      }
     },
     {
-      "id": "fws-social", "group": "fws", "name": "Fun World Statistics channels", "status": "live",
+      "id": "fws-social",
+      "group": "fws",
+      "name": "Fun World Statistics channels",
+      "status": "live",
       "where": "Online — YouTube, Instagram, Facebook Page, TikTok",
       "chat": "This chat: YouTube admin, playlists, monetization, GTA scripts, profile texts",
       "open": [
-        {"label": "YouTube Studio", "url": "https://studio.youtube.com/channel/UCnjZufm0BAP5r_plQdZlaAQ"},
-        {"label": "YouTube channel", "url": "https://www.youtube.com/@FunWorldStatistics"},
-        {"label": "Instagram", "url": "https://www.instagram.com/funworldstatistics/"},
-        {"label": "Facebook Page", "url": "https://www.facebook.com/funworldstatistics"},
-        {"label": "GTA 6 Shorts scripts", "url": "https://claude.ai/artifact/Gn2vS7Z4RKNKbDr4DuYPMa"}
+        {
+          "label": "YouTube Studio",
+          "url": "https://studio.youtube.com/channel/UCnjZufm0BAP5r_plQdZlaAQ"
+        },
+        {
+          "label": "YouTube channel",
+          "url": "https://www.youtube.com/@FunWorldStatistics"
+        },
+        {
+          "label": "Instagram",
+          "url": "https://www.instagram.com/funworldstatistics/"
+        },
+        {
+          "label": "Facebook Page",
+          "url": "https://www.facebook.com/funworldstatistics"
+        },
+        {
+          "label": "GTA 6 Shorts scripts",
+          "url": "https://claude.ai/artifact/Gn2vS7Z4RKNKbDr4DuYPMa"
+        }
       ],
       "start": [],
-      "needs": ["Contact e-mail funworldstatistics@gmail.com", "Facebook: switch to the Page profile before editing it"],
+      "needs": [
+        "Contact e-mail funworldstatistics@gmail.com",
+        "Facebook: switch to the Page profile before editing it"
+      ],
       "todo": [
         "GTA 6 launch Nov 19: post the GTA Shorts from the scripts doc; post the GTA 6 vs GTA 5 Short when Take-Two gives the first number",
         "The Game Awards Dec 10 (nominees mid-November): post the Game of the Year Short on nominee day",
@@ -102,124 +221,291 @@
       ]
     },
     {
-      "id": "tennis", "group": "sport", "name": "Tennis app (predictions)", "status": "live",
+      "id": "tennis",
+      "group": "sport",
+      "name": "Tennis app (predictions)",
+      "status": "live",
       "where": "Ubuntu server — Docker stack “tennis” in ~/tennis-app (PostgreSQL + web), port 8090",
       "chat": "Claude project for the tennis app (moved off Lovable court-chronicle-60)",
       "repo": "leitisk-bit/tennis-app (private)",
-      "open": [{"label": "Tennis app (home network)", "url": "http://192.168.2.115:8090"}],
-      "start": ["cd ~/tennis-app && docker compose up -d db web"],
-      "update": ["cd ~/tennis-app && git pull && docker compose build loader model && docker compose up -d --build web"],
-      "needs": ["Docker on the server", "~/tennis-app/.env with POSTGRES_PASSWORD (and ODDS_API_KEY for odds)"],
+      "open": [
+        {
+          "label": "Tennis app (home network)",
+          "url": "http://192.168.2.115:8090"
+        }
+      ],
+      "start": [
+        "cd ~/tennis-app && docker compose up -d db web"
+      ],
+      "update": [
+        "cd ~/tennis-app && git pull && docker compose build loader model && docker compose up -d --build web"
+      ],
+      "needs": [
+        "Docker on the server",
+        "~/tennis-app/.env with POSTGRES_PASSWORD (and ODDS_API_KEY for odds)"
+      ],
       "notes": "Personal use only, never public. Model report: docker compose run --rm model report",
-      "check": {"port": 8090}
+      "check": {
+        "port": 8090
+      }
     },
     {
-      "id": "football", "group": "sport", "name": "Football stats (corners, shots …)", "status": "live",
+      "id": "football",
+      "group": "sport",
+      "name": "Football stats (corners, shots …)",
+      "status": "live",
       "where": "Ubuntu server — /opt/football, systemd football-web (port 8095) + football-sync.timer",
       "chat": "Football stats chat",
       "repo": "leitisk-bit/kasparsleitis.com → football-app/",
       "open": [
-        {"label": "Football page", "url": "https://kasparsleitis.com/football/"},
-        {"label": "Home network", "url": "http://192.168.2.115:8095/football/"}
+        {
+          "label": "Football page",
+          "url": "https://kasparsleitis.com/football/"
+        },
+        {
+          "label": "Home network",
+          "url": "http://192.168.2.115:8095/football/"
+        }
       ],
-      "start": ["sudo systemctl start football-web football-sync.timer", "Health: curl -s http://127.0.0.1:8095/football/health"],
-      "update": ["Automatic from GitHub (autoupdate) and the GitHub “Football” workflow", "By hand: cd ~/kasparsleitis.com && git pull && sudo cp football-app/*.py /opt/football/ && sudo cp -r football-app/static /opt/football/ && sudo systemctl restart football-web"],
-      "needs": ["Telpu O replay app + Cloudflare Tunnel running (the public page reads data through it)", "/opt/football/.env: API-Football Pro key, ADMIN_PASSWORD = the admin password"],
-      "check": {"port": 8095}
+      "start": [
+        "sudo systemctl start football-web football-sync.timer",
+        "Health: curl -s http://127.0.0.1:8095/football/health"
+      ],
+      "update": [
+        "Automatic from GitHub (autoupdate) and the GitHub “Football” workflow",
+        "By hand: cd ~/kasparsleitis.com && git pull && sudo cp football-app/*.py /opt/football/ && sudo cp -r football-app/static /opt/football/ && sudo systemctl restart football-web"
+      ],
+      "needs": [
+        "Telpu O replay app + Cloudflare Tunnel running (the public page reads data through it)",
+        "/opt/football/.env: API-Football Pro key, ADMIN_PASSWORD = the admin password"
+      ],
+      "check": {
+        "port": 8095
+      }
     },
     {
-      "id": "betting-bot", "group": "sport", "name": "Betsafe sure-bet bot", "status": "idea",
+      "id": "betting-bot",
+      "group": "sport",
+      "name": "Betsafe sure-bet bot",
+      "status": "idea",
       "where": "Own computer (planned), alerts to Telegram",
       "chat": "Betting bot chat",
-      "open": [], "start": [],
-      "needs": ["Telegram bot token", "A way to read Betsafe odds"],
+      "open": [],
+      "start": [],
+      "needs": [
+        "Telegram bot token",
+        "A way to read Betsafe odds"
+      ],
       "notes": "Football, ice hockey, basketball, tennis. Not set up yet — fill in when it runs."
     },
     {
-      "id": "telpuo", "group": "o", "name": "Indoor O Replay (Telpu O / TELPO ceļi)", "status": "live",
+      "id": "telpuo",
+      "group": "o",
+      "name": "Indoor O Replay (Telpu O / TELPO ceļi)",
+      "status": "live",
       "where": "Ubuntu server — Docker stack “telpuo” in ~/kasparsleitis.com/telpuo-app, port 8092 + Cloudflare Tunnel",
       "chat": "Indoor orienteering replay chat (Cowork)",
       "repo": "leitisk-bit/kasparsleitis.com → telpuo-app/",
       "open": [
-        {"label": "Replay app", "url": "https://telpuo.kasparsleitis.com"},
-        {"label": "TELPO ceļi", "url": "https://celi.telpo.lv"},
-        {"label": "TELPO (own domain)", "url": "https://telpomarsruts.kasparsleitis.com"},
-        {"label": "kasparsleitis.com/telpuO", "url": "https://kasparsleitis.com/telpuO/"},
-        {"label": "Home network", "url": "http://192.168.2.115:8092"}
+        {
+          "label": "Replay app",
+          "url": "https://telpuo.kasparsleitis.com"
+        },
+        {
+          "label": "TELPO ceļi",
+          "url": "https://celi.telpo.lv"
+        },
+        {
+          "label": "TELPO (own domain)",
+          "url": "https://telpomarsruts.kasparsleitis.com"
+        },
+        {
+          "label": "kasparsleitis.com/telpuO",
+          "url": "https://kasparsleitis.com/telpuO/"
+        },
+        {
+          "label": "Home network",
+          "url": "http://192.168.2.115:8092"
+        }
       ],
-      "start": ["cd ~/kasparsleitis.com/telpuo-app && docker compose --profile public up -d --build"],
-      "update": ["Automatic: cron runs autoupdate.sh every 5 min when telpuo-app/ changes on GitHub", "Logs: docker compose logs -f web"],
-      "needs": [".env: ADMIN_KEY (the admin password) and TUNNEL_TOKEN (Cloudflare)", "kasparsleitis.com DNS on Cloudflare"],
+      "start": [
+        "cd ~/kasparsleitis.com/telpuo-app && docker compose --profile public up -d --build"
+      ],
+      "update": [
+        "Automatic: cron runs autoupdate.sh every 5 min when telpuo-app/ changes on GitHub",
+        "Logs: docker compose logs -f web"
+      ],
+      "needs": [
+        ".env: ADMIN_KEY (the admin password) and TUNNEL_TOKEN (Cloudflare)",
+        "kasparsleitis.com DNS on Cloudflare"
+      ],
       "notes": "This app also serves the data for /serverinfo, /football and this page.",
-      "check": {"port": 8092}
+      "check": {
+        "port": 8092
+      }
     },
     {
-      "id": "kl-site", "group": "web", "name": "kasparsleitis.com (main website)", "status": "live",
+      "id": "kl-site",
+      "group": "web",
+      "name": "kasparsleitis.com (main website)",
+      "status": "live",
       "where": "Namecheap shared hosting (cPanel)",
       "chat": "Lovable → Namecheap migration chat",
       "repo": "leitisk-bit/kasparsleitis.com → site/",
       "open": [
-        {"label": "Website", "url": "https://kasparsleitis.com"},
-        {"label": "GitHub Actions", "url": "https://github.com/leitisk-bit/kasparsleitis.com/actions"}
+        {
+          "label": "Website",
+          "url": "https://kasparsleitis.com"
+        },
+        {
+          "label": "GitHub Actions",
+          "url": "https://github.com/leitisk-bit/kasparsleitis.com/actions"
+        }
       ],
-      "start": ["Nothing to start: push to main under site/ → “Deploy to Namecheap” uploads it in ~1 minute"],
-      "needs": ["GitHub secrets FTP_SERVER, FTP_USERNAME, FTP_PASSWORD"],
-      "check": {"url": "https://kasparsleitis.com"}
+      "start": [
+        "Nothing to start: push to main under site/ → “Deploy to Namecheap” uploads it in ~1 minute"
+      ],
+      "needs": [
+        "GitHub secrets FTP_SERVER, FTP_USERNAME, FTP_PASSWORD"
+      ],
+      "check": {
+        "url": "https://kasparsleitis.com"
+      }
     },
     {
-      "id": "serverinfo", "group": "web", "name": "Server Info + monitoring", "status": "live",
+      "id": "serverinfo",
+      "group": "web",
+      "name": "Server Info + monitoring",
+      "status": "live",
       "where": "Page on kasparsleitis.com; data from Netdata (19999) and Uptime Kuma (3001) on the server",
       "chat": "Server monitoring chat",
       "open": [
-        {"label": "Server Info", "url": "https://kasparsleitis.com/serverinfo/"},
-        {"label": "Uptime Kuma (home network)", "url": "http://192.168.2.115:3001"}
+        {
+          "label": "Server Info",
+          "url": "https://kasparsleitis.com/serverinfo/"
+        },
+        {
+          "label": "Uptime Kuma (home network)",
+          "url": "http://192.168.2.115:3001"
+        }
       ],
-      "start": ["sudo systemctl start netdata", "Full Netdata dashboard from the Mac: ssh -L 19999:localhost:19999 home@192.168.2.115 → http://localhost:19999"],
-      "needs": ["Telpu O replay app running", "Netdata accepting connections from Docker (see telpuo-app README)"],
-      "check": {"port": 19999}
+      "start": [
+        "sudo systemctl start netdata",
+        "Full Netdata dashboard from the Mac: ssh -L 19999:localhost:19999 home@192.168.2.115 → http://localhost:19999"
+      ],
+      "needs": [
+        "Telpu O replay app running",
+        "Netdata accepting connections from Docker (see telpuo-app README)"
+      ],
+      "check": {
+        "port": 19999
+      }
     },
     {
-      "id": "musicif", "group": "web", "name": "Sound Machine (Spotify scheduler)", "status": "live",
+      "id": "musicif",
+      "group": "web",
+      "name": "Sound Machine (Spotify scheduler)",
+      "status": "live",
       "where": "Namecheap — kasparsleitis.com/musicif/ (PHP)",
       "chat": "Sound Machine chat",
       "repo": "leitisk-bit/kasparsleitis.com → site/musicif/",
-      "open": [{"label": "Admin page", "url": "https://kasparsleitis.com/musicif/"}],
-      "start": ["On the player PC open /musicif/player.html?key=… (key = MUSICIF_PLAYER_KEY) and leave it open"],
-      "needs": ["Spotify Developer app (redirect https://kasparsleitis.com/musicif/callback.php)", "GitHub secrets SPOTIFY_CLIENT_ID/SECRET, MUSICIF_ADMIN_PASSWORD, MUSICIF_PLAYER_KEY → Actions → Deploy to Namecheap"],
-      "check": {"url": "https://kasparsleitis.com/musicif/"}
+      "open": [
+        {
+          "label": "Admin page",
+          "url": "https://kasparsleitis.com/musicif/"
+        }
+      ],
+      "start": [
+        "On the player PC open /musicif/player.html?key=… (key = MUSICIF_PLAYER_KEY) and leave it open"
+      ],
+      "needs": [
+        "Spotify Developer app (redirect https://kasparsleitis.com/musicif/callback.php)",
+        "GitHub secrets SPOTIFY_CLIENT_ID/SECRET, MUSICIF_ADMIN_PASSWORD, MUSICIF_PLAYER_KEY → Actions → Deploy to Namecheap"
+      ],
+      "check": {
+        "url": "https://kasparsleitis.com/musicif/"
+      }
     },
     {
-      "id": "jellyfin", "group": "home", "name": "Media server (Jellyfin + qBittorrent)", "status": "live",
+      "id": "jellyfin",
+      "group": "home",
+      "name": "Media server (Jellyfin + qBittorrent)",
+      "status": "live",
       "where": "Ubuntu server (Lenovo M710q) — Docker",
       "chat": "Plex-like media server chat",
       "open": [
-        {"label": "Jellyfin (home network)", "url": "http://192.168.2.115:8096"},
-        {"label": "qBittorrent (usual port)", "url": "http://192.168.2.115:8080"}
+        {
+          "label": "Jellyfin (home network)",
+          "url": "http://192.168.2.115:8096"
+        },
+        {
+          "label": "Jellyfin (outside home, Tailscale)",
+          "url": "http://100.101.61.114:8096"
+        },
+        {
+          "label": "qBittorrent (usual port)",
+          "url": "http://192.168.2.115:8080"
+        },
+        {
+          "label": "qBittorrent (outside home, Tailscale)",
+          "url": "http://100.101.61.114:8080"
+        }
       ],
-      "start": ["On the server: docker start jellyfin qbittorrent", "Names differ? List them: docker ps -a"],
-      "needs": ["Jellyfin app on the Android TV", "Libraries: Movies, Shows, Pace Movies, Pace Series"],
+      "start": [
+        "On the server: docker start jellyfin qbittorrent",
+        "Names differ? List them: docker ps -a"
+      ],
+      "needs": [
+        "Jellyfin app on the Android TV",
+        "Libraries: Movies, Shows, Pace Movies, Pace Series",
+        "Outside home: Tailscale turned on on the phone / TV / Mac, then the 100.101.61.114 address (in the Jellyfin app: add a server with http://100.101.61.114:8096)"
+      ],
       "notes": "Ports are Jellyfin's and qBittorrent's defaults — correct them here if yours differ.",
-      "check": {"port": 8096}
+      "check": {
+        "port": 8096
+      }
     },
     {
-      "id": "garmin-coach", "group": "home", "name": "Smart Garmin Coach", "status": "in progress",
+      "id": "garmin-coach",
+      "group": "home",
+      "name": "Smart Garmin Coach",
+      "status": "in progress",
       "where": "Lovable app + garmin-sync script",
       "chat": "Lovable project 6604d6f8…",
       "repo": "leitisk-bit/smart-garmin-coach (private, Lovable)",
       "open": [
-        {"label": "App", "url": "https://smart-garmin-coach.lovable.app"},
-        {"label": "Lovable editor", "url": "https://lovable.dev/projects/6604d6f8-1873-4e82-ad29-284c2a79baf0"}
+        {
+          "label": "App",
+          "url": "https://smart-garmin-coach.lovable.app"
+        },
+        {
+          "label": "Lovable editor",
+          "url": "https://lovable.dev/projects/6604d6f8-1873-4e82-ad29-284c2a79baf0"
+        }
       ],
-      "start": ["Run garmin-sync/garmin_sync.py (python-garminconnect) to send Garmin data to the app with your sync key"],
-      "needs": ["Garmin Connect login", "Per-user sync key from the app"],
-      "check": {"url": "https://smart-garmin-coach.lovable.app"}
+      "start": [
+        "Run garmin-sync/garmin_sync.py (python-garminconnect) to send Garmin data to the app with your sync key"
+      ],
+      "needs": [
+        "Garmin Connect login",
+        "Per-user sync key from the app"
+      ],
+      "check": {
+        "url": "https://smart-garmin-coach.lovable.app"
+      }
     },
     {
-      "id": "offline-video", "group": "home", "name": "Offline video app", "status": "idea",
+      "id": "offline-video",
+      "group": "home",
+      "name": "Offline video app",
+      "status": "idea",
       "where": "Lovable (screen recorder + link downloader) + a small server",
       "chat": "Offline video app chat",
-      "open": [], "start": [],
-      "needs": ["A small server for the link downloader"],
+      "open": [],
+      "start": [],
+      "needs": [
+        "A small server for the link downloader"
+      ],
       "notes": "Not deployed yet — fill in the Lovable link when it exists."
     }
   ]
