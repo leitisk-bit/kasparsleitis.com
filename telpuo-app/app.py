@@ -570,12 +570,12 @@ def _warps3d(mid, m, texs, pieces):
     key = (mid, int(m.get('built') or 0))
     if key not in _WARPS:
         try:
-            N = store.load_graph(mid)[0]
+            N, _E, _P, info_ = store.load_graph(mid)
             tex_ = [dict(x, piece=x.get('piece', x.get('wp'))) for x in texs if x.get('piece', x.get('wp')) is not None]
             cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None) or {}
             ex = set(cfg.get('imperial', {}).keys()) | set(cfg.get('imperial', {}).values())
             # (a staircase whose letters are drawn apart on purpose - top, bottom and side doors - keeps them apart)
-            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex)
+            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'))
         except Exception:
             traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
     return _WARPS[key]
