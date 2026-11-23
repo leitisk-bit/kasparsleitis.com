@@ -1004,7 +1004,12 @@ def api_delete_run(rid):
 # TELPO 2026 1. posms, Jelgava Palace: about 150 x 120 m outside, drawn 802-811 x 985-989 px at 300 dpi
 # on every floor -> 1:1750-1800, 1:1780 on average (the sheet says nothing true about scale: the plan was enlarged to fit).
 FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
-                 'Worked out from the size of Jelgava Palace (about 150 × 120 m)')]
+                 'Worked out from the size of Jelgava Palace (about 150 × 120 m)'),
+               # TELPO 2026 2. posms, Mezaparks Liela estrade: Kaspars' watch GPS at his 11 outdoor controls fitted to
+               # the controls on the sheet -> 0.166-0.177 m a pixel, 1:1960-2090 (the sheet's 1:1000 made every
+               # distance half its real length: the 12 m stairs at the back had no room to come down)
+               (re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\b', re.I), 2000,
+                'Worked out from the GPS of a run on it (controls vs watch positions)')]
 
 # The real shape of the ground on certain outdoor sites, for the 3D view: [(name regex, [{'floor', 'within'
 # (sheet box holding the piece's centre), 'lines': [[[x, y], …], metres over floor 1], …}])]. Each map piece
