@@ -1045,6 +1045,22 @@ async function start(){
   // metres over floor 1 on a grid over the piece's texture, from all runs; none = flat at the floor's height
   const HG = {}; (D.heights || []).forEach(g => HG[g.piece] = g);
   const texOf = {}; D.tex.forEach(t => { if (t.piece !== undefined) texOf[t.piece] = t; });
+  // A floor drawn to another shape than the floor below (Mezaparks: the grandstand on floor 3 against
+  // the building under it) is bent so its stair letters stand over the same letters below: a shift in
+  // sheet pixels on a grid over the piece (none = drawn as is). World X, Z of a lined-up point: WX.
+  const WG = {}; (D.warps || []).forEach(w => WG[w.piece] = w);
+  const pidOf = t => t.piece !== undefined ? t.piece : t.wp;
+  function warpAt(fl, px, py){
+    let best = null;
+    D.tex.forEach(t => { if (t.floor !== fl) return;
+      const d = Math.hypot(Math.max(t.x0 - px, 0, px - t.x0 - t.w), Math.max(t.y0 - py, 0, py - t.y0 - t.h)); if (!best || d < best[0]) best = [d, t]; });
+    const w = best && WG[pidOf(best[1])]; if (!w) return [0, 0];
+    const t = best[1], u = Math.min(1, Math.max(0, (px - t.x0) / t.w)) * (w.nx - 1), v = Math.min(1, Math.max(0, (py - t.y0) / t.h)) * (w.ny - 1);
+    const i = Math.min(w.nx - 2, Math.floor(u)), j = Math.min(w.ny - 2, Math.floor(v)), fu = u - i, fv = v - j, n = w.nx;
+    const bl = A => (A[j*n+i]*(1-fu) + A[j*n+i+1]*fu)*(1-fv) + (A[(j+1)*n+i]*(1-fu) + A[(j+1)*n+i+1]*fu)*fv;
+    return [bl(w.dx), bl(w.dy)];
+  }
+  const WX = (fl, px, py) => { const d = warpAt(fl, px, py); return [(px + d[0]) * M - cx, (py + d[1]) * M - cz]; };
   function hRaw(fl, px, py){          // px, py: sheet pixels as lined up (the texture's own frame)
     let best = null;
     D.tex.forEach(t => { if (t.floor !== fl || t.piece === undefined || !HG[t.piece]) return;
@@ -1062,11 +1078,13 @@ async function start(){
   const loader = new THREE.TextureLoader(), plates = [];
   D.tex.forEach(t => {
     const g = t.piece !== undefined ? HG[t.piece] : null;
+    const wg = WG[pidOf(t)] && (!g || (WG[pidOf(t)].nx === g.nx && WG[pidOf(t)].ny === g.ny)) ? WG[pidOf(t)] : null;
     const tex = loader.load(t.img, tx => { if (g && LV){ t.cells = cellMask(tx.image, g); buildSkirts(); } });
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-    const geo = g ? new THREE.PlaneGeometry(t.w*M, t.h*M, g.nx - 1, g.ny - 1) : new THREE.PlaneGeometry(t.w*M, t.h*M);
+    const gg = g || wg;
+    const geo = gg ? new THREE.PlaneGeometry(t.w*M, t.h*M, gg.nx - 1, gg.ny - 1) : new THREE.PlaneGeometry(t.w*M, t.h*M);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide }));
-    mesh.rotation.x = -Math.PI/2; mesh.userData = { floor:t.floor, cx:(t.x0 + t.w/2)*M - cx, cz:(t.y0 + t.h/2)*M - cz, hg:g };
+    mesh.rotation.x = -Math.PI/2; mesh.userData = { floor:t.floor, cx:(t.x0 + t.w/2)*M - cx, cz:(t.y0 + t.h/2)*M - cz, hg:g, wg:wg, t:t };
     scene.add(mesh); plates.push(mesh);
   });
   // Stands as solid masses (a real-height site): each raised map piece gets walls from its edge down to
@@ -1110,12 +1128,12 @@ async function start(){
       const vx = i => t.x0 + i * t.w / cw, vy = j => t.y0 + j * t.h / ch;
       const top = (i, j) => { const u = i / SUB, v = j / SUB, i0 = Math.min(nx - 2, Math.floor(u)), j0 = Math.min(ny - 2, Math.floor(v)), fu = u - i0, fv = v - j0, H = g.h;
         return ((H[j0*nx+i0]*(1-fu) + H[j0*nx+i0+1]*fu)*(1-fv) + (H[(j0+1)*nx+i0]*(1-fu) + H[(j0+1)*nx+i0+1]*fu)*fv) * gapK / 3; };
-      const ground = (i, j) => { const h = hRaw(1, vx(i), vy(j)); return Math.min((h === null ? 0 : h) * gapK / 3, yOf(1)); };
+      const ground = (i, j) => { const d = warpAt(t.floor, vx(i), vy(j)), h = hRaw(1, vx(i) + d[0], vy(j) + d[1]); return Math.min((h === null ? 0 : h) * gapK / 3, yOf(1)); };
       const has = (i, j) => i >= 0 && j >= 0 && i < cw && j < ch && m[j*cw + i];
       const wall = (i1, j1, i2, j2) => {          // a wall along the cell edge (i1,j1)-(i2,j2) from the top down
         const t1 = top(i1, j1), t2 = top(i2, j2), b1 = ground(i1, j1), b2 = ground(i2, j2);
         if (t1 - b1 < 1.2 || t2 - b2 < 1.2) return;
-        const X1 = vx(i1)*M - cx, Z1 = vy(j1)*M - cz, X2 = vx(i2)*M - cx, Z2 = vy(j2)*M - cz;
+        const [X1, Z1] = WX(t.floor, vx(i1), vy(j1)), [X2, Z2] = WX(t.floor, vx(i2), vy(j2));
         P.push(X1, t1, Z1, X2, t2, Z2, X2, b2, Z2,  X1, t1, Z1, X2, b2, Z2, X1, b1, Z1);
       };
       for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++){
@@ -1147,10 +1165,11 @@ async function start(){
     mesh.rotation.x = -Math.PI/2; grp.add(mesh);
     if (c.kind === 'finish'){ const m2 = new THREE.Mesh(new THREE.RingGeometry(2.6, 3.1, 40), mat); m2.rotation.x = -Math.PI/2; grp.add(m2); }
     const lab = textSprite(c.label); lab.position.set(0, 3.2, 0); grp.add(lab); mesh.renderOrder = lab.renderOrder = 5;
-    grp.userData = { floor:c.floor, x:c.x*M - cx, z:c.y*M - cz }; scene.add(grp); ctrlObjs.push(grp);
+    const [gx, gz] = WX(c.floor, c.x, c.y);
+    grp.userData = { floor:c.floor, x:gx, z:gz, ax:c.x, ay:c.y }; scene.add(grp); ctrlObjs.push(grp);
   });
   function prep(r){
-    const pts = r.pts.map(p => ({ t:p[0], x:p[1]*M - cx, z:p[2]*M - cz, f:p[3], fz:p[3] }));
+    const pts = r.pts.map(p => { const w = WX(p[3], p[1], p[2]); return { t:p[0], x:w[0], z:w[1], ax:p[1], ay:p[2], f:p[3], fz:p[3] }; });
     for (let j = 1; j < pts.length; j++){
       if (pts[j].f === pts[j-1].f) continue;
       let i0 = j - 1;
@@ -1170,13 +1189,22 @@ async function start(){
   function buildStairs(){
     stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); });
     (D.stairs || []).forEach(st => {
-      const x = (st.a[0] + st.b[0]) / 2 * M - cx, z = (st.a[1] + st.b[1]) / 2 * M - cz;
+      let [xa, za] = WX(st.aisle ? st.f2 : st.f1, st.a[0], st.a[1]), [xb, zb] = WX(st.f2, st.b[0], st.b[1]);
+      const x = (xa + xb) / 2, z = (za + zb) / 2;
       // each stair from the real height at its foot to the real height at its top (they differ)
       // (an aisle stair lies on the stand: both its ends on the upper floor's surface)
       const ya = st.aisle ? yAt(st.f2, st.a[0], st.a[1]) + 0.15 : yAt(st.f1, st.a[0], st.a[1]), yb = yAt(st.f2, st.b[0], st.b[1]) + (st.aisle ? 0.15 : 0);
       const y0 = Math.min(ya, yb), y1 = Math.max(ya, yb), h = y1 - y0; if (h <= 0.3) return;
       // an outdoor site (real heights): a straight flight from its foot to its top, at its real angle
-      const xa = st.a[0] * M - cx, za = st.a[1] * M - cz, xb = st.b[0] * M - cx, zb = st.b[1] * M - cz, Lh = Math.hypot(xb - xa, zb - za);
+      // its two doors one over the other (the floors lined up letter on letter): the flight as the lower
+      // floor draws it, from its door there up to the floor above
+      if (LV && Math.hypot(xb - xa, zb - za) <= 1.5 && st.ax1){
+        const e1 = st.ax1.slice(0, 2), e2 = st.ax1.slice(2, 4);
+        const near = Math.hypot(e1[0] - st.a[0], e1[1] - st.a[1]) <= Math.hypot(e2[0] - st.a[0], e2[1] - st.a[1]);
+        const lo = near ? e1 : e2, hi = near ? e2 : e1;
+        [xa, za] = WX(st.f1, lo[0], lo[1]); [xb, zb] = WX(st.f1, hi[0], hi[1]);
+      }
+      const Lh = Math.hypot(xb - xa, zb - za);
       if (LV && Lh > 1.5){
         const lowA = ya <= yb, X0 = lowA ? xa : xb, Z0 = lowA ? za : zb, dx = (lowA ? xb - xa : xa - xb) / Lh, dz = (lowA ? zb - za : za - zb) / Lh;
         const n = Math.max(3, Math.min(90, Math.round(h / 0.17))), r = Lh / n, s = h / n, Wd = st.w ? Math.max(1.5, Math.min(6, st.w * M)) : 2.4;
@@ -1261,21 +1289,25 @@ async function start(){
   }
   function layoutRunners(){
     R.forEach(r => { const a = new Float32Array(r.P.length*3);
-      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = yAtF(p.fz, (p.x + cx) / M, (p.z + cz) / M) + 0.5; a[i*3+2] = p.z; });
+      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = yAtF(p.fz, p.ax, p.ay) + 0.5; a[i*3+2] = p.z; });
       r.A = a; r.legI0 = -1; setLine(r.g1, a); setLine(r.g2, a); });
   }
   function layout(){
     plates.forEach(m => {
-      const g = m.userData.hg;
-      if (g){                       // bent to the measured ground: vertex heights, the plate itself at 0
-        const pos = m.geometry.attributes.position;
-        for (let k = 0; k < pos.count; k++) pos.setZ(k, g.h[k] * gapK / 3);
+      const g = m.userData.hg, wg = m.userData.wg, t = m.userData.t;
+      if (g || wg){                 // bent to the measured ground (vertex heights) and to the floor below (warp)
+        const pos = m.geometry.attributes.position, n = (g || wg).nx, nr = (g || wg).ny;
+        for (let k = 0; k < pos.count; k++){
+          const i = k % n, j = Math.floor(k / n);
+          if (wg){ pos.setX(k, ((i / (n - 1) - 0.5) * t.w + wg.dx[k]) * M); pos.setY(k, ((0.5 - j / (nr - 1)) * t.h - wg.dy[k]) * M); }
+          pos.setZ(k, g ? g.h[k] * gapK / 3 : yOf(m.userData.floor));
+        }
         pos.needsUpdate = true; m.geometry.computeBoundingSphere();
         m.position.set(m.userData.cx, 0, m.userData.cz);
       } else m.position.set(m.userData.cx, yOf(m.userData.floor), m.userData.cz);
     });
     flabels.forEach(s => s.position.set(minX - 7, yOf(s.userData.floor) + 3, 0));
-    ctrlObjs.forEach(g => g.position.set(g.userData.x, yAt(g.userData.floor, (g.userData.x + cx) / M, (g.userData.z + cz) / M) + 0.15, g.userData.z));
+    ctrlObjs.forEach(g => g.position.set(g.userData.x, yAt(g.userData.floor, g.userData.ax, g.userData.ay) + 0.15, g.userData.z));
     buildStairs(); buildSkirts();
     layoutRunners();
   }
@@ -1288,7 +1320,8 @@ async function start(){
     const i = idxAt(r, tt), a = r.P[i], b = r.P[Math.min(i+1, r.P.length-1)];
     const u = b.t > a.t ? Math.min(1, Math.max(0, (tt - a.t) / (b.t - a.t))) : 0;
     const jump = b.f !== a.f && Math.hypot(b.x - a.x, b.z - a.z) > 3, fz = a.fz + (b.fz - a.fz)*u;
-    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:yAtF(fz, ((jump ? a.x : a.x + (b.x - a.x)*u) + cx) / M, ((jump ? a.z : a.z + (b.z - a.z)*u) + cz) / M) + 0.5, fz };
+    const ax = jump ? a.ax : a.ax + (b.ax - a.ax)*u, ay = jump ? a.ay : a.ay + (b.ay - a.ay)*u;
+    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:yAtF(fz, ax, ay) + 0.5, fz, ax, ay };
   }
   let follow = true; const tgt = new THREE.Vector3();
   // the floor shown: the runner's, or one picked with the floor buttons (looking over the whole route);
@@ -1305,7 +1338,7 @@ async function start(){
       const rr = s && s.runners[r.ri]; const vis = !rr || rr.visible !== false; r.grp.visible = vis;
       const p = posAt(r, timeOf(r)); r.cur = p; if (!vis) return;
       animateFigure(r.dot, p.x, p.y, p.z);
-      const base = yAt(Math.round(p.fz), (p.x + cx) / M, (p.z + cz) / M); r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
+      const base = yAt(Math.round(p.fz), p.ax, p.ay); r.pin.scale.y = Math.max(0.01, p.y + 0.9 - base); r.pin.position.set(p.x, (p.y + 0.9 + base)/2, p.z);
       const legScope = !s || s.routeScope !== 'all', showAll = s && s.routeReveal === 'full';
       let i0 = 0, i1 = r.P.length - 1;
       if (legScope && rr && rr.legs){ const tt = timeOf(r), L = rr.legs.find(x => tt >= x.t0 && tt < x.t1) || rr.legs[rr.legs.length-1]; i0 = idxAt(r, L.t0); i1 = Math.min(r.P.length - 1, idxAt(r, L.t1) + 1); }

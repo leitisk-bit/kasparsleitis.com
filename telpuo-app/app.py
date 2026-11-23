@@ -509,11 +509,18 @@ def api_three(mid):
     if not m.get('three'): return jsonify(error='No 3D data for this map yet.'), 404
     t = m['three']; feat = store.get_features(mid); pieces = t.get('pieces')
     tx = lambda x: f"api/maps/{mid}/tex/{x['floor']}" + (f"_{x['piece']}" if 'piece' in x else '') + f".webp?{int(m.get('built') or 0)}"
+    texs = [dict(x) for x in t['tex']]
+    if pieces:                    # (a floor drawn in one piece: its texture names that piece for the warp)
+        for x in texs:
+            if 'piece' not in x:
+                ids = [i for i, pc in enumerate(pieces) if pc['floor'] == x['floor']]
+                if len(ids) == 1: x['wp'] = ids[0]
+    warps, place = _warps3d(mid, m, texs, pieces)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'], pieces=pieces,
-                   levels=_levels3d(mid), heights=_heights3d(mid, m, t),
-                   tex=[dict(x, img=tx(x)) for x in t['tex']],
+                   levels=_levels3d(mid), heights=_heights3d(mid, m, t), warps=warps,
+                   tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
-                   stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces)],
+                   stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
                                        (m.get('scale') or 1000) / (300 / 0.0254)))
 
 _HGRID = {}
@@ -559,8 +566,20 @@ def _levels3d(mid):
     except Exception:
         return None
 
+_WARPS = {}
+def _warps3d(mid, m, texs, pieces):
+    key = (mid, int(m.get('built') or 0))
+    if key not in _WARPS:
+        try:
+            N = store.load_graph(mid)[0]
+            tex_ = [dict(x, piece=x.get('piece', x.get('wp'))) for x in texs if x.get('piece', x.get('wp')) is not None]
+            _WARPS[key] = three.piece_warps(N, pieces, tex_)
+        except Exception:
+            traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
+    return _WARPS[key]
+
 _STAIRS = {}
-def _stairs3d(mid, built, off, pieces=None):
+def _stairs3d(mid, built, off, pieces=None, place=None):
     """Stairwells for the 3D view: one piece per letter between two floors it links, at the stairwell's
     place on each floor (lined up like the floor textures)."""
     key = (mid, built)
@@ -595,7 +614,21 @@ def _stairs3d(mid, built, off, pieces=None):
             # landings down into floor 2, a separate drawing that does not line up there) is drawn as the
             # map draws it on the upper floor: from its door there, down along its drawing.
             mpp_ = ((store.get_meta(mid) or {}).get('scale') or 1000) / (300 / 0.0254)
-            apart = math.hypot(ends[0][0] - ends[1][0], ends[0][1] - ends[1][1]) * mpp_
+            pa = place(k[1], *ends[0]) if place else ends[0]; pb = place(k[2], *ends[1]) if place else ends[1]
+            apart = math.hypot(pa[0] - pb[0], pa[1] - pb[1]) * mpp_           # (as placed: floors bent letter on letter)
+            # the lower floor's drawing of the flight (drawn there when its two doors are one over the other)
+            for n_, ax in (info.get('axes') or {}).items():
+                q = n_.split('_')
+                if not ax or len(q) != 3 or q[1].split('#')[0] != L or _fnum(q[0]) != k[1]: continue
+                ln = math.hypot(ax[2] - ax[0], ax[3] - ax[1])
+                if ln < 1.8 * ax[4] or ln * mpp_ > 40 or ln * mpp_ < 2: continue
+                _, nx_, ny_ = N[n_]
+                pc = three.piece_of(pieces, k[1], nx_, ny_) if pieces else None
+                o = pc['off'] if pc else (off.get(k[1]) or [0, 0])
+                if 'ax1' not in st or ln > st['_l1']:
+                    st['ax1'] = [round(ax[0] - o[0], 1), round(ax[1] - o[1], 1), round(ax[2] - o[0], 1), round(ax[3] - o[1], 1)]; st['_l1'] = ln
+                    st['w'] = ax[4]
+            st.pop('_l1', None)
             best = None
             for n_, ax in (info.get('axes') or {}).items():
                 q = n_.split('_')
@@ -993,8 +1026,9 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
 # stand from its top edge towards the field, like spokes. P-U on the top edge are the tops of those aisles:
 # each is drawn from its letter straight towards the field's centre, down the stand's slope to its front
 # edge (where the a-h stairs come up from the field). O and V run down the stand's two sides the same way.
-SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
-                {'aisles': list('PQRSTUOV'), 'front': list('abcdefgh'), 'floors': (1, 3), 'width': 4.0})]
+# (Kaspars, 23 Nov: each stair stands where its letter is on both floors - the floors are now bent letter on
+# letter instead, so no site needs this; kept for a site whose stairs are drawn on one floor only.)
+SITE_STAIRS = []
 
 def _fit_circle(P):
     P = np.asarray(P, float)

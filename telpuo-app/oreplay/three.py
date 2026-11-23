@@ -1,6 +1,6 @@
 """Data for the 3D view: every floor lined up over floor 1 by its stairwells, one see-through
 texture per floor (the building only, outside made transparent), and the controls."""
-import os, numpy as np
+import os, math, collections, numpy as np
 from collections import defaultdict
 from PIL import Image
 from scipy import ndimage as ndi
@@ -215,3 +215,71 @@ def shape_grids(tex, pieces, shape, cell=30):
         G = ndi.gaussian_filter(num / den, 0.7)
         out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()]})
     return out
+
+
+def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0):
+    """Floors drawn to different shapes. A map may draw one floor bigger or bent against the next (TELPO
+    2. posms: the grandstand on floor 3 against the building under it on floor 1), so after shifting a piece
+    its stair letters still miss the same letters on the floor below by up to 25 m - while each stair is in
+    one place. Such a piece is bent (a smooth thin-plate warp) so every letter it shares with a piece
+    already placed lands on it, floor 1 staying as drawn.
+    Returns (warps [{'piece', 'nx', 'ny', 'dx', 'dy'}] - sheet pixels to add, on a grid over the piece's
+    texture like the heights - and place(floor, x, y) -> [x, y] for points as lined up)."""
+    from scipy.interpolate import RBFInterpolator
+    if not pieces: return [], (lambda f, x, y: [x, y])
+    texOf = {t['piece']: t for t in tex if 'piece' in t}
+    # each piece's stair letters, as lined up
+    lets = collections.defaultdict(lambda: collections.defaultdict(list))
+    for n, (fl, x, y) in N.items():
+        q = n.split('_')
+        if len(q) != 3 or q[2] not in ('up', 'dn'): continue
+        pc = piece_of(pieces, fl, x, y)
+        if pc is None: continue
+        i = pieces.index(pc)
+        lets[i][q[1].split('#')[0]].append((x - pc['off'][0], y - pc['off'][1]))
+    lets = {i: {L: np.mean(v, 0) for L, v in d.items()} for i, d in lets.items()}
+    fields = {}                     # piece -> RBF of the displacement (None: not bent)
+    placed = {i for i, pc in enumerate(pieces) if pc['floor'] == 1}
+    def disp(i, P):
+        f = fields.get(i)
+        return np.zeros((len(P), 2)) if f is None else f[0](np.asarray(P, float)) * 1.0
+    def clamp(i, D):
+        f = fields.get(i)
+        if f is None: return D
+        m = np.hypot(D[:, 0], D[:, 1]); k = np.minimum(1.0, f[1] / np.maximum(m, 1e-6)); return D * k[:, None]
+    todo = [i for i in range(len(pieces)) if i not in placed]
+    while todo:
+        best = None
+        for i in todo:
+            pairs = []
+            for L, p in lets.get(i, {}).items():
+                tg = [lets[j][L] + clamp(j, disp(j, [lets[j][L]]))[0] for j in placed
+                      if L in lets.get(j, {}) and pieces[j]['floor'] != pieces[i]['floor']]
+                if tg: pairs.append((p, np.mean(tg, 0)))
+            if not best or len(pairs) > len(best[1]): best = (i, pairs)
+        i, pairs = best; todo.remove(i); placed.add(i)
+        if len(pairs) < min_pairs: continue
+        S = np.array([p for p, _ in pairs]); D = np.array([t - p for p, t in pairs])
+        if np.median(np.hypot(D[:, 0], D[:, 1])) < min_err: continue
+        rbf = RBFInterpolator(S, D, kernel='thin_plate_spline', smoothing=1.0)
+        fields[i] = (rbf, float(np.hypot(D[:, 0], D[:, 1]).max() * 1.2))
+    warps = []
+    for i, f in fields.items():
+        t = texOf.get(i)
+        if not t: continue
+        nx = max(2, int(np.ceil(t['w'] / cell)) + 1); ny = max(2, int(np.ceil(t['h'] / cell)) + 1)
+        GX, GY = np.meshgrid(t['x0'] + np.arange(nx) * t['w'] / (nx - 1), t['y0'] + np.arange(ny) * t['h'] / (ny - 1))
+        D = clamp(i, disp(i, np.c_[GX.ravel(), GY.ravel()]))
+        warps.append({'piece': i, 'nx': nx, 'ny': ny, 'dx': [round(float(v), 1) for v in D[:, 0]], 'dy': [round(float(v), 1) for v in D[:, 1]]})
+    def place(fl, x, y):
+        best_ = None
+        for i, pc in enumerate(pieces):
+            if pc['floor'] != fl: continue
+            t = texOf.get(i)
+            if not t: continue
+            d = math.hypot(max(t['x0'] - x, 0, x - t['x0'] - t['w']), max(t['y0'] - y, 0, y - t['y0'] - t['h']))
+            if not best_ or d < best_[0]: best_ = (d, i)
+        if not best_ or best_[1] not in fields: return [x, y]
+        d = clamp(best_[1], disp(best_[1], [[x, y]]))[0]
+        return [round(x + float(d[0]), 1), round(y + float(d[1]), 1)]
+    return warps, place
