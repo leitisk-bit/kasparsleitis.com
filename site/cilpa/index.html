@@ -152,13 +152,21 @@ async function loadUpd(){
   try { r = await fetch(API + '/api/update', {headers: {'X-Admin-Key': KEY}, cache: 'no-store'}); }
   catch(e){ return showUpd(null, 'The app is not answering — it may be restarting after an update.'); }
   if (!r.ok) return showUpd(null, r.status === 404 ? 'This server does not have the update button yet (it comes with the next automatic update).' : 'Server answered ' + r.status + '.');
-  showUpd(await r.json());
+  const u = await r.json();
+  // the newest version number on GitHub (the app's VERSION file there; the repository is public)
+  try {
+    const g = await fetch('https://api.github.com/repos/leitisk-bit/kasparsleitis.com/contents/telpuo-app/VERSION?ref=main', {cache: 'no-store'});
+    if (g.ok){ const j = await g.json(); u.gh = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g, ''))))); }
+  } catch(e){}
+  showUpd(u);
 }
+const vname = v => v ? (v.n ? 'Version ' + v.n : v.commit || '?') : '?';
 function showUpd(u, err){
   if (u) UPD = u;
   const h = UPD && UPD.host, run = UPD && UPD.running;
   const busy = !!(UPD && (UPD.requested || (h && ['checking', 'updating'].includes(h.state))));
-  const behind = !!(h && run && h.github && run.commit !== h.github);
+  const gh = UPD && UPD.gh;
+  const behind = gh && run && gh.n && run.n ? gh.n > run.n : !!(h && run && h.github && run.commit !== h.github);
   let dot = '', txt = 'Unknown';
   if (err){ dot = 'down'; txt = 'Not answering'; }
   else if (busy){ dot = ''; txt = UPD.requested ? 'Update asked for…' : (h.message || 'Updating…'); }
@@ -167,8 +175,8 @@ function showUpd(u, err){
   else if (h){ dot = 'up'; txt = 'Up to date'; }
   $('#updState').innerHTML = `<span class="dot ${dot}"></span>${esc(txt)}`;
   if (run) $('#updFacts').innerHTML = [
-    ['Running now', `<b>${esc(run.commit)}</b> · ${esc(run.change || '')}${run.date ? ' <span class="muted">(' + esc(new Date(run.date).toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})) + ')</span>' : ''}`],
-    ['Newest on GitHub', h ? `<b>${esc(h.github || '?')}</b> · ${esc(h.github_change || '')}` : '<span class="muted">not known yet</span>'],
+    ['Running now', `<b>${esc(vname(run))}</b> · ${esc(run.change || '')}${run.date ? ' <span class="muted">(' + esc(new Date(run.date).toLocaleString([], {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})) + ')</span>' : ''}`],
+    ['Newest on GitHub', gh ? `<b>${esc(vname(gh))}</b> · ${esc(gh.change || '')}` : h ? `<b>${esc(h.github || '?')}</b> · ${esc(h.github_change || '')}` : '<span class="muted">not known yet</span>'],
     ['App started', ago(UPD.started)],
     ['Server last checked GitHub', h ? ago(h.checked) : '<span class="muted">not yet</span>'],
     ['Last update', h && h.last_update ? ago(h.last_update) : '—'],
@@ -182,7 +190,7 @@ function showUpd(u, err){
   $('#updBtn').disabled = busy || !UPD || !UPD.shared;
   $('#updBtn').textContent = busy ? 'Updating…' : 'Update now';
   if (h && h.log && h.log.length){ $('#updLogBox').hidden = false; $('#updLog').textContent = h.log.join('\n'); }
-  if (run && updWas && run.commit !== updWas) $('#updMsg').textContent = `Updated: now running ${run.commit}.`;
+  if (run && updWas && run.commit !== updWas) $('#updMsg').textContent = `Updated: now running ${vname(run)}.`;
   clearTimeout(updTimer);
   if (busy || err) updTimer = setTimeout(loadUpd, 4000);
   if (run && !busy && !err) updWas = run.commit;

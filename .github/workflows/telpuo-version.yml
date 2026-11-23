@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 20 }
+        with: { fetch-depth: 0 }
       - run: |
           git pull -q origin main
           c=$(git log -1 --format=%H -- telpuo-app ':!telpuo-app/VERSION')
@@ -19,7 +19,9 @@ jobs:
           import json, subprocess, sys
           c = sys.argv[1]
           fmt = lambda f: subprocess.check_output(['git', 'log', '-1', f'--format={f}', c], text=True).strip()
-          json.dump({'commit': c[:7], 'date': fmt('%cI'), 'change': fmt('%s')}, open('telpuo-app/VERSION', 'w'), ensure_ascii=False)
+          # n: the version number people see - how many changes the app has had (goes up by one each time)
+          n = int(subprocess.check_output(['git', 'rev-list', '--count', c, '--', 'telpuo-app', ':!telpuo-app/VERSION'], text=True))
+          json.dump({'n': n, 'commit': c[:7], 'date': fmt('%cI'), 'change': fmt('%s')}, open('telpuo-app/VERSION', 'w'), ensure_ascii=False)
           PY
           cat telpuo-app/VERSION
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

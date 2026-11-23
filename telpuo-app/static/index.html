@@ -624,7 +624,7 @@ $('#checkCopy').onclick = async () => { try { await navigator.clipboard.writeTex
 async function checkAdmin(){ let r={}; try { r=await api('admin'); ADMIN=!!r.admin && (r.required ? !!KEY : true); if (r.required===false) ADMIN=true; } catch(e){ ADMIN=false; }
   if (ADMIN && r.version){ const v=r.version, d=v.date ? new Date(v.date) : null, st=new Date(r.started*1000);
     const f = x => x.toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-    $('#verTag').textContent = (d ? `App updated ${f(d)}` : 'App version: development') + ` · running since ${f(st)}`;
+    $('#verTag').textContent = (v.n ? `Version ${v.n} · ` : '') + (d ? `updated ${f(d)}` : 'development') + ` · running since ${f(st)}`;
     $('#verTag').title = v.commit ? `Version ${v.commit}: ${v.change}` : ''; }
   CHECK_KEY = ADMIN ? (r.check_key || '') : ''; $('#checkCard').hidden = !CHECK_KEY;
   document.body.classList.toggle('is-admin', ADMIN); $('#keyBtn').textContent = ADMIN ? 'Sign out' : 'Admin sign in'; $('#keyBtn').hidden = ADMIN && !KEY;
