@@ -1,1 +1,1 @@
-{"n": 131, "commit": "694655e", "date": "2026-11-23T21:28:53+02:00", "change": "Mezaparks: real map scale 1:2000 (from GPS) and the approved straight staircase"}
+{"n": 132, "commit": "8ac09ea", "date": "2026-11-23T22:26:35+02:00", "change": "Mezaparks 3D: stairs follow the map's drawn landings; stand on columns"}
