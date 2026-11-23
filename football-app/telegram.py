@@ -6,6 +6,7 @@ The chat is found by itself from the /start message (or set TELEGRAM_CHAT_ID). N
 import json
 import os
 import urllib.parse
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -39,8 +40,12 @@ def _token(con=None):
 def _call(method, **params):
     data = urllib.parse.urlencode(params).encode()
     req = urllib.request.Request(API.format(token=_TOKEN or _token(), method=method), data=data)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:              # show Telegram's own reason (e.g. retry_after)
+        body = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"Telegram {method}: HTTP {e.code} {body}") from None
 
 
 def _meta(con, key, value=None):
@@ -210,10 +215,21 @@ def daily_report(con, force=False):
     n, won, prof, said = _record(con, NEW_RULE_FROM)
     y = (now - timedelta(days=1)).isoformat()
     n1, w1, p1, _ = _record(con, NEW_RULE_FROM, y)
+    yb = con.execute("""SELECT p.*, th.name home, ta.name away FROM picks p JOIN matches m ON m.id=p.match_id
+                        JOIN teams th ON th.id=m.home_id JOIN teams ta ON ta.id=m.away_id
+                        WHERE p.kind='live' AND p.tab='bet_on' AND p.result IN ('won','lost','void')
+                        AND p.made_at >= ? AND p.settled_at >= ? ORDER BY m.date_utc""", (NEW_RULE_FROM, y)).fetchall()
     L.append(f"\n<b>Bet on</b> (75%+ sure rule, since 10 Nov): {n} settled, {won} won"
              + (f" ({100*won/n:.0f}%, model said {100*said:.0f}%), {prof:+.1f} units" if n else ""))
-    if n1:
-        L.append(f"   last 24 h: {n1} settled, {w1} won, {p1:+.1f} units")
+    if yb:
+        L.append(f"\n<b>Yesterday's bets</b>: {n1} settled, {w1} won, {p1:+.1f} units")
+        for b in yb[:25]:
+            mark = {"won": "✅", "lost": "❌"}.get(b["result"], "↩️")
+            u = (b["price"] - 1) if b["result"] == "won" else -1 if b["result"] == "lost" else 0
+            L.append(f"{mark} {_esc(b['home'])} – {_esc(b['away'])}: {_esc(describe(b, b['home'], b['away']))} "
+                     f"@{b['price']:.2f} ({u:+.2f})")
+    else:
+        L.append("   no bets settled yesterday")
     up = con.execute("""SELECT COUNT(*) FROM picks p JOIN matches m ON m.id=p.match_id JOIN model_runs r ON r.version=p.version AND r.active=1
                         WHERE p.kind='live' AND p.tab='bet_on' AND m.status IN ('NS','TBD') AND m.date_utc < ?""",
                      ((now + timedelta(hours=48)).isoformat(),)).fetchone()[0]
@@ -232,10 +248,8 @@ def daily_report(con, force=False):
 
 
 def alert(con, text):
-    try:
-        return send(con, "⚠️ <b>Football app</b>\n" + _esc(text[:1500]))
-    except Exception:
-        return False
+    """Error alerts are off (only picks and the morning report go to Telegram); errors show in the report."""
+    return False
 
 
 if __name__ == "__main__":
@@ -245,6 +259,5 @@ if __name__ == "__main__":
     if not _token(c):
         raise SystemExit("No Telegram token: TELEGRAM_BOT_TOKEN in the .env, or set it through the admin endpoint")
     print("chat:", chat_id(c) or "none yet - send /start to the bot in Telegram, then run again")
-    print("test message sent:", send(c, "✅ Football app is connected to Telegram."))
-    print("daily report sent:", daily_report(c, force=True))
+    print("morning report sent (test):", daily_report(c, force=True))
     print("new Bet on picks sent:", bet_alerts(c))
