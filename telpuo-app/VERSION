@@ -1,1 +1,1 @@
-{"n": 141, "commit": "c472d0f", "date": "2026-11-24T01:55:19+02:00", "change": "Estrade data workflow: raw-point slice mode (every class) to look at the stairs"}
+{"n": 142, "commit": "dcedef8", "date": "2026-11-24T01:57:23+02:00", "change": "Estrade grid: keep LiDAR class 18 - it holds the stands and stairs behind the field"}
