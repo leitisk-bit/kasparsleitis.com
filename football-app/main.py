@@ -495,6 +495,31 @@ def _agg(rows, key):
 _hist_cache = {}
 
 
+@r.get("/api/calendar")
+def calendar(month: str):
+    """Units won / lost per day (Riga time) on the value bets (Bet on) of the 75%+ sure rule: settled and open."""
+    from zoneinfo import ZoneInfo
+    from telegram import NEW_RULE_FROM
+    riga = ZoneInfo("Europe/Riga")
+    c = con()
+    rows = [dict(x) for x in c.execute(
+        """SELECT p.match_id, p.price, p.prob, p.result, m.date_utc, r.id run_id FROM picks p
+           JOIN matches m ON m.id=p.match_id JOIN model_runs r ON r.version=p.version
+           WHERE p.kind='live' AND p.tab='bet_on' AND p.made_at >= ?""", (NEW_RULE_FROM,))]
+    rows = _latest_live(c, rows) if rows else rows
+    days, total = {}, {"bets": 0, "won": 0, "lost": 0, "units": 0.0, "open": 0}
+    month_tot = dict(total)
+    for x in rows:
+        d = datetime.fromisoformat(x["date_utc"].replace("Z", "+00:00")).astimezone(riga).date().isoformat()
+        u = (x["price"] - 1) if x["result"] == "won" else -1.0 if x["result"] == "lost" else 0.0
+        for o in ([days.setdefault(d, {"bets": 0, "won": 0, "lost": 0, "units": 0.0, "open": 0}), month_tot] if d.startswith(month) else []) + [total]:
+            o["bets"] += 1; o["units"] += u
+            o["won"] += x["result"] == "won"; o["lost"] += x["result"] == "lost"; o["open"] += x["result"] is None
+    for o in list(days.values()) + [total, month_tot]:
+        o["units"] = round(o["units"], 2)
+    return {"month": month, "days": days, "month_total": month_tot, "total": total, "since": NEW_RULE_FROM[:10]}
+
+
 @r.get("/api/history")
 def history(tab: str, mn: float = 0.0):
     """What the record says: walk-forward test of the active version, and live picks so far.

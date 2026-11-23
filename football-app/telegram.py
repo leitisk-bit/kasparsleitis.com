@@ -145,9 +145,9 @@ def bet_alerts(con, hours=48):
             lines.append(f"\n<b>{_esc(p['home'])} – {_esc(p['away'])}</b>\n{_esc(lg)} · {t:%a %d %b %H:%M} (Riga)")
             last = p["match_id"]
         book = "Betsafe" if p["bookmaker"] == "Betsafe" else "Betsafe est. from Bet365"
-        lines.append(f"• {_esc(describe(p, p['home'], p['away']))}\n   model {p['prob']*100:.0f}% · fair {1/p['prob']:.2f} · "
-                     f"price <b>{p['price']:.2f}</b> ({book})")
-    lines.append("\nCheck the price on Betsafe before betting: bet only if it is at least the price shown.")
+        lines.append(f"• {_esc(describe(p, p['home'], p['away']))}\n   model {p['prob']*100:.0f}% · price now {p['price']:.2f} ({book}) · "
+                     f"bet if at least <b>{1.02/p['prob']:.2f}</b>")
+    lines.append("\n1 unit each. Check the price on Betsafe: bet only if it is at least the minimum shown.")
     if send(con, "\n".join(lines)):
         stamp = now.isoformat(timespec="seconds")
         con.executemany("INSERT OR IGNORE INTO telegram_sent VALUES (?,?)", [(k, stamp) for k, _ in new])

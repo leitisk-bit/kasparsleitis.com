@@ -44,6 +44,21 @@ tr.click{cursor:pointer} tr.click:hover td{background:var(--accent-soft)}
 .logo{width:18px;height:18px;vertical-align:-4px;margin-right:5px;object-fit:contain}
 .probbar{display:flex;height:6px;border-radius:3px;overflow:hidden;width:120px;background:var(--bar)}
 .probbar i{display:block;height:100%} .probbar i:nth-child(1){background:var(--accent)} .probbar i:nth-child(2){background:var(--bar)} .probbar i:nth-child(3){background:var(--warn)}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal .dh{font-size:12px;color:var(--muted);text-align:center;padding:2px 0}
+.cal .d{min-width:0;overflow:hidden;border:1px solid var(--line);border-radius:10px;padding:6px 7px;min-height:74px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.cal .d.empty{background:transparent;border-color:transparent;cursor:default}
+.cal .d.today{outline:2px solid var(--accent)} .cal .d.sel{box-shadow:0 0 0 2px var(--ink) inset}
+.cal .d .n{font-size:12px;color:var(--muted)} .cal .d .u{font-size:16px;font-weight:650} .cal .d .s{font-size:11px;color:var(--muted)}
+.cal .d.pos{background:color-mix(in srgb,var(--good) 12%,var(--card))} .cal .d.neg{background:color-mix(in srgb,var(--bad) 12%,var(--card))}
+.cal .d.up{border-color:var(--accent)}
+@media (max-width:560px){.cal{gap:3px}.cal .d{min-height:54px;padding:3px 4px;border-radius:7px}.cal .d .u{font-size:12px;letter-spacing:-.3px}.cal .d .s{font-size:10px}.cal .d .s.long{display:none}}
+.bets{display:flex;flex-direction:column;gap:10px}
+.bet{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.bet .top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bet .nums{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-variant-numeric:tabular-nums}
+.bet .nums span{font-size:13px} .bet .nums b{font-size:15px}
+.bet.bw{border-color:var(--good)} .bet.bl{border-color:var(--bad)}
 .chip{display:inline-block;background:var(--accent-soft);border-radius:999px;padding:2px 9px;font-size:12.5px;margin:2px 4px 2px 0}
 .empty{padding:28px;text-align:center;color:var(--muted)}
 pre{white-space:pre-wrap;font-size:12px;background:var(--bg);padding:10px;border-radius:8px;max-height:260px;overflow:auto}
@@ -86,7 +101,7 @@ const app = $('#app');
 const LABEL = {corners:'Corners', total_shots:'Shots', shots_on_goal:'Shots on target', offsides:'Offsides', subs:'Substitutions', goals:'Goals', fouls:'Fouls', yellow:'Yellow cards', cards:'Cards'};
 const FEAT = {kick:'kick-off time', rest:'short rest', coach:'new coach', weather:'weather', pitch:'pitch', ref:'referee'};
 const PSTATS = ['corners','total_shots','shots_on_goal','offsides','subs','cards'];
-const TABS = [['matches','Matches'],['teams','Teams'],['predictions','Predictions'],['confidence','Confidence'],['bet','Bet on'],['sure','Sure Bets'],['easy','Easy Wins'],['data','Data']];
+const TABS = [['matches','Matches'],['teams','Teams'],['predictions','Predictions'],['confidence','Confidence'],['bet','Bet on'],['calendar','Calendar'],['sure','Sure Bets'],['easy','Easy Wins'],['data','Data']];
 let META = {competitions:[], seasons:[]};
 const ST = {}; try { Object.assign(ST, JSON.parse(localStorage.getItem('fb:ui') || '{}')); } catch(e){}
 const save = () => { try { localStorage.setItem('fb:ui', JSON.stringify(ST)); } catch(e){} };
@@ -370,6 +385,62 @@ views.bet = () => {
     history: h => { const l = h.live || {}; return l.all ? `<div class="note"><b>Live record:</b> ${recordLine(l.all, 'all picks')}${Object.entries(l.by_market || {}).map(([k,o]) => recordLine(o, LABEL[k] || k)).join('')}</div>` : ''; },
     head: `<th class="l">Match</th><th class="l">Bet</th><th>Model</th><th>Market</th><th>Price</th><th>Value per 10 €</th><th>Result</th>`,
     row: (p, m) => `<tr><td class="l">${matchCell(m)}</td><td class="l">${pickCell(p, m)}</td><td><b>${pct(p.prob)}</b></td><td class="muted">${pct(p.market_prob)}</td><td><b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}${p.book_price && Math.abs(p.book_price - p.price) > 0.005 ? ` · Bet365 ${p.book_price.toFixed(2)}` : ''}</span></td><td class="won">+${((p.prob * p.price - 1) * 10).toFixed(2)} €</td><td class="${resCls(p.result)}">${resTxt(p.result)}</td></tr>`});
+};
+
+views.calendar = async () => {
+  const now = new Date();
+  ST.calm ??= `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const units = u => (u > 0 ? '+' : u < 0 ? '−' : '') + Math.abs(u).toFixed(2);
+  const ucls = u => u > 0.004 ? 'won' : u < -0.004 ? 'lost' : 'muted';
+  app.innerHTML = `<div class="head"><h2>Calendar</h2><p>Units won or lost each day on the value bets: only bets where the model is at least 75% sure <i>and</i> Betsafe's price pays more than the bet is worth (1 unit per bet). Open a day to see its bets: for coming days, which bets to place and the lowest price worth taking.</p>
+      <p class="muted small">A positive record is not guaranteed: the rule is new and needs a few hundred bets before it means much. Check the price on Betsafe before betting.</p></div>
+    <div class="bar" style="align-items:center"><button class="btn ghost" id="cprev">‹</button><b id="cmon" style="min-width:140px;text-align:center"></b><button class="btn ghost" id="cnext">›</button><button class="btn ghost" id="ctoday">This month</button></div>
+    <div id="ctot"></div><div class="card"><div id="cgrid" class="cal"></div></div><div id="cday"></div>`;
+  const shift = k => { const [y, m] = ST.calm.split('-').map(Number); const d = new Date(y, m - 1 + k, 1); ST.calm = ymd(d).slice(0, 7); save(); load(); };
+  $('#cprev').onclick = () => shift(-1); $('#cnext').onclick = () => shift(1);
+  $('#ctoday').onclick = () => { ST.calm = ymd(now).slice(0, 7); save(); load(); };
+  async function load(){
+    const d = await api(`/calendar?month=${ST.calm}`);
+    const [y, m] = ST.calm.split('-').map(Number), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate();
+    $('#cmon').textContent = first.toLocaleDateString(undefined, {month:'long', year:'numeric'});
+    const t = d.total, mt = d.month_total, set = o => o.won + o.lost;
+    $('#ctot').innerHTML = `<div class="grid" style="margin-bottom:12px">
+      <div class="tile"><div class="k">This month</div><div class="v ${ucls(mt.units)}">${units(mt.units)}</div><div class="s">${set(mt)} settled · ${mt.won} won${mt.open ? ` · ${mt.open} open` : ''}</div></div>
+      <div class="tile"><div class="k">Since ${esc(dd(d.since))}</div><div class="v ${ucls(t.units)}">${units(t.units)}</div><div class="s">${set(t)} settled · ${set(t) ? pct(t.won / set(t)) : '–'} won · ROI ${set(t) ? units(100 * t.units / set(t)) + '%' : '–'}</div></div></div>`;
+    const off = (first.getDay() + 6) % 7, today = ymd(now);
+    let h = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x => `<div class="dh">${x}</div>`).join('') + '<div class="d empty"></div>'.repeat(off);
+    for (let i = 1; i <= n; i++){
+      const key = `${ST.calm}-${String(i).padStart(2, '0')}`, x = d.days[key], s = x ? set(x) : 0;
+      const cls = ['d', key === today ? 'today' : '', key === ST.calday ? 'sel' : '', s ? (x.units > 0.004 ? 'pos' : x.units < -0.004 ? 'neg' : '') : x && x.open ? 'up' : ''].join(' ');
+      h += `<div class="${cls}" data-day="${key}"><span class="n">${i}</span>${x ? (s ? `<span class="u ${ucls(x.units)}">${units(x.units)}</span><span class="s long">${x.won}✓ ${x.lost}✗${x.open ? ` · ${x.open} open` : ''}</span>` : `<span class="s"><b>${x.open}</b> to bet</span>`) : ''}</div>`;
+    }
+    $('#cgrid').innerHTML = h;
+    document.querySelectorAll('[data-day]').forEach(el => el.onclick = () => { ST.calday = el.dataset.day; save(); load(); });
+    if (ST.calday && ST.calday.startsWith(ST.calm)) day(ST.calday, d.since); else $('#cday').innerHTML = '';
+  }
+  async function day(key, since){
+    const [y, m, dd_] = key.split('-').map(Number), a = new Date(y, m - 1, dd_), b = new Date(y, m - 1, dd_ + 1);
+    $('#cday').innerHTML = '<div class="empty">Loading…</div>';
+    const r = await api(`/picks?tab=bet_on&frm=${a.toISOString()}&to=${b.toISOString()}`);
+    const ps = r.picks.filter(p => p.source === 'live' && p.made_at >= since).sort((p, q) => (r.matches[p.match_id]?.date_utc || '').localeCompare(r.matches[q.match_id]?.date_utc || ''));
+    const title = a.toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long'});
+    if (!ps.length){ $('#cday').innerHTML = `<div class="card"><h3>${esc(title)}</h3><div class="muted small">No value bets on this day.</div></div>`; return; }
+    const u = p => p.result === 'won' ? p.price - 1 : p.result === 'lost' ? -1 : 0;
+    const open = ps.filter(p => !p.result);
+    const minp = p => 1.02 / p.prob;              // lowest Betsafe price that still pays (fair price + 2%)
+    $('#cday').innerHTML = `<div class="card"><h3>${esc(title)}</h3>
+      ${open.length ? `<p class="small" style="margin-top:0"><b>${open.length} bet${open.length > 1 ? 's' : ''} to place</b> · 1 unit each · bet only if Betsafe's price is at least the <b>minimum price</b>.</p>` : ''}
+      <div class="bets">${ps.map(p => { const m = r.matches[p.match_id], a = actual(p, m);
+        return `<div class="bet ${p.result === 'won' ? 'bw' : p.result === 'lost' ? 'bl' : ''}"><div class="top"><div>${matchCell(m)}</div>
+          <div class="${p.result ? ucls(u(p)) : 'muted'}" style="text-align:right">${p.result ? `${resTxt(p.result)}${a ? ` <span class="muted small">(${a})</span>` : ''}<br><b>${units(u(p))}</b> units` : 'open'}</div></div>
+          <div style="margin-top:6px">${pickCell(p, m)}</div>
+          <div class="nums"><span>Model <b>${pct(p.prob)}</b></span><span>Fair <b>${fair(p.prob)}</b></span>
+            <span>Price ${p.result ? 'taken' : 'now'} <b>${p.price.toFixed(2)}</b> <span class="muted small">${esc(p.bookmaker)}</span></span>
+            ${p.result ? '' : `<span>Minimum price <b class="won">${minp(p).toFixed(2)}</b></span>`}</div></div>`; }).join('')}</div></div>`;
+    bindMatchLinks();
+  }
+  load();
 };
 
 views.sure = () => {
