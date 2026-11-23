@@ -30,8 +30,8 @@ jobs:
         run: python telpuo-app/tools/estrade_grid.py las out ${{ inputs.cell }}
       - name: Commit the grid
         run: |
-          mkdir -p telpuo-app/data && cp out/grid.npz telpuo-app/data/estrade_grid.npz && cp out/info.json telpuo-app/data/estrade_grid.json
+          mkdir -p telpuo-app/sitedata && cp out/grid.npz telpuo-app/sitedata/estrade_grid.npz && cp out/info.json telpuo-app/sitedata/estrade_grid.json
           git config user.name "github-actions" && git config user.email "github-actions@users.noreply.github.com"
-          git add telpuo-app/data/estrade_grid.npz telpuo-app/data/estrade_grid.json
+          git add telpuo-app/sitedata/estrade_grid.npz telpuo-app/sitedata/estrade_grid.json
           git commit -m "Estrade height grid from Riga open LiDAR 2022 (CC BY 4.0, Rigas valstspilsetas pasvaldiba)" || exit 0
           for k in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
