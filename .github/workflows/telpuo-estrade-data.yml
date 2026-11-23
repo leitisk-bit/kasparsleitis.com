@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       cell: { description: 'Grid cell (m)', required: false, default: '0.5' }
+      slice: { description: 'Only print raw points in boxes E0,N0,E1,N1 (space separated)', required: false, default: '' }
 permissions: { contents: write }
 jobs:
   build:
@@ -26,9 +27,14 @@ jobs:
                  for k in 1 2 3 4 5 6; do curl -sS --fail -C - --max-time 5400 -o las/$1.las https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las && break; sleep 10; done
                  echo "LAS $1 $(stat -c %s las/$1.las 2>/dev/null) bytes of $(curl -sSI --max-time 60 https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las | tr -d '\r' | grep -i content-length)"; }
           for t in 4311-42-55.1.1 4311-42-55.1.2 4311-42-45.3.4 4311-42-45.3.3 4311-42-55.1.3 4311-42-55.1.4; do dl $t & done; wait
+      - name: Slice
+        if: ${{ inputs.slice != '' }}
+        run: python telpuo-app/tools/estrade_slice.py las ${{ inputs.slice }}
       - name: Height grid
+        if: ${{ inputs.slice == '' }}
         run: python telpuo-app/tools/estrade_grid.py las out ${{ inputs.cell }}
       - name: Commit the grid
+        if: ${{ inputs.slice == '' }}
         run: |
           mkdir -p telpuo-app/sitedata && cp out/grid.npz telpuo-app/sitedata/estrade_grid.npz && cp out/info.json telpuo-app/sitedata/estrade_grid.json
           git config user.name "github-actions" && git config user.email "github-actions@users.noreply.github.com"
