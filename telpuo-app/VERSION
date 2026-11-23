@@ -1,1 +1,1 @@
-{"n": 109, "commit": "2fb925b", "date": "2026-11-23T09:54:50+02:00", "change": "Version numbers that go up: Version 109, 110, ... instead of commit codes"}
+{"n": 110, "commit": "93e94ac", "date": "2026-11-23T10:23:28+02:00", "change": "Auto-update: survive the shared update folder being made by Docker as root"}
