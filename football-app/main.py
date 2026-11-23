@@ -684,6 +684,21 @@ def admin_rounds(n: int = 15):
         return []
 
 
+@r.post("/api/admin/telegram")
+def admin_telegram(body: dict):
+    """Save the Telegram bot token in the database (instead of the .env), so it can be set without logging in."""
+    import re as _re
+    tok = str((body or {}).get("token", "")).strip()
+    if not _re.fullmatch(r"\d{6,12}:[A-Za-z0-9_-]{30,50}", tok):
+        return {"ok": False, "error": "that does not look like a bot token"}
+    c = con()
+    c.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    c.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('telegram_token', ?)", (tok,))
+    c.execute("DELETE FROM meta WHERE key='telegram_chat'")
+    c.commit()
+    return {"ok": True}
+
+
 @r.get("/api/admin/analysis/{kind}")
 def admin_analysis(kind: str):
     """The last saved analysis of a kind (experiments, histvalue, factors, teams ...)."""

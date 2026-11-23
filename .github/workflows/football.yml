@@ -25,21 +25,29 @@ on:
         description: What to run
         type: choice
         default: status
-        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue, rounds, experiments, experimentsreport, calib, analysis, telegram]
+        options: [status, update, run, improve, backtest, backfill, betsson, subs, collect, factors, other, collected, oddscheck, injuries, discover, discoveries, teams, value, cornerscheck, histodds, histvalue, rounds, experiments, experimentsreport, calib, analysis, telegram, telegramsetup]
       seasons:
         description: Seasons for backfill
         default: "2021-2026"
+      value:
+        description: Value for telegramsetup (bot token) - hidden in the log
+        default: ""
 concurrency: { group: football, cancel-in-progress: false }
 jobs:
   football:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
+      - name: hide the value
+        run: |
+          V=$(jq -r '.inputs.value // ""' "$GITHUB_EVENT_PATH")
+          [ -n "$V" ] && echo "::add-mask::$V" || true
       - name: ${{ inputs.action }}
         env:
           KEY: ${{ secrets.FOOTBALL_KEY }}
           ACTION: ${{ inputs.action }}
           SEASONS: ${{ inputs.seasons }}
+          VALUE: ${{ inputs.value }}
         run: |
           python3 - <<'PY'
           import json, os, sys, time, urllib.request, urllib.error
@@ -79,6 +87,9 @@ jobs:
                   print("   steadiest:   ", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["steadiest"][:6]))
                   print("   most erratic:", ", ".join(f"{r['team']} {r['spread_old']}/{r['spread_new']}" for r in v["most_erratic"][:6]))
               sys.exit(0)
+          if ACTION == "telegramsetup":
+              print(call("/admin/telegram", {"token": os.environ.get("VALUE", "")}))
+              ACTION = "telegram"
           if ACTION == "analysis":
               print(json.dumps(call("/admin/analysis/" + (os.environ.get("SEASONS") or "calib"), timeout=120), ensure_ascii=False))
               sys.exit(0)

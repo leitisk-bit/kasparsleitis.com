@@ -19,13 +19,26 @@ LABEL = {"corners": "corners", "total_shots": "shots", "shots_on_goal": "shots o
          "subs": "substitutions", "goals": "goals", "cards": "cards"}
 
 
-def _token():
-    return os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+_TOKEN = None
+
+
+def _token(con=None):
+    """From the .env (TELEGRAM_BOT_TOKEN) or, when set through the admin page, from the database."""
+    global _TOKEN
+    t = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    if not t and con is not None:
+        try:
+            t = _meta(con, "telegram_token") or ""
+        except Exception:  # noqa
+            t = ""
+    if t:
+        _TOKEN = t
+    return _TOKEN or ""
 
 
 def _call(method, **params):
     data = urllib.parse.urlencode(params).encode()
-    req = urllib.request.Request(API.format(token=_token(), method=method), data=data)
+    req = urllib.request.Request(API.format(token=_TOKEN or _token(), method=method), data=data)
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
 
@@ -40,7 +53,7 @@ def _meta(con, key, value=None):
 
 def chat_id(con):
     cid = os.environ.get("TELEGRAM_CHAT_ID", "").strip() or _meta(con, "telegram_chat")
-    if cid or not _token():
+    if cid or not _token(con):
         return cid
     try:                                    # the chat that sent /start to the bot
         for u in reversed(_call("getUpdates").get("result", [])):
@@ -55,7 +68,7 @@ def chat_id(con):
 
 def send(con, text):
     """Send one message (split if long). Returns True when Telegram accepted it."""
-    if not _token():
+    if not _token(con):
         return False
     cid = chat_id(con)
     if not cid:
@@ -101,7 +114,7 @@ def describe(p, home, away):
 
 def bet_alerts(con, hours=48):
     """New Bet on picks of the active version for matches in the next 48 h, each sent once."""
-    if not _token():
+    if not _token(con):
         return 0
     con.execute("CREATE TABLE IF NOT EXISTS telegram_sent (key TEXT PRIMARY KEY, sent_at TEXT)")
     now = datetime.now(timezone.utc)
@@ -152,7 +165,7 @@ def _record(con, since, until=None):
 
 def daily_report(con, force=False):
     """Morning report after the nightly run (once a day)."""
-    if not _token():
+    if not _token(con):
         return False
     now = datetime.now(timezone.utc)
     day = now.date().isoformat()
@@ -229,8 +242,8 @@ if __name__ == "__main__":
     import db
     db.init_db()
     c = db.connect()
-    if not _token():
-        raise SystemExit("TELEGRAM_BOT_TOKEN is not set in the app's .env")
+    if not _token(c):
+        raise SystemExit("No Telegram token: TELEGRAM_BOT_TOKEN in the .env, or set it through the admin endpoint")
     print("chat:", chat_id(c) or "none yet - send /start to the bot in Telegram, then run again")
     print("test message sent:", send(c, "✅ Football app is connected to Telegram."))
     print("daily report sent:", daily_report(c, force=True))
