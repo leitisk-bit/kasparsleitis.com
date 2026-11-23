@@ -1,1 +1,1 @@
-{"n": 112, "commit": "23f99b0", "date": "2026-11-23T11:57:06+02:00", "change": "3D: the stands as solid blocks - walls from a raised, sloped map piece's edge down to the ground"}
+{"n": 113, "commit": "121f3fc", "date": "2026-11-23T12:49:38+02:00", "change": "3D: long outdoor flights are drawn where and as long as the map draws them"}
