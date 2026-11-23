@@ -141,9 +141,107 @@ def load(con):
     return cal
 
 
+# ---------------------------------------------------------------- Bet on gate: only bets history says are reliable
+
+GATE_BANDS = (0.75, 0.80, 0.85, 0.90, 1.01)
+GATE_MIN_N, GATE_SLACK, GATE_PRIOR = 300, 0.01, 50
+
+
+def _band(p):
+    for lo, hi in zip(GATE_BANDS, GATE_BANDS[1:]):
+        if lo <= p < hi:
+            return f"{lo:.2f}"
+    return None
+
+
+def gate(con, conf_days=365):
+    """For every kind of bet (statistic, match/home/away, over/under): when the corrected model said 75%+ in the
+    last year of the walk-forward test, how often did it happen? A kind is allowed in Bet on only if it happened at
+    least as often as said (n >= 300, 1 point slack); the chance used for the price check is the band's real hit
+    rate (shrunk towards what was said) when that is lower than the model's. Learnt from past mistakes, per kind."""
+    import model
+    act = con.execute("SELECT version FROM model_runs WHERE active=1").fetchone()
+    if not act:
+        return {"error": "no active model"}
+    v = act[0]
+    cal = load(con)
+    split = (datetime.now(timezone.utc) - timedelta(days=conf_days)).isoformat()
+    groups = defaultdict(lambda: defaultdict(lambda: [0, 0.0, 0]))   # (stat, scope, side) -> band -> [n, said, hit]
+    for (s, scope), rows in pairs(con, v).items():
+        c = cal.get((s, scope))
+        for d, p, y in rows:
+            if d < split:
+                continue
+            po = apply(c, p) if c else p
+            for side, ps, ys in (("over", po, y), ("under", 1 - po, not y)):
+                b = _band(ps)
+                if b:
+                    g = groups[(s, scope, side)][b]
+                    g[0] += 1; g[1] += ps; g[2] += 1 if ys else 0
+    out, rep = {}, {}
+    for key, bands in sorted(groups.items()):
+        n = sum(g[0] for g in bands.values()); said = sum(g[1] for g in bands.values()); hit = sum(g[2] for g in bands.values())
+        if not n:
+            continue
+        ok = n >= GATE_MIN_N and hit / n >= said / n - GATE_SLACK
+        bt = {b: {"n": g[0], "said": round(g[1] / g[0], 4), "hit": round(g[2] / g[0], 4),
+                  "use": round((g[2] + GATE_PRIOR * g[1] / g[0]) / (g[0] + GATE_PRIOR), 4)} for b, g in bands.items() if g[0]}
+        k = "|".join(key)
+        rep[k] = {"n": n, "said": round(said / n, 4), "hit": round(hit / n, 4), "allowed": ok, "bands": bt}
+        if ok:
+            out[k] = {b: x["use"] for b, x in bt.items()}
+    con.execute("CREATE TABLE IF NOT EXISTS bet_gate (version TEXT PRIMARY KEY, made_at TEXT, data TEXT, report TEXT)")
+    con.execute("INSERT OR REPLACE INTO bet_gate VALUES (?,?,?,?)",
+                (v, datetime.now(timezone.utc).isoformat(timespec="seconds"), json.dumps(out), json.dumps(rep)))
+    # how the live bets of the 75%+ rule would have done with the gate (kinds allowed vs not)
+    live = {"allowed": [0, 0, 0.0], "blocked": [0, 0, 0.0]}
+    try:
+        from telegram import NEW_RULE_FROM
+        for x in con.execute("SELECT market, scope, side, price, result FROM picks WHERE kind='live' AND tab='bet_on' "
+                             "AND made_at >= ? AND result IN ('won','lost')", (NEW_RULE_FROM,)):
+            o = live["allowed" if "|".join((x["market"], x["scope"], x["side"])) in out else "blocked"]
+            o[0] += 1; o[1] += x["result"] == "won"; o[2] += (x["price"] - 1) if x["result"] == "won" else -1
+    except Exception:  # noqa
+        pass
+    live = {k: {"bets": a, "won": b, "units": round(u, 2)} for k, (a, b, u) in live.items()}
+    res = {"version": v, "allowed": sorted(out), "report": rep, "live_bets": live}
+    con.execute("CREATE TABLE IF NOT EXISTS analysis_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, made_at TEXT, kind TEXT, data TEXT)")
+    con.execute("INSERT INTO analysis_runs(made_at, kind, data) VALUES (?,?,?)",
+                (datetime.now(timezone.utc).isoformat(timespec="seconds"), "gate", json.dumps(res)))
+    con.commit()
+    return res
+
+
+def load_gate(con):
+    try:
+        r = con.execute("SELECT g.data FROM bet_gate g JOIN model_runs m ON m.version=g.version WHERE m.active=1").fetchone()
+        return {tuple(k.split("|")): v for k, v in json.loads(r[0]).items()} if r else {}
+    except Exception:
+        return {}
+
+
+def gated_prob(gate_map, market, scope, side, p):
+    """None = this kind of bet is not reliable enough for Bet on; else the chance to use for the price check."""
+    g = gate_map.get((market, scope, side))
+    if g is None:
+        return None
+    b = _band(p)
+    return min(p, g.get(b, p)) if b else p
+
+
 if __name__ == "__main__":
     db.init_db()
     c = db.connect()
+    if len(sys.argv) > 1 and sys.argv[1] == "gate":
+        g = gate(c)
+        if "error" in g:
+            sys.exit(g["error"])
+        print(f"Bet on gate for {g['version']}: allowed {len(g['allowed'])} of {len(g['report'])} kinds of bet")
+        print("  live bets since 10 Nov:", g["live_bets"])
+        for k, r in g["report"].items():
+            print(f"  {'OK ' if r['allowed'] else '-- '} {k:<30} n={r['n']:<6} said {r['said']*100:.1f}%  happened {r['hit']*100:.1f}%  "
+                  + "  ".join(f"{b}+: {x['said']*100:.0f}/{x['hit']*100:.0f} (n={x['n']})" for b, x in r["bands"].items()))
+        sys.exit(0)
     rep = fit(c)
     if "error" in rep:
         sys.exit(rep["error"])

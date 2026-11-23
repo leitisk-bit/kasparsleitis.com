@@ -37,6 +37,7 @@ CONF_MIN = 0.80
 SURE_MIN, SURE_TOP, SURE_MAX = 0.80, 0.90, 0.995
 EASY_MIN = 0.40
 BET_MIN_P, BET_MIN_PRICE, BET_MIN_EV = 0.75, 1.10, 0.02   # model sure first; the price only has to pay for it
+GATE = {}               # (stat, scope, side) -> band -> real hit rate; Bet on only for these (calib.gate)
 CALIB = {}              # (stat, scope) -> (a, b) correction of over/under chances, set by calib.load
 BET_MAX_GAP = 0.30      # model vs bookmaker chance further apart than this: a misread market, skipped
 # 5-year test against football-data.co.uk prices (8,400 league matches): on the match result and goals markets the
@@ -466,6 +467,11 @@ def make_picks(pred, odds_rows=None, rat=None):
             pm = prob(pred, market, scope, side, line)
             if pm is None or pm < BET_MIN_P:
                 continue
+            if GATE:                                     # only kinds of bet history says are reliable (calib.gate)
+                from calib import gated_prob
+                pm = gated_prob(GATE, market, scope, side, pm)
+                if pm is None or pm < BET_MIN_P:
+                    continue
             if key in real:
                 o = real[key]; price, book_price, label = o["price"], ref.get(key, {}).get("price"), "Betsafe"
             else:
@@ -811,6 +817,8 @@ def predict(con, data=None):
     import calib
     global CALIB
     CALIB = calib.load(con)                      # set here too: run as a script, "model" is a second module copy
+    global GATE
+    GATE = calib.load_gate(con)
     if CALIB:
         log("Using the learnt percentage correction for: " + ", ".join("/".join(k) for k in CALIB))
     if all(f is None for f in fits.values()):

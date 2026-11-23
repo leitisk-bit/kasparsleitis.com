@@ -835,6 +835,8 @@ async def admin_sync(request: Request):
         cmd = [sys.executable, str(BASE_DIR / "telegram.py")]
     elif kind == "calib":
         cmd = [sys.executable, str(BASE_DIR / "calib.py")]
+    elif kind == "gate":
+        cmd = [sys.executable, str(BASE_DIR / "calib.py"), "gate"]
     elif kind == "experiments":
         cmd = [sys.executable, str(BASE_DIR / "experiments.py")]
     elif kind == "histodds":

@@ -130,6 +130,8 @@ def weekly(con, model):
         import calib                             # learn from past mistakes: correct over/under percentages
         r = calib.fit(con)
         print("  percentage correction kept for:", ", ".join(r.get("kept", [])) or "nothing", flush=True)
+        g = calib.gate(con)                      # which kinds of bet are reliable enough for Bet on
+        print("  Bet on allowed for:", ", ".join(g.get("allowed", [])) or "nothing", flush=True)
     except Exception as e:  # noqa
         print("  calibration failed:", e, flush=True)
     model.predict(con); model.settle(con)
