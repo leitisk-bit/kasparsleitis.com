@@ -213,7 +213,7 @@ def shape_grids(tex, pieces, shape, cell=30):
             w = 1.0 / np.maximum(d, 3.0)
             num += w * h; den += w
         G = ndi.gaussian_filter(num / den, 0.7)
-        out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()]})
+        out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()], 'shape': True})
     return out
 
 

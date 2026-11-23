@@ -541,8 +541,7 @@ def _heights3d(mid, m, t):
         g = three.height_grids(t['tex'], t['pieces'], samples) or []
         if shape:                         # the site's known shape where given; the watches elsewhere
             sg = three.shape_grids(t['tex'], t['pieces'], shape)
-            done_ = {x['piece'] for x in sg}
-            g = sg + [x for x in g if x['piece'] not in done_]
+            g = sg      # (the other pieces are floors inside buildings: flat at their level, not bent by watch noise)
         g = g or None
         _HGRID.clear(); _HGRID[key] = g
         return g

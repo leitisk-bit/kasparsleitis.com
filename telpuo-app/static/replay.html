@@ -1121,7 +1121,9 @@ async function start(){
     if (!LV) return;
     D.tex.forEach(t => {
       const g = t.piece !== undefined ? HG[t.piece] : null, m = t.cells;
-      if (!g || !m || t.floor <= 1) return;          // (stands rise above the ground; nothing under floor 1)
+      // (stands rise above the ground; nothing under floor 1) - only a stand whose shape is known: the
+      // watches' heights under a floor inside a building are not a stand (walls through floor 2's corridors)
+      if (!g || !m || t.floor <= 1 || !g.shape) return;
       const hmin = Math.min(...g.h), hmax = Math.max(...g.h);
       if (hmax - hmin < 3) return;               // only the sloped stands (a flat floor inside a building has rooms under it)
       const nx = g.nx, ny = g.ny, cw = (nx - 1) * SUB, ch = (ny - 1) * SUB, P = [];
