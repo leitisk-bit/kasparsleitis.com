@@ -205,6 +205,8 @@ def api_cilpa_notes():
 # Manual update from the Cilpa page: the app leaves a request in /update (shared with the server), where
 # autoupdate.sh picks it up within about 10 seconds and writes back what it is doing (status.json).
 UPDATE_DIR = os.environ.get('UPDATE_DIR', '/update')
+try: os.chmod(UPDATE_DIR, 0o777)        # (Docker makes it as root; the server's update script must write there)
+except OSError: pass
 
 @app.get('/api/update')
 def api_update_status():
@@ -222,7 +224,10 @@ def api_update_now():
     if not ADMIN_KEY or not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     if not os.path.isdir(UPDATE_DIR):
         return jsonify(error='The update folder is not shared with the app yet. It will be after the next automatic update.'), 409
-    with open(os.path.join(UPDATE_DIR, 'request'), 'w') as f: f.write(str(time.time()))
+    fp = os.path.join(UPDATE_DIR, 'request')
+    with open(fp, 'w') as f: f.write(str(time.time()))
+    try: os.chmod(fp, 0o666)
+    except OSError: pass
     return jsonify(ok=True)
 
 # ------------------------------------------------------------------ pages

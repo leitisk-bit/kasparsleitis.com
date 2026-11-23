@@ -8,7 +8,14 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 exec 9>/tmp/telpuo-update.lock; flock -n 9 || exit 0      # never two updates at once
-UPD="$PWD/telpuo-app/update"; mkdir -p "$UPD"
+UPD="$PWD/telpuo-app/update"; mkdir -p "$UPD" 2>/dev/null
+# Docker makes the shared folder as root when it is missing; then this script could not write its status
+# there (and in Version 108 that stopped updates altogether). Give it back to this user, or work without it.
+if [ ! -w "$UPD" ]; then
+  echo "$(date '+%F %T') $UPD is not writable: giving it back to $(id -un)"
+  docker run --rm -v "$UPD":/u alpine:3 chown -R "$(id -u):$(id -g)" /u >/dev/null 2>&1 || true
+fi
+if [ ! -w "$UPD" ]; then echo "still not writable: status goes to /tmp"; UPD=/tmp/telpuo-update; mkdir -p "$UPD"; fi
 LOG="$UPD/last.log"
 
 status() {   # state, message
@@ -33,7 +40,7 @@ PY
 
 update() {   # $1 = "manual" to rebuild even when GitHub has nothing new
   status checking "Looking at GitHub…"
-  if ! git fetch -q origin main 2>>"$LOG"; then status failed "Could not reach GitHub."; return; fi
+  if ! git fetch -q origin main; then status failed "Could not reach GitHub."; return; fi
   if git diff --quiet HEAD origin/main -- telpuo-app && [ "${1:-}" != manual ]; then status idle "Up to date."; return; fi
   : > "$LOG"
   echo "$(date '+%F %T') updating to $(git rev-parse --short origin/main) ${1:-}" | tee -a "$LOG"
@@ -52,6 +59,9 @@ update() {   # $1 = "manual" to rebuild even when GitHub has nothing new
 update
 end=$((SECONDS + 270))
 while [ $SECONDS -lt $end ]; do
-  if [ -f "$UPD/request" ]; then rm -f "$UPD/request"; update manual; fi
+  if [ -f "$UPD/request" ]; then
+    rm -f "$UPD/request" || break          # (could not take the request away: do not loop on it)
+    update manual
+  fi
   sleep 10
 done
