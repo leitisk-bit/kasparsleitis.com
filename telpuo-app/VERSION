@@ -1,1 +1,1 @@
-{"n": 137, "commit": "a06f6d1", "date": "2026-11-24T00:31:21+02:00", "change": "Estrade data workflow: cache the LiDAR, commit the height grid to the repo"}
+{"n": 139, "commit": "319b48d", "date": "2026-11-24T01:46:26+02:00", "change": "Mezaparks 3D on the real survey: field heights from Riga's 2022 LiDAR, back stairs under the field"}
