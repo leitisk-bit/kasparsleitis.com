@@ -16,15 +16,18 @@ nx, ny = int((X1 - X0) / cell) + 1, int((Y1 - Y0) / cell) + 1
 top = np.full((ny, nx), -1e9, np.float32); gnd = np.full((ny, nx), 1e9, np.float32); cnt = np.zeros((ny, nx), np.int32)
 info = {}
 for f in sorted(glob.glob(os.path.join(src, '*.las'))):
-    with laspy.open(f) as r:
-        h = r.header; info[os.path.basename(f)] = {'points': int(h.point_count), 'mins': list(map(float, h.mins)), 'maxs': list(map(float, h.maxs))}
-        for ch in r.chunk_iterator(5_000_000):
-            x, y, z = np.asarray(ch.x), np.asarray(ch.y), np.asarray(ch.z); c = np.asarray(ch.classification)
-            m = (x >= X0) & (x < X1) & (y >= Y0) & (y < Y1) & (c != 7) & (c != 18)    # (no noise)
-            i = ((Y1 - y[m]) / cell).astype(int); j = ((x[m] - X0) / cell).astype(int); zz = z[m].astype(np.float32)
-            np.maximum.at(top, (i, j), zz); np.add.at(cnt, (i, j), 1)
-            g = c[m] == 2
-            np.minimum.at(gnd, (i[g], j[g]), zz[g])
+    try:
+        with laspy.open(f) as r:
+            h = r.header; info[os.path.basename(f)] = {'points': int(h.point_count), 'mins': list(map(float, h.mins)), 'maxs': list(map(float, h.maxs))}
+            for ch in r.chunk_iterator(2_000_000):
+                x, y, z = np.asarray(ch.x), np.asarray(ch.y), np.asarray(ch.z); c = np.asarray(ch.classification)
+                m = (x >= X0) & (x < X1) & (y >= Y0) & (y < Y1) & (c != 7) & (c != 18)    # (no noise)
+                i = ((Y1 - y[m]) / cell).astype(int); j = ((x[m] - X0) / cell).astype(int); zz = z[m].astype(np.float32)
+                np.maximum.at(top, (i, j), zz); np.add.at(cnt, (i, j), 1)
+                g = c[m] == 2
+                np.minimum.at(gnd, (i[g], j[g]), zz[g])
+    except Exception as e:                       # (a file cut short: what was read stays)
+        print('!', f, e); info.setdefault(os.path.basename(f), {})['error'] = str(e)
 top[cnt == 0] = np.nan; gnd[gnd > 1e8] = np.nan
 np.savez_compressed(os.path.join(out, 'grid.npz'), top=top, ground=gnd, count=cnt, x0=X0, y1=Y1, cell=cell)
 info.update(grid=[nx, ny], cell=cell, box_lks92=[X0, Y0, X1, Y1], top_range=[float(np.nanmin(top)), float(np.nanmax(top))],

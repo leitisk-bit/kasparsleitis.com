@@ -16,12 +16,13 @@ jobs:
         with: { python-version: '3.12' }
       - run: pip install laspy lazrs numpy pyproj pillow scipy
       - name: Download
+        timeout-minutes: 300
         run: |
           mkdir -p las out
-          for t in 4311-42-55.1.1 4311-42-55.1.2 4311-42-45.3.4 4311-42-45.3.3 4311-42-55.1.3 4311-42-55.1.4; do
-            curl -sS --fail --max-time 600 -o las/$t.las https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$t.las && echo "LAS $t $(stat -c %s las/$t.las) bytes" || echo "LAS $t FAILED"
-            echo "DAE $t $(curl -sSI --max-time 60 https://s3.lvdc.gov.lv/rdgis-opendata/3D_RM_2022/DAE/$t.zip | tr -d '\r' | grep -i content-length)"
-          done
+          # (the server is slow, about 0.5 MB/s a file: all tiles at once, resuming until complete)
+          dl() { for k in 1 2 3 4 5 6; do curl -sS --fail -C - --max-time 5400 -o las/$1.las https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las && break; sleep 10; done
+                 echo "LAS $1 $(stat -c %s las/$1.las 2>/dev/null) bytes of $(curl -sSI --max-time 60 https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las | tr -d '\r' | grep -i content-length)"; }
+          for t in 4311-42-55.1.1 4311-42-55.1.2 4311-42-45.3.4 4311-42-45.3.3 4311-42-55.1.3 4311-42-55.1.4; do dl $t & done; wait
       - name: Height grid
         run: python telpuo-app/tools/estrade_grid.py las out ${{ inputs.cell }}
       - uses: actions/upload-artifact@v4
