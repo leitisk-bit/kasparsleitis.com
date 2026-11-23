@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run: { description: 'Run id', required: true }
+      path: { description: 'Or any API path to fetch instead (e.g. api/maps/<id>/three)', required: false, default: '' }
 permissions: { contents: read }
 jobs:
   fetch:
@@ -15,5 +16,6 @@ jobs:
           echo "LIVE checkCard in page: $(curl -s --max-time 30 $B/ | grep -c checkCard) resLof: $(curl -s --max-time 30 $B/ | grep -c resLof) resClear: $(curl -s --max-time 30 $B/ | grep -c resClear) | $(curl -sI --max-time 30 $B/ | tr -d '\r' | grep -i last-modified)"
           echo "LIVE admin api: $(curl -s --max-time 30 $B/api/admin)"
           mkdir -p runs
-          code=$(curl -s -H "X-Check-Key: $CHECK" --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/api/runs/${{ inputs.run }}")
+          P="${{ inputs.path }}"; [ -z "$P" ] && P="api/runs/${{ inputs.run }}"
+          code=$(curl -s -H "X-Check-Key: $CHECK" --max-time 60 -o "runs/${{ inputs.run }}.json" -w '%{http_code}' "https://telpuo.kasparsleitis.com/$P")
           echo "HTTP $code, $(wc -c < runs/${{ inputs.run }}.json) bytes"; echo "RUNDATA $(gzip -c runs/${{ inputs.run }}.json | base64 -w0)"
