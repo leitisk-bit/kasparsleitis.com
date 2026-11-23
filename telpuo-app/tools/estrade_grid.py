@@ -21,7 +21,7 @@ for f in sorted(glob.glob(os.path.join(src, '*.las'))):
             h = r.header; info[os.path.basename(f)] = {'points': int(h.point_count), 'mins': list(map(float, h.mins)), 'maxs': list(map(float, h.maxs))}
             for ch in r.chunk_iterator(2_000_000):
                 x, y, z = np.asarray(ch.x), np.asarray(ch.y), np.asarray(ch.z); c = np.asarray(ch.classification)
-                m = (x >= X0) & (x < X1) & (y >= Y0) & (y < Y1) & (c != 7) & (c != 18)    # (no noise)
+                m = (x >= X0) & (x < X1) & (y >= Y0) & (y < Y1) & (c != 7)    # (class 18 kept: the survey files the steel stands and stairs outside the field as 'high noise')
                 i = ((Y1 - y[m]) / cell).astype(int); j = ((x[m] - X0) / cell).astype(int); zz = z[m].astype(np.float32)
                 np.maximum.at(top, (i, j), zz); np.add.at(cnt, (i, j), 1)
                 g = c[m] == 2
