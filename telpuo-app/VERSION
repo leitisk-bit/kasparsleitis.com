@@ -1,1 +1,1 @@
-{"n": 124, "commit": "9137d6c", "date": "2026-11-23T19:11:24+02:00", "change": "3D Mezaparks: Q, R, S, T all run down outwards again, steep enough to end where the map ends"}
+{"n": 125, "commit": "ce8eead", "date": "2026-11-23T19:25:15+02:00", "change": "3D Mezaparks: each staircase's bottom flight ends at its own floor-1 letter"}
