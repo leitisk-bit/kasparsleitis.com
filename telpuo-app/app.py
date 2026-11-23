@@ -1057,16 +1057,16 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None):
                 e1 = (ax[0] - o[0], ax[1] - o[1]); e2 = (ax[2] - o[0], ax[3] - o[1])
                 if math.hypot(e2[0] - top[0], e2[1] - top[1]) < math.hypot(e1[0] - top[0], e1[1] - top[1]): e1, e2 = e2, e1
                 u = (e2[0] - e1[0], e2[1] - e1[1]); break
-        if u is None and pieces:                       # (map not re-read yet) straight towards the stand's middle
+        if u is None and pieces:                       # (map not re-read yet) straight out from the stand's middle
             pc = three.piece_of(pieces, f3, top[0], top[1])
             if pc:
                 b = pc['box']; c_ = ((b[0] + b[2]) / 2 - pc['off'][0], (b[1] + b[3]) / 2 - pc['off'][1])
                 u = (top[0] - c_[0], top[1] - c_[1])
         if not u: continue
         pc = three.piece_of(pieces, f3, top[0], top[1]) if pieces else None
-        if pc:      # down from the top edge in under the seats (the steel stairs in the 3D tour), towards the field
+        if pc:      # down from the top edge outwards, away from the field (Kaspars)
             b_ = pc['box']; c_ = ((b_[0] + b_[2]) / 2 - pc['off'][0], (b_[1] + b_[3]) / 2 - pc['off'][1])
-            if u[0] * (top[0] - c_[0]) + u[1] * (top[1] - c_[1]) > 0: u = (-u[0], -u[1])
+            if u[0] * (top[0] - c_[0]) + u[1] * (top[1] - c_[1]) < 0: u = (-u[0], -u[1])
         L = math.hypot(*u) or 1.0
         st['imperial'] = {'branch': branch, 'u': [round(u[0] / L, 4), round(u[1] / L, 4)], 'f2': f2}
         for x in out:
