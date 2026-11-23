@@ -521,7 +521,7 @@ def api_three(mid):
                    tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
-                                       (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid))))
+                                       (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid)), texs))
 
 _HGRID = {}
 def _heights3d(mid, m, t):
@@ -1042,7 +1042,7 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
 SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                 {'imperial': {'Q': 'Č', 'R': 'Ē', 'S': 'Ģ', 'T': 'Ķ'}, 'floors': (1, 2, 3)})]
 
-def _site_stairs(m, out, mpp, info=None, pieces=None, N=None):
+def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
     edge (floor 3) down to a landing among its side doors (floor 2), on down to its letter on the ground (floor
     1), with a side flight from the landing to each side door. Gives the letters as lined up on their floors."""
@@ -1063,9 +1063,36 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None):
         tops, bots, sides = at(main, f3), at(main, f1), at(branch, f2)
         if not st or not tops or not bots or not sides: continue
         st['imperial'] = {'branch': branch, 'top': tops[0], 'bottom': bots[0], 'sides': sides, 'f2': f2}
+        # Kaspars: they all run down outwards, away from the field, as far as the map goes there
+        pc = three.piece_of(pieces, f3, *tops[0]) if pieces else None
+        if pc:
+            b_ = pc['box']; c_ = ((b_[0] + b_[2]) / 2 - pc['off'][0], (b_[1] + b_[3]) / 2 - pc['off'][1])
+            u = (tops[0][0] - c_[0], tops[0][1] - c_[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
+            st['imperial']['u'] = [round(u[0], 4), round(u[1], 4)]
+            st['imperial']['avail'] = round(_map_reach(mid_of(m), f1, tops[0], u, texs) * mpp, 1)
         for x in out:
             if x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out
+
+def mid_of(m): return (m or {}).get('id')
+
+def _map_reach(mid, fl, p, u, texs, step=3.0, most=400):
+    """How far (sheet pixels) from p along u the floor's map is still drawn (not see-through)."""
+    try:
+        from PIL import Image
+        for t in texs or []:
+            if t['floor'] != fl: continue
+            if not (t['x0'] - 5 <= p[0] <= t['x0'] + t['w'] + 5 and t['y0'] - 5 <= p[1] <= t['y0'] + t['h'] + 5): continue
+            fn = f"tex{t['floor']}" + (f"_{t['piece']}" if 'piece' in t else '') + '.webp'
+            im = Image.open(os.path.join(store.map_dir(mid), fn)).convert('RGBA'); A = np.asarray(im)[..., 3]
+            sx, sy = A.shape[1] / t['w'], A.shape[0] / t['h']; d = 0.0
+            while d < most:
+                x = int((p[0] + u[0] * d - t['x0']) * sx); y = int((p[1] + u[1] * d - t['y0']) * sy)
+                if not (0 <= x < A.shape[1] and 0 <= y < A.shape[0]) or A[y, x] < 100: break
+                d += step
+            return d
+    except Exception: traceback.print_exc()
+    return most
 
 def site_shape_of(m):
     for rx, d in SITE_SHAPES:
