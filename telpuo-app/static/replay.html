@@ -1061,13 +1061,75 @@ async function start(){
   const floors = [...new Set(D.tex.map(t => t.floor))].sort((a,b) => a-b);
   const loader = new THREE.TextureLoader(), plates = [];
   D.tex.forEach(t => {
-    const tex = loader.load(t.img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
     const g = t.piece !== undefined ? HG[t.piece] : null;
+    const tex = loader.load(t.img, tx => { if (g && LV){ t.cells = cellMask(tx.image, g); buildSkirts(); } });
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
     const geo = g ? new THREE.PlaneGeometry(t.w*M, t.h*M, g.nx - 1, g.ny - 1) : new THREE.PlaneGeometry(t.w*M, t.h*M);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map:tex, transparent:true, alphaTest:0.4, side:THREE.DoubleSide }));
     mesh.rotation.x = -Math.PI/2; mesh.userData = { floor:t.floor, cx:(t.x0 + t.w/2)*M - cx, cz:(t.y0 + t.h/2)*M - cz, hg:g };
     scene.add(mesh); plates.push(mesh);
   });
+  // Stands as solid masses (a real-height site): each raised map piece gets walls from its edge down to
+  // the ground under it, so the grandstand and the choir stand read as the sloped concrete blocks they are
+  // and their stairs run up against them, not as plates floating over the field.
+  const SUB = 4;                         // the outline is followed at a quarter of a height cell (about 1.4 m)
+  function cellMask(img, g){             // which cells of a piece have map drawn on them
+    const c = document.createElement('canvas'); c.width = (g.nx - 1) * SUB; c.height = (g.ny - 1) * SUB;
+    const x = c.getContext('2d', { willReadFrequently:true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high';
+    x.drawImage(img, 0, 0, c.width, c.height);
+    const a = x.getImageData(0, 0, c.width, c.height).data, m = new Uint8Array(c.width * c.height);
+    for (let k = 0; k < m.length; k++) m[k] = a[k*4 + 3] > 110 ? 1 : 0;
+    // holes inside the piece (letters, gaps in the drawing) are part of the block: only the empty cells
+    // reached from the piece's border are outside
+    const W = c.width, H = c.height, out = new Uint8Array(m.length), st = [];
+    for (let i = 0; i < W; i++){ st.push(i, (H - 1) * W + i); } for (let j = 0; j < H; j++){ st.push(j * W, j * W + W - 1); }
+    while (st.length){ const k = st.pop(); if (out[k] || m[k]) continue; out[k] = 1; const i = k % W, j = (k / W) | 0;
+      if (i > 0) st.push(k - 1); if (i < W - 1) st.push(k + 1); if (j > 0) st.push(k - W); if (j < H - 1) st.push(k + W); }
+    for (let k = 0; k < m.length; k++) m[k] = out[k] ? 0 : 1;
+    // smooth the outline (close, then open, by one cell): no wall round every stair or letter sticking out
+    const morph = (src, grow) => { const o = new Uint8Array(src.length);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++){ let v = grow ? 0 : 1;
+        for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++){ const ii = i + di, jj = j + dj;
+          const x_ = ii < 0 || jj < 0 || ii >= W || jj >= H ? 0 : src[jj * W + ii]; if (grow) v |= x_; else v &= x_; }
+        o[j * W + i] = v; } return o; };
+    return morph(morph(morph(morph(m, true), false), false), true);
+  }
+  scene.add(new THREE.DirectionalLight(0xffffff, 1.2).translateX(-60).translateY(120).translateZ(90));
+  // (see-through: the floors and the route inside the building under the stands stay visible)
+  const skirtMat = new THREE.MeshLambertMaterial({ color:0xd6d0c4, side:THREE.DoubleSide, transparent:true, opacity:0.55, depthWrite:false });
+  const skirtGrp = new THREE.Group(); scene.add(skirtGrp);
+  function buildSkirts(){
+    skirtGrp.children.forEach(o => o.geometry.dispose()); skirtGrp.clear();
+    if (!LV) return;
+    D.tex.forEach(t => {
+      const g = t.piece !== undefined ? HG[t.piece] : null, m = t.cells;
+      if (!g || !m || t.floor <= 1) return;          // (stands rise above the ground; nothing under floor 1)
+      const hmin = Math.min(...g.h), hmax = Math.max(...g.h);
+      if (hmax - hmin < 3) return;               // only the sloped stands (a flat floor inside a building has rooms under it)
+      const nx = g.nx, ny = g.ny, cw = (nx - 1) * SUB, ch = (ny - 1) * SUB, P = [];
+      const vx = i => t.x0 + i * t.w / cw, vy = j => t.y0 + j * t.h / ch;
+      const top = (i, j) => { const u = i / SUB, v = j / SUB, i0 = Math.min(nx - 2, Math.floor(u)), j0 = Math.min(ny - 2, Math.floor(v)), fu = u - i0, fv = v - j0, H = g.h;
+        return ((H[j0*nx+i0]*(1-fu) + H[j0*nx+i0+1]*fu)*(1-fv) + (H[(j0+1)*nx+i0]*(1-fu) + H[(j0+1)*nx+i0+1]*fu)*fv) * gapK / 3; };
+      const ground = (i, j) => { const h = hRaw(1, vx(i), vy(j)); return Math.min((h === null ? 0 : h) * gapK / 3, yOf(1)); };
+      const has = (i, j) => i >= 0 && j >= 0 && i < cw && j < ch && m[j*cw + i];
+      const wall = (i1, j1, i2, j2) => {          // a wall along the cell edge (i1,j1)-(i2,j2) from the top down
+        const t1 = top(i1, j1), t2 = top(i2, j2), b1 = ground(i1, j1), b2 = ground(i2, j2);
+        if (t1 - b1 < 1.2 || t2 - b2 < 1.2) return;
+        const X1 = vx(i1)*M - cx, Z1 = vy(j1)*M - cz, X2 = vx(i2)*M - cx, Z2 = vy(j2)*M - cz;
+        P.push(X1, t1, Z1, X2, t2, Z2, X2, b2, Z2,  X1, t1, Z1, X2, b2, Z2, X1, b1, Z1);
+      };
+      for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++){
+        if (!has(i, j)) continue;
+        if (!has(i, j-1)) wall(i, j, i+1, j);
+        if (!has(i, j+1)) wall(i, j+1, i+1, j+1);
+        if (!has(i-1, j)) wall(i, j, i, j+1);
+        if (!has(i+1, j)) wall(i+1, j, i+1, j+1);
+      }
+      if (!P.length) return;
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, skirtMat); mesh.userData.floor = t.floor; skirtGrp.add(mesh);
+    });
+  }
   let minX = Infinity; D.tex.forEach(t => minX = Math.min(minX, t.x0*M - cx));
   const flabels = floors.map(fl => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
     g.fillStyle = '#4DA6FF'; g.font = '700 110px "Barlow Condensed", "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(fl, 64, 70);
@@ -1213,7 +1275,7 @@ async function start(){
     });
     flabels.forEach(s => s.position.set(minX - 7, yOf(s.userData.floor) + 3, 0));
     ctrlObjs.forEach(g => g.position.set(g.userData.x, yAt(g.userData.floor, (g.userData.x + cx) / M, (g.userData.z + cz) / M) + 0.15, g.userData.z));
-    buildStairs();
+    buildStairs(); buildSkirts();
     layoutRunners();
   }
   // three.js remembers how many segments a line had the first time it was drawn and never draws more:
@@ -1258,6 +1320,7 @@ async function start(){
     $('#fl3Auto').hidden = manualF === null;
     plates.forEach(m => { const on = !fade || m.userData.floor === curF; m.material.opacity = on ? 1 : 0.22; m.material.alphaTest = on ? 0.4 : 0.05; m.material.depthWrite = on; });
     flabels.forEach(sp => sp.material.opacity = (!fade || sp.userData.floor === curF) ? 1 : 0.35);
+    skirtMat.opacity = fade ? 0.3 : 0.85;
     ctrlObjs.forEach(g => g.children.forEach(c => c.material.opacity = (!fade || g.userData.floor === curF) ? 1 : 0.3));
     $('#fl3').textContent = 'Floor ' + curF;
     if (manualF !== null){ if (follow){ tgt.set(me ? me.x : controls.target.x, yOf(manualF) + 0.5, me ? me.z : controls.target.z); const d = tgt.clone().sub(controls.target).multiplyScalar(0.12); controls.target.add(d); camera.position.add(d); } }
