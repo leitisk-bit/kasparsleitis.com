@@ -1078,6 +1078,22 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
         # top edge where the side flights leave), the one nearest its top letter
         lands = at(branch, f3) if branch else []
         if lands: st['imperial']['land'] = min(lands, key=lambda q: math.hypot(q[0] - tops[0][0], q[1] - tops[0][1]))
+        # where the floor-3 sheet ends the staircase (the far end of its drawn flight). Kaspars' photo of R and S:
+        # one straight run of 5 flights from the ground up to the top edge, as the floor-3 sheet draws it; the
+        # floor-1 sheet puts their letters under the top edge instead, where no straight stair could end - there
+        # the staircase ends where floor 3 draws it
+        for n_, ax_ in ((info or {}).get('axes') or {}).items():
+            q = n_.split('_')
+            if not ax_ or len(q) != 3 or q[1].split('#')[0] != main or N.get(n_, (None,))[0] != f3: continue
+            pc = three.piece_of(pieces, f3, N[n_][1], N[n_][2]) if pieces else None
+            o = pc['off'] if pc else [0, 0]
+            e1, e2 = (ax_[0] - o[0], ax_[1] - o[1]), (ax_[2] - o[0], ax_[3] - o[1])
+            d1, d2 = math.hypot(e1[0] - tops[0][0], e1[1] - tops[0][1]), math.hypot(e2[0] - tops[0][0], e2[1] - tops[0][1])
+            foot = e2 if d2 > d1 else e1
+            band = math.hypot(e2[0] - e1[0], e2[1] - e1[1])
+            if math.hypot(bots[0][0] - tops[0][0], bots[0][1] - tops[0][1]) < 0.5 * band:
+                st['imperial']['foot'] = [round(foot[0], 1), round(foot[1], 1)]
+            break
         # Kaspars: they all run down outwards, away from the field, as far as the map goes there
         pc = three.piece_of(pieces, f3, *tops[0]) if pieces else None
         if pc:

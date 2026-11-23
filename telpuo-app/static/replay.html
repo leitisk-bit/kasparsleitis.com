@@ -1243,15 +1243,18 @@ async function start(){
         // floor 2. The landing's height gives both main flights the same slope. Where a side door is far
         // (inside, under the stand), its flight comes down to floor-2 level and a level walk goes on to the door.
         const im = st.imperial, S0 = Math.tan(33 * Math.PI / 180), SMAX = Math.tan(42 * Math.PI / 180);
-        const [TX, TZ] = WX(st.f2, im.top[0], im.top[1]), [BX, BZ] = WX(st.f1, im.bottom[0], im.bottom[1]);
-        const top = yAt(st.f2, im.top[0], im.top[1]), ground = yAt(st.f1, im.bottom[0], im.bottom[1]), f2y = yOf(im.f2);
+        const [TX, TZ] = WX(st.f2, im.top[0], im.top[1]);
+        // (R, S: straight to where the floor-3 sheet ends them - Kaspars' photo; the others to their floor-1 letter)
+        const [BX, BZ] = im.foot ? WX(st.f2, im.foot[0], im.foot[1]) : WX(st.f1, im.bottom[0], im.bottom[1]);
+        const top = yAt(st.f2, im.top[0], im.top[1]), f2y = yOf(im.f2);
+        const ground = im.foot ? yAt(st.f1, im.foot[0], im.foot[1]) : yAt(st.f1, im.bottom[0], im.bottom[1]);
         const H = top - ground, w = 3, cw = 2.4, LD = 3;
-        // one straight run of stairs, as built there (photos): flights of at most 17 steps (17 cm each), a 1.5 m
+        // one straight run of stairs, as built there (photo of R and S: 5 flights of about 13 steps), a 1.5 m
         // landing between them, all on the same line
         const flat = (fx, fy, fz, tx, ty, tz, wd) => {
           const L = Math.hypot(tx - fx, tz - fz); if (L < 0.3 || fy - ty < 0.2) return;
-          const ux = (tx - fx) / L, uz = (tz - fz) / L, rise = fy - ty, n = Math.max(1, Math.ceil(rise / 0.17 / 17));
-          const LL = n > 1 && L - (n - 1) * 1.5 > rise * 1.1 ? 1.5 : 0, run = (L - (n - 1) * LL) / n, r = rise / n;
+          const ux = (tx - fx) / L, uz = (tz - fz) / L, rise = fy - ty, n = Math.max(1, Math.ceil(rise / 0.16 / 13));
+          const LL = n > 1 && L - (n - 1) * 1.5 > rise * 1.1 ? 1.5 : (n > 1 && L - (n - 1) * 1.2 > rise * 0.9 ? 1.2 : 0), run = (L - (n - 1) * LL) / n, r = rise / n;
           for (let i = 0; i < n; i++){
             const sx = fx + ux * i * (run + LL), sz = fz + uz * i * (run + LL), sy = fy - i * r;
             downFlight(sx, sy, sz, ux, uz, run, r, wd, stairMat); rail(sx, sy, sz, sx + ux * run, sy - r, sz + uz * run, wd);
@@ -1259,8 +1262,45 @@ async function start(){
           }
           stairSegs.push([fx, fz, tx, tz, wd / 2 + 1]);
         };
+        if (im.foot){
+          // R, S (Kaspars' photo): one straight run from the top edge out to where the floor-3 sheet ends it, in
+          // flights of about 13 steps with short landings (the side walls step down 4 times: 5 flights); the side
+          // flights (E, G) leave from the landing beside their symbol, one each way, down to floor 2
+          const D = Math.hypot(BX - TX, BZ - TZ) || 1, ux = (BX - TX) / D, uz = (BZ - TZ) / D, vx = -uz, vz = ux;
+          const n = Math.max(2, Math.ceil(H / 0.16 / 13)), LL = Math.min(1.2, Math.max(0.6, (D - H / Math.tan(38 * Math.PI / 180)) / (n - 1)));
+          const run = (D - (n - 1) * LL) / n, r = H / n;
+          let k = Math.round(n / 2) - 1;                                  // the landing the side flights leave from
+          if (im.land){ const [lx, lz] = WX(st.f2, im.land[0], im.land[1]), t = (lx - TX) * ux + (lz - TZ) * uz;
+            k = Math.max(0, Math.min(n - 2, Math.round((t - run) / (run + LL)))); }
+          while (k > 0 && top - (k + 1) * r < f2y + 0.6) k--;            // (a landing above floor 2, for its side flights)
+          for (let i = 0; i < n; i++){
+            const sx = TX + ux * i * (run + LL), sz = TZ + uz * i * (run + LL), sy = top - i * r;
+            downFlight(sx, sy, sz, ux, uz, run, r, w, stairMat); rail(sx, sy, sz, sx + ux * run, sy - r, sz + uz * run, w);
+            if (i < n - 1) slab(sx + ux * run, sy - r, sz + uz * run, ux, uz, LL, i === k ? w + 2 * (cw + 0.3) : w, stairMat);
+          }
+          stairSegs.push([TX, TZ, BX, BZ, w / 2 + 1]);
+          const lx0 = TX + ux * ((k + 1) * run + k * LL), lz0 = TZ + uz * ((k + 1) * run + k * LL), Lh = top - (k + 1) * r;
+          (im.sides || []).map(p => WX(im.f2, p[0], p[1])).forEach(([sx, sz]) => {
+            const sd = ((sx - lx0) * vx + (sz - lz0) * vz) >= 0 ? 1 : -1;
+            // (from the landing's edge on the door's side, so it never runs under the landing)
+            const e = ((sx - lx0) * ux + (sz - lz0) * uz) >= LL ? LL : 0;
+            const bx = lx0 + ux * e + vx * sd * (w / 2 + 0.3 + cw / 2), bz = lz0 + uz * e + vz * sd * (w / 2 + 0.3 + cw / 2);
+            // first sideways off the landing, then towards the door: down to floor 2, a level walk on
+            const L = Math.hypot(sx - bx, sz - bz); if (L < 0.5 || Lh - f2y < 0.2) return;
+            const rr = Lh - f2y, rn = Math.min(L, rr / S0), cx2 = bx + (sx - bx) / L * rn, cz2 = bz + (sz - bz) / L * rn;
+            flat(bx, Lh, bz, cx2, f2y, cz2, cw);
+            if (L - rn > 0.3) slab(cx2, f2y, cz2, (sx - bx) / L, (sz - bz) / L, L - rn, cw, stairMat);
+          });
+          tag(st.letter, TX, top + 1.6, TZ, st);
+          if (im.branch) tag(im.branch, lx0, Lh + 1.4, lz0, st);
+          return;
+        }
         let LX, LZ;
         if (im.land) [LX, LZ] = WX(st.f2, im.land[0], im.land[1]);
+        if (im.land && im.foot){                                         // the landing on the straight run, level with its symbol
+          const D = Math.hypot(BX - TX, BZ - TZ) || 1, ux = (BX - TX) / D, uz = (BZ - TZ) / D;
+          const t = Math.max(LD, Math.min(D - LD, (LX - TX) * ux + (LZ - TZ) * uz)); LX = TX + ux * t; LZ = TZ + uz * t;
+        }
         else {                                                           // no landing drawn: half way, on the line
           const D = Math.hypot(BX - TX, BZ - TZ), ux = D > 1.5 ? (BX - TX) / D : im.u[0], uz = D > 1.5 ? (BZ - TZ) / D : im.u[1];
           const run = Math.max(D, H / SMAX + LD); LX = TX + ux * run / 2; LZ = TZ + uz * run / 2;
