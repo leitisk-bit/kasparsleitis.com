@@ -521,7 +521,7 @@ def api_three(mid):
                    tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
-                                       (m.get('scale') or 1000) / (300 / 0.0254)))
+                                       (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid))))
 
 _HGRID = {}
 def _heights3d(mid, m, t):
@@ -1032,36 +1032,45 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
 # stand from its top edge towards the field, like spokes. P-U on the top edge are the tops of those aisles:
 # each is drawn from its letter straight towards the field's centre, down the stand's slope to its front
 # edge (where the a-h stairs come up from the field). O and V run down the stand's two sides the same way.
-# (Kaspars, 23 Nov: each stair stands where its letter is on both floors - the floors are now bent letter on
-# letter instead, so no site needs this; kept for a site whose stairs are drawn on one floor only.)
-SITE_STAIRS = []
+# How certain outdoor sites' stairs are built, for the 3D view. Mezaparks (Kaspars, 23 Nov, from the 3D tour):
+# behind the grandstand Q, R, S, T each come down from the top edge (floor 3) to a wide landing; from there
+# the main flight goes on straight down to the ground (floor 1), and two side flights (C, E, G, K) turn back
+# from the landing on both sides of the upper flight, down to floor 2.
+SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
+                {'imperial': {'Q': 'Č', 'R': 'Ē', 'S': 'Ģ', 'T': 'Ķ'}, 'floors': (1, 2, 3)})]
 
-def _fit_circle(P):
-    P = np.asarray(P, float)
-    A = np.c_[2 * P, np.ones(len(P))]; sol = np.linalg.lstsq(A, (P ** 2).sum(1), rcond=None)[0]
-    return sol[:2]
-
-def _site_stairs(m, out, mpp):
+def _site_stairs(m, out, mpp, info=None, pieces=None, N=None):
     cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None)
-    if not cfg: return out
-    f1, f2 = cfg['floors']
-    sel = [st for st in out if st['letter'] in cfg['aisles'] and (st['f1'], st['f2']) == (f1, f2)]
-    fr = [st for st in out if st['letter'] in cfg['front'] and (st['f1'], st['f2']) == (f1, f2)]
-    if len(sel) < 3 or len(fr) < 2: return out
-    # the aisles fan out from the middle of the field's curved front edge (the a-h row), as drawn
-    C = _fit_circle([st['b'] for st in fr])
-    Rf = float(np.mean([np.hypot(*(np.array(st['b']) - C)) for st in fr]))
-    ang = lambda q: math.atan2(q[1] - C[1], q[0] - C[0])
-    fr_sorted = sorted(fr, key=lambda st: ang(st['b'])); sel_sorted = sorted(sel, key=lambda st: ang(st['b']))
-    # each aisle ends at the a-h stair it lines up with (in turn round the curve: O-a, P-b, ... V-h)
-    pair = {}
-    if len(fr_sorted) == len(sel_sorted):
-        pair = {id(t_): f_ for t_, f_ in zip(sel_sorted, fr_sorted)}
-    for st in sel:
-        top = np.array(st['b'], float); r = top - C; R = np.hypot(*r) or 1.0
-        foot = np.array(pair[id(st)]['b'], float) if id(st) in pair else C + r / R * min(R - 2 / mpp, Rf + 1 / mpp)
-        st['a'] = [round(float(foot[0]), 1), round(float(foot[1]), 1)]
-        st['w'] = cfg['width'] / mpp; st['aisle'] = True           # both ends on the stand's surface
+    if not cfg or 'imperial' not in cfg: return out
+    f1, f2, f3 = cfg['floors']
+    axes = (info or {}).get('axes') or {}
+    for main, branch in cfg['imperial'].items():
+        st = next((x for x in out if x['letter'] == main and (x['f1'], x['f2']) == (f1, f3)), None)
+        if not st: continue
+        top = st['b']                                   # its door on the top edge (floor 3, as lined up)
+        u = None
+        for n_, ax in axes.items():                     # the way it runs down: its floor-3 drawing, away from the door
+            q = n_.split('_')
+            if ax and len(q) == 3 and q[1].split('#')[0] == main and _fnum(q[0]) == f3 and N and n_ in N:
+                pc = three.piece_of(pieces, f3, N[n_][1], N[n_][2]) if pieces else None
+                o = pc['off'] if pc else [0, 0]
+                e1 = (ax[0] - o[0], ax[1] - o[1]); e2 = (ax[2] - o[0], ax[3] - o[1])
+                if math.hypot(e2[0] - top[0], e2[1] - top[1]) < math.hypot(e1[0] - top[0], e1[1] - top[1]): e1, e2 = e2, e1
+                u = (e2[0] - e1[0], e2[1] - e1[1]); break
+        if u is None and pieces:                       # (map not re-read yet) straight towards the stand's middle
+            pc = three.piece_of(pieces, f3, top[0], top[1])
+            if pc:
+                b = pc['box']; c_ = ((b[0] + b[2]) / 2 - pc['off'][0], (b[1] + b[3]) / 2 - pc['off'][1])
+                u = (top[0] - c_[0], top[1] - c_[1])
+        if not u: continue
+        pc = three.piece_of(pieces, f3, top[0], top[1]) if pieces else None
+        if pc:      # down from the top edge in under the seats (the steel stairs in the 3D tour), towards the field
+            b_ = pc['box']; c_ = ((b_[0] + b_[2]) / 2 - pc['off'][0], (b_[1] + b_[3]) / 2 - pc['off'][1])
+            if u[0] * (top[0] - c_[0]) + u[1] * (top[1] - c_[1]) > 0: u = (-u[0], -u[1])
+        L = math.hypot(*u) or 1.0
+        st['imperial'] = {'branch': branch, 'u': [round(u[0] / L, 4), round(u[1] / L, 4)], 'f2': f2}
+        for x in out:
+            if x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out
 
 def site_shape_of(m):
