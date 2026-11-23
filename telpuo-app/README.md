@@ -39,6 +39,26 @@ cd ~/kasparsleitis.com && git pull && cd telpuo-app && docker compose up -d --bu
 `telpuo.kasparsleitis.com` points to the service `http://web:8000`. No router ports are opened.
 Updates then use `docker compose --profile public up -d --build`.
 
+## Strava
+
+Runners can take their run straight from Strava instead of exporting a watch file, and can let new
+Strava runs be added on their own.
+
+1. In `.env` set `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` (from https://www.strava.com/settings/api) and
+   `STRAVA_BASE=https://telpomarsruts.kasparsleitis.com`. In the Strava app settings the
+   **Authorization Callback Domain** must be `kasparsleitis.com`. Run the update command.
+2. Once, signed in as admin, in the browser console on the site:
+   `fetch('api/strava/subscribe',{method:'POST',headers:H()}).then(r=>r.json()).then(console.log)`
+   This asks Strava to post new activities to `STRAVA_BASE/strava/webhook` (only one subscription per app).
+3. Under **Add your run** a runner presses **Connect with Strava**, then picks the race-day activity. When the run
+   is saved, the app remembers which name in the results is theirs. With **Add my runs from Strava
+   automatically** ticked, later races are added on their own: when the Strava activity arrives (if the results
+   are already in) or when the admin imports the results.
+
+Tokens and links are kept in the Docker volume (`/data/strava/`). **Disconnect Strava** deletes them and
+takes the app's access away on Strava. Strava's API base address moves to `https://api-v3.strava.com` from
+4 January 2027: then set `STRAVA_API=https://api-v3.strava.com` in `.env` (check the exact address in Strava's changelog).
+
 ## Server Info page
 
 **https://kasparsleitis.com/serverinfo** (page in `site/serverinfo/`, data from this app's `/api/server`) shows the server's CPU, memory, disk,

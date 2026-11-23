@@ -91,6 +91,9 @@ body:not(.is-admin) .admin-only{display:none!important}
 .folder>summary::before{content:'▸';color:var(--muted,#888);transition:transform .15s}
 .folder[open]>summary::before{transform:rotate(90deg)}
 .folder>.grid{margin-top:10px}
+#stravaBox{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px}
+.strava-btn{background:#FC4C02!important;border-color:#FC4C02!important;color:#fff!important;font-weight:600}
+#stravaBox .pby{font-size:11px;color:#FC4C02;font-weight:600;align-self:flex-end}
 #tcxHelp{margin-top:14px} .howlink{color:var(--accent);font-weight:600;font-size:13.5px;text-decoration:none}
 .brands{display:flex;gap:8px;flex-wrap:wrap}
 .brand-b{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--fg);cursor:pointer;text-align:left}
@@ -175,6 +178,17 @@ body:not(.is-admin) .admin-only{display:none!important}
               <h2 style="margin:0">Add your run</h2>
               <label class="lbl">1. Your watch file (TCX, FIT or GPX)<input class="field" type="file" id="rTrack"></label>
               <a class="howlink" href="#tcxHelp" id="howLink">How do I get my watch file? Instructions for Garmin, Suunto, Polar, Apple Watch and Strava ↓</a>
+              <div id="stravaBox" hidden>
+                <div id="stravaOff"><button class="btn small strava-btn" type="button" id="stravaConnect" data-noi18n>Connect with Strava</button>
+                  <span class="muted">Or take your run straight from Strava, no file needed.</span></div>
+                <div id="stravaOn" hidden style="display:flex;flex-direction:column;gap:6px">
+                  <div class="muted">Strava: <b id="stravaName" data-noi18n></b> · <a href="#" id="stravaOut">Disconnect Strava</a></div>
+                  <div><button class="btn small strava-btn" type="button" id="stravaGet">Get my run from Strava</button></div>
+                  <div id="stravaList" class="list"></div>
+                  <label class="muted"><input type="checkbox" id="stravaAuto"> <span>Add my runs from Strava automatically (saved runs are public on this site)</span></label>
+                </div>
+                <div class="pby" data-noi18n>Powered by Strava</div>
+              </div>
               <div id="rCheck" class="status" hidden></div>
               <div id="whoBox" hidden style="display:flex;flex-direction:column;gap:6px">
                 <div class="lbl">2. Whose run is this?</div>
@@ -296,6 +310,7 @@ body:not(.is-admin) .admin-only{display:none!important}
 
       <div class="bpane" data-bpane="strava" hidden>
         <p>Works for any watch whose activities go to Strava (Suunto, Apple Watch, Coros, Polar, Garmin…). The activity type on the watch still matters: use the outdoor <b>Run</b>, not an indoor or treadmill run.</p>
+        <p><b>Easiest:</b> under <b>Add your run</b> press <b>Connect with Strava</b>, then <b>Get my run from Strava</b> and choose the race. No file needed. Or get the file yourself:</p>
         <ol><li>Open your activity on <a href="https://www.strava.com/athlete/training" target="_blank" rel="noopener">strava.com</a> (on a phone, open it in the browser, not the app).</li>
           <li>Add <code>/export_tcx</code> to the end of the address, for example <code>strava.com/activities/123456789/export_tcx</code>, and press Enter.</li>
           <li>The TCX file is saved to your Downloads.</li></ol>
@@ -441,7 +456,7 @@ function renderRuns(runs){
   if (!runs.length) box.innerHTML='<div class="muted">No runs yet.</div>';
   for (const r of runs){ const d=document.createElement('div'); d.className='row';
     const st = r.status==='done' ? (r.legs_missing ? `<a class="btn small" href="replay?run=${r.id}" title="${r.legs_missing} leg(s) without a route">Replay ⚠</a>` : `<a class="btn small" href="replay?run=${r.id}">Replay</a>`) : r.status==='error' ? `<span class="bad" title="${esc(r.error)}">failed</span>` : `<span class="warn" title="${esc(r.message||'')}">${esc((r.message||'working…').replace('Working out the route: ',''))}</span>`;
-    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'||ADMIN?'':'disabled'} aria-label="Select"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club].filter(Boolean).map(esc).join(' · ')}</div>${r.status==='working'?`<div class="warn waitnote">${/turn/i.test(r.message||'') ? 'Waiting for its turn.' : 'Analyzing this run.'} Please wait until it is done; the <b>Replay</b> button appears here.</div>`:''}</div>${st}${ADMIN?`<button class="btn small" title="Delete this run" data-del="${r.id}">Delete</button>`:'<span></span>'}`;
+    d.innerHTML=`<input type="checkbox" value="${r.id}" ${r.status==='done'||ADMIN?'':'disabled'} aria-label="Select"><div style="min-width:0"><b>${esc(r.name)}</b><div class="muted">${[r.group, r.place?r.place+'.':'', r.total?fmt(r.total):'', r.club, /^strava/.test(r.source||'')?'via Strava':''].filter(Boolean).map(esc).join(' · ')}</div>${r.status==='working'?`<div class="warn waitnote">${/turn/i.test(r.message||'') ? 'Waiting for its turn.' : 'Analyzing this run.'} Please wait until it is done; the <b>Replay</b> button appears here.</div>`:''}</div>${st}${ADMIN?`<button class="btn small" title="Delete this run" data-del="${r.id}">Delete</button>`:'<span></span>'}`;
     box.appendChild(d); }
   // admin: Delete asks once more on the button itself (Delete → Sure? delete), then removes the run
   box.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
@@ -500,13 +515,50 @@ $('#runForm').onsubmit = async e => { e.preventDefault();
   if (RES){ const w=whoChosen(); if (!f || !w){ toast('Choose your watch file and whose run it is.'); return; } fd.append('group',w.group); fd.append('runner',w.name); }
   else { if (!$('#rName').value.trim() || !$('#rSplits').value.trim()){ toast('Fill in the name and split times.'); return; } fd.append('name',$('#rName').value); fd.append('splits',$('#rSplits').value); }
   if (f) fd.append('track',f);
+  if (f && STRAVA_PICK) fd.append('strava','1');
   const who = RES ? whoChosen().name : $('#rName').value;
   $('#rBtn').disabled=true; $('#rBtn').textContent='Saving…';
   try { await api('maps/'+M.id+'/runs',{method:'POST',body:fd});
     $('#rSaved').hidden=false; $('#rSaved').innerHTML=`<span class="pill ok">✓ saved on the server</span> ${esc(who)}'s run. The route is being worked out now (1–2 minutes); it appears under <b>Runs on this map</b> with a <b>Replay</b> button when ready.`;
-    $('#rTrack').value=''; $('#rSplits').value=''; resetRunForm(); openMap(M.id); }
+    $('#rTrack').value=''; $('#rSplits').value=''; resetRunForm(); openMap(M.id); if (STRAVA_PICK){ STRAVA_PICK=null; loadStrava(); } }
   catch(err){ toast(err.message); $('#rSaved').hidden=false; $('#rSaved').innerHTML=`<span class="bad">Not saved: ${esc(err.message)}</span>`; $('#rBtn').disabled=false; }
   $('#rBtn').textContent='Save my run'; };
+
+/* ---------- Strava: connect once, then take the race-day activity instead of a watch file ---------- */
+let STRAVA=null, STRAVA_PICK=null;
+async function loadStrava(){ try{ STRAVA=await api('strava?'+Date.now()); }catch(e){ STRAVA={enabled:false}; } renderStrava(); }
+function renderStrava(){ const on=!!(STRAVA&&STRAVA.enabled); $('#stravaBox').hidden=!on; if (!on) return;
+  $('#stravaOff').hidden=!!STRAVA.connected; $('#stravaOn').hidden=!STRAVA.connected;
+  if (STRAVA.connected){ $('#stravaName').textContent=STRAVA.name||'✓'; $('#stravaAuto').checked=!!STRAVA.auto; } else $('#stravaList').innerHTML=''; }
+const JSONH={'Content-Type':'application/json'};
+$('#stravaConnect').onclick=async()=>{ try{ const r=await api('strava/connect',{method:'POST',headers:JSONH,body:JSON.stringify({back:location.href})}); location.href=r.url; }catch(e){ toast(e.message); } };
+$('#stravaOut').onclick=async e=>{ e.preventDefault(); try{ await api('strava/disconnect',{method:'POST'}); toast('Strava disconnected.'); }catch(err){ toast(err.message); } STRAVA={enabled:true,connected:false}; renderStrava(); };
+$('#stravaAuto').onchange=async()=>{ const on=$('#stravaAuto').checked;
+  try{ await api('strava/auto',{method:'POST',headers:JSONH,body:JSON.stringify({on})}); STRAVA.auto=on;
+    toast(on ? (STRAVA.runners&&STRAVA.runners.length ? 'Runs from Strava will be added automatically.' : 'Runs from Strava will be added automatically after you save your first run from Strava.') : 'Automatic adding is off.'); }
+  catch(e){ $('#stravaAuto').checked=!on; toast(e.message); } };
+$('#rTrack').addEventListener('input', ()=>{ STRAVA_PICK=null; });     // the runner chose a file after all
+const hhmm = iso => (iso||'').slice(11,16);
+$('#stravaGet').onclick=async()=>{ if (!M) return; const L=$('#stravaList'); L.innerHTML='<div class="muted">Reading activities from Strava…</div>';
+  let r; try{ r=await api('maps/'+M.id+'/strava/activities?'+Date.now()); }
+  catch(e){ L.innerHTML=`<div class="bad">${esc(e.message)}</div>`; if (/Connect Strava/.test(e.message)) loadStrava(); return; }
+  if (!r.activities.length){ L.innerHTML=`<div class="muted">${r.date ? 'No Strava activities on '+esc(r.date)+'.' : 'No Strava activities found.'}</div>`; return; }
+  L.innerHTML=r.activities.map(a=>`<div class="row" style="grid-template-columns:1fr auto auto"><div style="min-width:0"><b>${esc(a.name)}</b><div class="muted">${esc(a.type)} · ${esc((a.start_local||'').slice(8,10)+'.'+(a.start_local||'').slice(5,7)+'.')} ${hhmm(a.start_local)}${a.trainer?' · <span class="warn">indoor/treadmill: no altitude</span>':''}</div></div><span class="mono">${fmt(a.elapsed)}</span><button class="btn small" type="button" data-act="${esc(a.id)}">Use this</button></div>`).join('');
+  L.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>useStrava(b.dataset.act, b)); };
+async function useStrava(id, b){ b.disabled=true; b.textContent='Getting the run from Strava…';
+  try{ const r=await fetch('api/maps/'+M.id+'/strava/'+id+'.tcx',{headers:H()});
+    if (!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||r.statusText); }
+    const file=new File([await r.blob()], 'strava-'+id+'.tcx', {type:'application/xml'});
+    const dt=new DataTransfer(); dt.items.add(file); $('#rTrack').files=dt.files;
+    $('#stravaList').innerHTML=''; await $('#rTrack').onchange(); STRAVA_PICK=id; }
+  catch(e){ toast(e.message); b.disabled=false; b.textContent='Use this'; } }
+// back from Strava's page: swap the one-time ticket for this site's own cookie, then tidy the address
+(async()=>{ const q=new URLSearchParams(location.search);
+  if (q.get('strava_claim')){ try{ await api('strava/claim',{method:'POST',headers:JSONH,body:JSON.stringify({ticket:q.get('strava_claim')})}); toast('Strava connected.'); }catch(e){ toast(e.message); } }
+  else if (q.get('strava_error')) toast(q.get('strava_error'));
+  else if (q.get('strava')==='cancelled') toast('Strava was not connected.');
+  if (q.has('strava_claim')||q.has('strava_error')||q.has('strava')){ ['strava_claim','strava_error','strava'].forEach(k=>q.delete(k)); history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')+location.hash); }
+  loadStrava(); })();
 
 /* ---------- results (admin imports, everyone sees a summary) ---------- */
 let RES=null, RES_MAP=null;

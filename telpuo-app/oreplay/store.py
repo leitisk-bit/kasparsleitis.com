@@ -95,7 +95,7 @@ def list_runs(mid):
         if not fn.endswith('.json'): continue
         r = _r(os.path.join(RUNS, fn))
         if r and r.get('map') == mid:
-            o = {k: r.get(k) for k in ('id', 'name', 'created', 'total', 'event', 'status', 'error', 'group', 'club', 'place', 'message', 'updated')}
+            o = {k: r.get(k) for k in ('id', 'name', 'created', 'total', 'event', 'status', 'error', 'group', 'club', 'place', 'message', 'updated', 'source')}
             o['legs_missing'] = sum(1 for L in r.get('legs') or [] if L.get('route') == 'not found')
             out.append(o)
     out.sort(key=lambda r: r.get('created') or 0, reverse=True)

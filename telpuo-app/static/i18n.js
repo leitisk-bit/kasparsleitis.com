@@ -11,6 +11,22 @@
 
   /* exact texts (as shown, spaces at the ends ignored) */
   var D = {
+    // Strava
+    'Or take your run straight from Strava, no file needed.': 'Vai paņem savu skrējienu tieši no Strava, fails nav vajadzīgs.',
+    'Get my run from Strava': 'Paņemt manu skrējienu no Strava', 'Disconnect Strava': 'Atvienot Strava',
+    'Add my runs from Strava automatically (saved runs are public on this site)': 'Pievienot manus skrējienus no Strava automātiski (saglabātie skrējieni šajā vietnē ir publiski)',
+    'Use this': 'Izmantot', 'via Strava': 'no Strava', 'Strava connected.': 'Strava pievienota.', 'Strava disconnected.': 'Strava atvienota.',
+    'Strava was not connected.': 'Strava netika pievienota.', 'Reading activities from Strava…': 'Nolasa aktivitātes no Strava…',
+    'Getting the run from Strava…': 'Ņem skrējienu no Strava…', 'No Strava activities found.': 'Strava aktivitātes nav atrastas.',
+    'Connect Strava first.': 'Vispirms pievieno Strava.', 'Automatic adding is off.': 'Automātiskā pievienošana izslēgta.',
+    'Runs from Strava will be added automatically.': 'Skrējieni no Strava tiks pievienoti automātiski.',
+    'Runs from Strava will be added automatically after you save your first run from Strava.': 'Skrējieni no Strava tiks pievienoti automātiski, kad būsi saglabājis savu pirmo skrējienu no Strava.',
+    'indoor/treadmill: no altitude': 'telpās/skrejceliņš: nav augstuma',
+    'The Strava connection timed out. Press Connect with Strava again.': 'Strava savienojums beidzās. Nospied Connect with Strava vēlreiz.',
+    'Strava did not accept the connection any more. Connect Strava again.': 'Strava vairs nepieņem savienojumu. Pievieno Strava vēlreiz.',
+    'Strava is busy (too many requests for this app). Try again in 15 minutes.': 'Strava ir aizņemta (šai lietotnei par daudz pieprasījumu). Mēģini vēlreiz pēc 15 minūtēm.',
+    'This Strava activity has no altitude readings, so the floors cannot be found. The watch must record it as an outdoor Run (not an indoor or treadmill run).': 'Šai Strava aktivitātei nav augstuma mērījumu, tāpēc stāvus nevar noteikt. Pulkstenim tā jāieraksta kā āra skrējiens (Run), nevis telpu vai skrejceliņa skrējiens.',
+    'Strava has no recorded data for this activity (manual entry?).': 'Strava nav ierakstītu datu šai aktivitātei (ievadīta ar roku?).',
     // header, library
     'Indoor O Replay': 'Telpu O Replay',
     'Telpu orientēšanās · map library': 'Telpu orientēšanās · karšu bibliotēka',
@@ -306,6 +322,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^No Strava activities on (.*)\.$/, 'Strava aktivitāšu $1 nav.'],
     [/^© (\d{4}) TELPO\. All rights reserved\.$/, '© $1 TELPO. Visas tiesības aizsargātas.'],
     [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your watch file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt pulksteņa failu” zem kartes.'],
 

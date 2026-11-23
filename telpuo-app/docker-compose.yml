@@ -12,6 +12,12 @@ services:
       NETDATA_URL: ${NETDATA_URL:-http://host.docker.internal:19999}
       KUMA_URL: ${KUMA_URL:-http://host.docker.internal:3001}
       KUMA_STATUS_SLUG: ${KUMA_STATUS_SLUG:-}
+      # Strava (optional): runners take their run from Strava instead of a watch file
+      STRAVA_CLIENT_ID: ${STRAVA_CLIENT_ID:-}
+      STRAVA_CLIENT_SECRET: ${STRAVA_CLIENT_SECRET:-}
+      STRAVA_BASE: ${STRAVA_BASE:-}
+      STRAVA_VERIFY: ${STRAVA_VERIFY:-}
+      STRAVA_API: ${STRAVA_API:-https://www.strava.com/api/v3}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

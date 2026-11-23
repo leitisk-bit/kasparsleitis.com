@@ -8,7 +8,7 @@ import numpy as np
 from scipy import ndimage as ndi
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
-from oreplay import store, analyze, walk, results, three, serverinfo
+from oreplay import store, analyze, walk, results, three, serverinfo, strava
 from oreplay.recon import Recon, parse_splits, parse_track, parse_motion, track_summary, find_offset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -866,6 +866,7 @@ def api_results(mid):
     n_run = sum(len(g['runners']) for g in groups)
     store.set_meta(mid, results={'event': res['event'], 'groups': [g['name'] for g in groups], 'runners': n_run,
                                  'other_courses': len(courses) - 1})
+    if strava.enabled(): store.background(_strava_scan_map, mid)      # runners who let Strava add their runs
     return jsonify(ok=True, event=res['event'], groups=[g['name'] for g in groups], runners=n_run)
 
 def _map_codes(mid, feat):
@@ -977,16 +978,32 @@ def api_new_run(mid):
             return jsonify(error=f'This course has {n_legs} legs (controls + finish) but I read {len(legs)} times ({how}).'), 400
     else:
         return jsonify(error='The results for this map have not been added yet.'), 409
+    data = None
+    if f and f.filename and obs:
+        try: f.stream.seek(0); data = f.read()
+        except Exception: data = None
+    try: rid, off = _create_run(mid, feat, legs, how, entry, group, who, t0, obs, data, f.filename if f else None,
+                                request.form.get('name') or 'Runner', source='strava' if request.form.get('strava') else None)
+    except RunRefused as e: return jsonify(error=str(e)), e.code
+    lk = request.form.get('strava') and request.cookies.get('ior_strava')
+    if lk and entry and strava.enabled():
+        a = strava.athlete_of(lk)
+        if a: strava.add_runner(a['id'], site_of(m), who)
+    return jsonify(id=rid, offset=off)
+
+class RunRefused(Exception):
+    def __init__(self, msg, code=400): super().__init__(msg); self.code = code
+
+def _create_run(mid, feat, legs, how, entry, group, who, t0, obs, data, fname, name_fallback='Runner', source=None):
+    """Save a run and start working out its route. data/fname: the watch file (kept so the route can be
+    worked out again). Raises RunRefused for a run that must not be saved."""
     off = 0
     if obs:
         dur = obs[-1][0]
         if dur - sum(legs) > 20:          # watch ran longer than the race: find where the race starts in it
             off = find_offset(obs, legs, [c.get('floor') for c in feat['controls']])
         obs = [(t - off, e, h) for t, e, h in obs]
-    sha = None
-    if f and f.filename and obs:
-        try: f.stream.seek(0); sha = hashlib.sha256(f.read()).hexdigest()
-        except Exception: sha = None
+    sha = hashlib.sha256(data).hexdigest() if (data and obs) else None
     if entry:
         # the very same watch file (or the same recording) already given to this person: refuse
         start = (t0 + int(off * 1000)) if t0 else None
@@ -995,24 +1012,25 @@ def api_new_run(mid):
             o = store.get_run(old['id']) or {}
             osha = o.get('track_sha')
             if not osha and o.get('track_file'):
-                data = store.load_track(o['track_file']); osha = data and hashlib.sha256(data).hexdigest()
+                d_ = store.load_track(o['track_file']); osha = d_ and hashlib.sha256(d_).hexdigest()
             if (sha and osha == sha) or (start and o.get('start_ms') == start and o.get('legs_in') == legs and o.get('status') != 'error'):
-                return jsonify(error=f'An identical run is already assigned to {who} ({group}). Nothing was added.'), 409
+                raise RunRefused(f'An identical run is already assigned to {who} ({group}). Nothing was added.', 409)
     rid = store.new_id()
     if entry:
         # one run per person: a new upload replaces their earlier one
         for old in store.list_runs(mid):
             if old.get('group') == group and old.get('name') == who: store.delete_run(old['id'])
-    run = {'id': rid, 'map': mid, 'name': (who if entry else request.form.get('name') or 'Runner').strip()[:80],
+    run = {'id': rid, 'map': mid, 'name': (who if entry else name_fallback).strip()[:80],
            'group': group if entry else '', 'club': entry.get('club', '') if entry else '', 'place': entry.get('place') if entry else None,
            'created': time.time(), 'legs_in': legs, 'splits_read_as': how, 'total': sum(legs), 'offset': off,
            'start_ms': (t0 + int(off * 1000)) if t0 else None, 'has_track': bool(obs), 'status': 'working', 'message': 'Waiting for its turn…'}
-    if f and f.filename and obs:
-        try: f.stream.seek(0); run['track_file'] = store.save_track(rid, f.read(), f.filename); run['track_sha'] = sha
+    if source: run['source'] = source
+    if data and obs:
+        try: run['track_file'] = store.save_track(rid, data, fname); run['track_sha'] = sha
         except Exception: traceback.print_exc()
     store.set_run(rid, run)
     store.background(_reconstruct, rid, mid, legs, obs, on_error=lambda e: (run.update(status='error', error=e), store.set_run(rid, run)))
-    return jsonify(id=rid, offset=off)
+    return rid, off
 
 def _split_leaders(mid, n):
     """Best split on each leg among everyone in the imported results who ran this course, and who."""
@@ -1095,6 +1113,182 @@ def api_run(rid):
 def api_delete_run(rid):
     if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
     store.delete_run(rid); return jsonify(ok=True)
+
+# ------------------------------------------------------------------ Strava
+# A runner connects Strava once (button under "Add your run"). Then:
+#  - "Get my run from Strava" lists that day's Strava activities; the chosen one comes back as a TCX file
+#    and goes through the same check and save as an uploaded watch file;
+#  - if the runner ticks "add my runs automatically", a new Strava run (webhook) or newly imported results
+#    add the run on their own, for the names the runner has saved runs under before.
+STRAVA_COOKIE = 'ior_strava'
+RETURN_HOSTS = [h.strip().lower() for h in os.environ.get('STRAVA_RETURN_HOSTS', 'kasparsleitis.com,telpo.lv,localhost,127.0.0.1').split(',') if h.strip()]
+
+def _strava_me():
+    return strava.athlete_of(request.cookies.get(STRAVA_COOKIE, '')) if strava.enabled() else None
+
+def _host_ok(url):
+    from urllib.parse import urlparse
+    u = urlparse(url); h = (u.hostname or '').lower()
+    return u.scheme in ('http', 'https') and any(h == x or h.endswith('.' + x) for x in RETURN_HOSTS)
+
+@app.get('/api/strava')
+def api_strava():
+    if not strava.enabled(): return jsonify(enabled=False)
+    a = _strava_me()
+    if not a: return jsonify(enabled=True, connected=False)
+    return jsonify(enabled=True, connected=True, name=a.get('name', ''), auto=bool(a.get('auto')),
+                   runners=[r['name'] for r in a.get('runners', []) if r.get('site') == current_site()])
+
+@app.post('/api/strava/connect')
+def api_strava_connect():
+    if not strava.enabled(): return jsonify(error='Strava is not set up on this server.'), 404
+    back = (request.get_json(silent=True) or {}).get('back') or request.host_url
+    if not _host_ok(back): return jsonify(error='Unknown return address.'), 400
+    return jsonify(url=strava.authorize_url(back))
+
+def _with_param(url, k, v):
+    from urllib.parse import urlsplit, urlunsplit, urlencode, parse_qsl
+    u = urlsplit(url); q = [(a, b) for a, b in parse_qsl(u.query) if a != k] + [(k, v)]
+    return urlunsplit((u.scheme, u.netloc, u.path, urlencode(q), u.fragment))
+
+@app.get('/strava/callback')
+def strava_callback():
+    from flask import redirect
+    st = strava.read_state(request.args.get('state'))
+    if not st or not _host_ok(st.get('b', '')): return 'This Strava link has expired. Go back to the site and press Connect with Strava again.', 400
+    back = st['b']
+    if request.args.get('error') or not request.args.get('code'): return redirect(_with_param(back, 'strava', 'cancelled'))
+    try: ticket = strava.finish(request.args['code'], request.args.get('scope', ''))
+    except strava.StravaError as e: return redirect(_with_param(back, 'strava_error', str(e)[:200]))
+    return redirect(_with_param(back, 'strava_claim', ticket))
+
+@app.post('/api/strava/claim')
+def api_strava_claim():
+    link = strava.claim((request.get_json(silent=True) or {}).get('ticket', ''))
+    if not link: return jsonify(error='The Strava connection timed out. Press Connect with Strava again.'), 400
+    a = strava.athlete_of(link)
+    r = jsonify(ok=True, name=a.get('name', '') if a else '')
+    r.set_cookie(STRAVA_COOKIE, link, max_age=400 * 86400, httponly=True, samesite='Lax', secure=request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https')
+    return r
+
+@app.post('/api/strava/auto')
+def api_strava_auto():
+    a = _strava_me()
+    if not a: return jsonify(error='Connect Strava first.'), 401
+    on = bool((request.get_json(silent=True) or {}).get('on'))
+    strava.update_athlete(a['id'], auto=on)
+    return jsonify(ok=True, auto=on)
+
+@app.post('/api/strava/disconnect')
+def api_strava_disconnect():
+    a = _strava_me()
+    if a: strava.forget(a['id'])
+    r = jsonify(ok=True); r.delete_cookie(STRAVA_COOKIE); return r
+
+@app.get('/api/maps/<mid>/strava/activities')
+def api_strava_activities(mid):
+    _seen(mid); a = _strava_me()
+    if not a: return jsonify(error='Connect Strava first.'), 401
+    ev = _event_date(store.get_results(mid))
+    try: xs = strava.activities(a['id'], ev)
+    except strava.StravaError as e: return jsonify(error=str(e)), 502 if e.status != 401 else 401
+    return jsonify(date=ev, activities=xs)
+
+@app.get('/api/maps/<mid>/strava/<act>.tcx')
+def api_strava_tcx(mid, act):
+    _seen(mid); a = _strava_me()
+    if not a: return jsonify(error='Connect Strava first.'), 401
+    if not act.isdigit(): abort(404)
+    try: data, name = strava.activity_tcx(a['id'], act)
+    except strava.StravaError as e: return jsonify(error=str(e)), 400 if e.status in (None, 403, 404) else 502
+    import io
+    return send_file(io.BytesIO(data), mimetype='application/vnd.garmin.tcx+xml', as_attachment=True, download_name=name)
+
+@app.get('/strava/webhook')
+def strava_webhook_check():
+    """Strava checks the address once when the subscription is made: echo its challenge."""
+    if request.args.get('hub.mode') == 'subscribe' and strava.VERIFY and \
+            hmac.compare_digest(request.args.get('hub.verify_token', '').encode(), strava.VERIFY.encode()):
+        return jsonify({'hub.challenge': request.args.get('hub.challenge', '')})
+    abort(403)
+
+@app.post('/strava/webhook')
+def strava_webhook():
+    """New/changed Strava activities and taken-away access. Answer at once (Strava waits 2 s); work later."""
+    ev = request.get_json(silent=True) or {}
+    if strava.enabled() and str(ev.get('subscription_id', '')) and ev.get('owner_id'):
+        aid = str(ev['owner_id'])
+        if ev.get('object_type') == 'athlete' and (ev.get('updates') or {}).get('authorized') == 'false':
+            strava.forget(aid, revoke=False)
+        elif ev.get('object_type') == 'activity' and ev.get('aspect_type') == 'create':
+            a = strava.get_athlete(aid)
+            if a and a.get('auto') and a.get('runners'):
+                store.background(_strava_auto, aid, str(ev.get('object_id')))
+    return jsonify(ok=True)
+
+@app.post('/api/strava/subscribe')
+def api_strava_subscribe():
+    """Admin, once: ask Strava to send new activities to this server."""
+    if not admin_ok(): return jsonify(error=NEED_ADMIN), 403
+    if not strava.enabled(): return jsonify(error='Set STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET and STRAVA_BASE in .env first.'), 400
+    try: return jsonify(strava.subscribe())
+    except strava.StravaError as e: return jsonify(error=str(e)), 502
+
+def _strava_places(a, date):
+    """(map id, features, group, result entry) where this athlete's saved names ran on that day and have no run yet."""
+    out = []
+    for m in store.list_maps():
+        if m.get('status') != 'ready' or not published(m): continue
+        names = {r['name'] for r in a.get('runners', []) if r.get('site') == site_of(m)}
+        if not names: continue
+        res = store.get_results(m['id'])
+        if not res or _event_date(res) != date: continue
+        taken = {(x.get('group'), x.get('name')) for x in store.list_runs(m['id'])}
+        for g in res.get('groups', []):
+            for x in g.get('runners', []):
+                if x['name'] in names and x.get('legs') and (g['name'], x['name']) not in taken:
+                    out.append((m['id'], g['name'], x))
+    return out
+
+def _strava_import(a, act):
+    """Add one Strava activity to every race (map) of that day where it fits this athlete's result."""
+    local = (act.get('start_local') or act.get('start_date_local') or '')[:10]
+    if len(local) != 10: return 0
+    date = f'{local[8:10]}.{local[5:7]}.{local[0:4]}'
+    places = _strava_places(a, date)
+    if not places: return 0
+    data, name = strava.activity_tcx(a['id'], act['id'])
+    t0, obs = parse_track(data, name)
+    if not obs: return 0
+    sm = track_summary(obs, t0); n = 0
+    for mid, group, entry in places:
+        if _match(sm, entry): continue                 # the watch time does not fit this result
+        feat = store.get_features(mid)
+        try: _create_run(mid, feat, list(entry['legs']), f'results of group {group}', entry, group, entry['name'],
+                         t0, obs, data, name, source='strava-auto'); n += 1
+        except RunRefused: pass
+    return n
+
+def _strava_auto(aid, act_id):
+    a = strava.get_athlete(aid)
+    if not a or not a.get('auto'): return
+    act = strava.activity(aid, act_id)
+    if act.get('manual'): return
+    _strava_import(a, {'id': str(act_id), 'start_local': act.get('start_date_local')})
+
+def _strava_scan_map(mid):
+    """Results were imported: look for runs of the connected runners (auto on) on Strava on that day."""
+    res = store.get_results(mid); date = _event_date(res)
+    if not date: return
+    names = {x['name'] for g in res.get('groups', []) for x in g.get('runners', [])}
+    m = store.get_meta(mid)
+    for a in strava.all_athletes():
+        if not a.get('auto') or not any(r.get('site') == site_of(m) and r['name'] in names for r in a.get('runners', [])): continue
+        try:
+            for act in strava.activities(a['id'], date):
+                if act['manual'] or act['trainer']: continue
+                if _strava_import(a, act): break
+        except Exception: traceback.print_exc()
 
 # Maps whose scale is fixed (not the printed one): worked out from the real building, nobody may change it.
 # TELPO 2026 1. posms, Jelgava Palace: about 150 x 120 m outside, drawn 802-811 x 985-989 px at 300 dpi
