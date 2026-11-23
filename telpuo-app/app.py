@@ -586,7 +586,31 @@ def _stairs3d(mid, built, off, pieces=None):
                 pc = three.piece_of(pieces, f, mx, my) if pieces else None
                 o = pc['off'] if pc else (off.get(f) or [0, 0])
                 ends.append([round(sum(q[0] for q in pts) / len(pts) - o[0], 1), round(sum(q[1] for q in pts) / len(pts) - o[1], 1)])
-            if len(ends) == 2: out.append({'letter': L, 'f1': k[1], 'f2': k[2], 'a': ends[0], 'b': ends[1]})
+            if len(ends) != 2: continue
+            st = {'letter': L, 'f1': k[1], 'f2': k[2], 'a': ends[0], 'b': ends[1]}
+            # a long flight (outdoor stands: Mezaparks) is drawn where and as long as the map draws it:
+            # along its longest drawing, its end at that floor's door at that floor, the other end at the
+            # other floor (straight lines between the two floors' doors cross each other at odd angles)
+            best = None
+            for n_, ax in (info.get('axes') or {}).items():
+                q = n_.split('_')
+                if not ax or len(q) != 3 or q[1].split('#')[0] != L or _fnum(q[0]) not in (k[1], k[2]): continue
+                ln = math.hypot(ax[2] - ax[0], ax[3] - ax[1])
+                if ln < 1.8 * ax[4]: continue            # (a blob, not a drawn flight)
+                if not best or ln > best[0]: best = (ln, n_, _fnum(q[0]), ax)
+            mpp_ = ((store.get_meta(mid) or {}).get('scale') or 1000) / (300 / 0.0254)
+            apart = math.hypot(ends[0][0] - ends[1][0], ends[0][1] - ends[1][1]) * mpp_
+            # (a stairwell - the same place on both floors - stays a stairwell)
+            if best and best[0] * mpp_ >= 4 and (apart >= 3 or best[0] * mpp_ >= 8):
+                ln, n_, f, ax = best; _, dx_, dy_ = N[n_]
+                pc = three.piece_of(pieces, f, dx_, dy_) if pieces else None
+                o = pc['off'] if pc else (off.get(f) or [0, 0])
+                e1, e2 = [ax[0], ax[1]], [ax[2], ax[3]]
+                if math.hypot(e2[0] - dx_, e2[1] - dy_) < math.hypot(e1[0] - dx_, e1[1] - dy_): e1, e2 = e2, e1
+                near = [round(e1[0] - o[0], 1), round(e1[1] - o[1], 1)]; far = [round(e2[0] - o[0], 1), round(e2[1] - o[1], 1)]
+                st['a'], st['b'] = (near, far) if f == k[1] else (far, near)
+                st['run'] = True; st['w'] = ax[4]
+            out.append(st)
     except Exception: traceback.print_exc()
     _STAIRS[key] = out
     return out

@@ -149,7 +149,18 @@ def floor_boxes(features, pad=25):
         out[fl['floor']] = [(b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad) for b in bx]
     return out
 
-def flights(cls, k, features):
+def _axis(pts):
+    """The drawn flight's run: the two ends of its long axis [x1, y1, x2, y2] and its width (for the 3D view,
+    which draws a long outdoor flight where and as long as it is drawn)."""
+    P = np.asarray(pts, float)
+    if len(P) < 5: return None
+    c = P.mean(0); U = np.linalg.svd(P - c, full_matrices=False)[2]
+    t = (P - c) @ U[0]; w = (P - c) @ U[1]
+    a, b = c + U[0] * np.percentile(t, 2), c + U[0] * np.percentile(t, 98)
+    return [round(float(a[0]), 1), round(float(a[1]), 1), round(float(b[0]), 1), round(float(b[1]), 1),
+            round(float(np.percentile(w, 98) - np.percentile(w, 2)), 1)]
+
+def flights(cls, k, features, axes=None):
     """Red / blue stair blobs, named by the nearest stair letter on the same floor."""
     labels = features['stair_labels']; fb = floor_boxes(features)
     out = {}
@@ -218,9 +229,12 @@ def flights(cls, k, features):
             if bi in dup:
                 L_ = lab_here[dup[bi]]['letter']; j_ = 2
                 while f"{fl}_{L_}#{j_}_{tag}" in out: j_ += 1
-                out[f"{fl}_{L_}#{j_}_{tag}"] = (fl, px, py, npx); continue
-            name = f"{fl}_{lab_here[li]['letter']}_{tag}"
-            if name not in out: out[name] = (fl, px, py, npx)
+                name = f"{fl}_{L_}#{j_}_{tag}"
+            else:
+                name = f"{fl}_{lab_here[li]['letter']}_{tag}"
+                if name in out: continue
+            out[name] = (fl, px, py, npx)
+            if axes is not None: axes[name] = _axis(_pts)
     return {n: v[:3] for n, v in out.items()}
 
 def stair_symbols(walk, cls, k, FL):
@@ -523,7 +537,7 @@ def suggest_pockets(cls, k, features, FL):
 def build(img, features, progress=None):
     """Returns N (name -> (floor, x, y)), E (a, b, px, floors, directed), POLY, info."""
     walk, cls, k = walk_mask(img, features)
-    FL = flights(cls, k, features); FL0 = dict(FL)
+    AX = {}; FL = flights(cls, k, features, axes=AX); FL0 = dict(FL)
     doors = set()                      # strict stairs: flights with a door of their own, even into a dead end
     strict = features.get('stair_rule') == 'legend'
     if strict:                                                 # per map, switched on in the Stairs tab
@@ -758,7 +772,7 @@ def build(img, features, progress=None):
     for f_ in features.get('floors', []):
         area[f_['floor']] = sum((b_[2] - b_[0]) * (b_[3] - b_[1]) for b_ in f_['boxes'])
     stacked = bool(area) and max(area.values()) <= 4 * min(area.values())
-    info = {'flights': sorted(FL), 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names, 'steps': steps,
+    info = {'flights': sorted(FL), 'axes': AX, 'pockets': pockets, 'suggested_pockets': suggested, 'controls': names, 'steps': steps,
             'stacked': stacked}
     return N, E, POLY, info
 

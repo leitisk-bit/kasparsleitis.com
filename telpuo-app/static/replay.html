@@ -1178,7 +1178,7 @@ async function start(){
       const xa = st.a[0] * M - cx, za = st.a[1] * M - cz, xb = st.b[0] * M - cx, zb = st.b[1] * M - cz, Lh = Math.hypot(xb - xa, zb - za);
       if (LV && Lh > 1.5){
         const lowA = ya <= yb, X0 = lowA ? xa : xb, Z0 = lowA ? za : zb, dx = (lowA ? xb - xa : xa - xb) / Lh, dz = (lowA ? zb - za : za - zb) / Lh;
-        const n = Math.max(3, Math.min(90, Math.round(h / 0.17))), r = Lh / n, s = h / n, Wd = 2.4;
+        const n = Math.max(3, Math.min(90, Math.round(h / 0.17))), r = Lh / n, s = h / n, Wd = st.w ? Math.max(1.5, Math.min(6, st.w * M)) : 2.4;
         const sh = new THREE.Shape(); sh.moveTo(0, 0);
         for (let i = 0; i < n; i++){ sh.lineTo(i * r, (i + 1) * s); sh.lineTo((i + 1) * r, (i + 1) * s); }
         sh.lineTo(Lh, h - 0.35); sh.lineTo(0, -0.35); sh.lineTo(0, 0);
