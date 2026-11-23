@@ -257,7 +257,7 @@ async function load3d(mapId, runs, ids, q, k){
     if (runs.length && !runs.every(r=>r.pts3d && r.pts3d.length)) return;
     runs.forEach(r => { const main=r.runners.find(x=>!x.ghost); r3.push({ name:main.name, color:main.color, ghost:false, pts:al(r.pts3d) });
       if (ids.length===1 || q.get('ghost')==='1'){ const g=r.runners.find(x=>x.ghost); if (g) r3.push({ name:g.name, color:g.color, ghost:true, pts:al(r.ghost3d||[]) }); } });
-    window.R3D = { mpp:T.mpp, floorH:T.floorH, levels:T.levels || null, heights:T.heights || null, tex:T.tex, controls:T.controls, stairs:T.stairs||[], title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
+    window.R3D = { mpp:T.mpp, floorH:T.floorH, levels:T.levels || null, heights:T.heights || null, warps:T.warps || null, tex:T.tex, controls:T.controls, stairs:T.stairs||[], title:T.title, runner:runs[0] ? runs[0].name : '', runners:r3, align:al, k:k||1 };
     const v=document.getElementById('viewSeg'); if (v) v.hidden=false;
   } catch(e){ console.warn('3D view unavailable', e); }
 }
@@ -1033,6 +1033,7 @@ async function start(){
   renderer.setPixelRatio(Math.min(2, devicePixelRatio)); box.prepend(renderer.domElement);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, 1, 0.5, 3000);
   const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495;
+  window.IOR3D = { camera, controls, WX: (...a) => WX(...a) };   // (for looking at a spot when checking the view)
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.2));
   const M = D.mpp, H0 = D.floorH; let gapK = 3;
   // floors at their real heights when the watches measured them (a site like Mežaparks, not a stack of
@@ -1218,6 +1219,35 @@ async function start(){
         fl.position.set(X0, y0, Z0); fl.rotation.y = -Math.atan2(dz, dx); fl.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(fl);
         const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edgeMat); ed.position.copy(fl.position); ed.rotation.copy(fl.rotation); stairGrp.add(ed);
         const lab = textSprite(st.letter); lab.scale.multiplyScalar(0.8); lab.position.set((xa + xb) / 2, y0 + h / 2 + 1.6, (za + zb) / 2); lab.renderOrder = 6; lab.userData = { f1:st.f1, f2:st.f2 };
+        stairGrp.add(lab); return;
+      }
+      // An outdoor site (Mezaparks, photos from inside the grandstand): a stair whose doors stand one over the
+      // other climbs in open switchback flights - up one way, a landing, back the other way - as high as it goes
+      if (LV){
+        const ax = st.ax1 || st.dir, d0 = ax ? [ax[2] - ax[0], ax[3] - ax[1]] : [1, 0], dl = Math.hypot(d0[0], d0[1]) || 1;
+        const ux = d0[0] / dl, uz = d0[1] / dl, vx = -uz, vz = ux;       // along the flights, and across them
+        const nF = Math.max(1, Math.round(h / 2.8)), rise = h / nF, run = Math.max(3, Math.min(7, rise / 0.62)), Wd = 1.8, gap = 0.3;
+        const X0 = xa, Z0 = za;
+        for (let f = 0; f < nF; f++){
+          const back = f % 2 === 1, side = back ? 1 : -1;
+          const n = Math.max(3, Math.round(rise / 0.17)), r = run / n, sr = rise / n;
+          const sh = new THREE.Shape(); sh.moveTo(0, 0);
+          for (let i = 0; i < n; i++){ sh.lineTo(i * r, (i + 1) * sr); sh.lineTo((i + 1) * r, (i + 1) * sr); }
+          sh.lineTo(run, rise - 0.3); sh.lineTo(0, -0.3); sh.lineTo(0, 0);
+          const geo = new THREE.ExtrudeGeometry(sh, { depth:Wd, bevelEnabled:false }); geo.translate(0, 0, -Wd / 2);
+          const fl = new THREE.Mesh(geo, stepUp);
+          // forward flights start at the door, back flights at the far landing
+          const sx = X0 + (back ? ux * run : 0) + vx * side * (Wd / 2 + gap / 2), sz = Z0 + (back ? uz * run : 0) + vz * side * (Wd / 2 + gap / 2);
+          fl.position.set(sx, y0 + f * rise, sz); fl.rotation.y = -Math.atan2(back ? -uz : uz, back ? -ux : ux);
+          fl.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(fl);
+          const ed = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edgeMat); ed.position.copy(fl.position); ed.rotation.copy(fl.rotation); stairGrp.add(ed);
+          if (f < nF - 1){       // the landing at the end of this flight
+            const land = new THREE.Mesh(new THREE.BoxGeometry(2 * Wd + gap, 0.15, 1.4), stepUp);
+            const lx = X0 + (back ? -ux * 0.7 : ux * (run + 0.7)), lz = Z0 + (back ? -uz * 0.7 : uz * (run + 0.7));
+            land.position.set(lx, y0 + (f + 1) * rise - 0.07, lz); land.rotation.y = -Math.atan2(uz, ux) + Math.PI / 2; stairGrp.add(land);
+          }
+        }
+        const lab = textSprite(st.letter); lab.scale.multiplyScalar(0.8); lab.position.set(X0 + ux * run / 2, y0 + h + 1.4, Z0 + uz * run / 2); lab.renderOrder = 6; lab.userData = { f1:st.f1, f2:st.f2 };
         stairGrp.add(lab); return;
       }
       const W = 3.2, Dp = 3.2;

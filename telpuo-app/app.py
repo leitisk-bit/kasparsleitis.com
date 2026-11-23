@@ -628,6 +628,13 @@ def _stairs3d(mid, built, off, pieces=None, place=None):
                     st['ax1'] = [round(ax[0] - o[0], 1), round(ax[1] - o[1], 1), round(ax[2] - o[0], 1), round(ax[3] - o[1], 1)]; st['_l1'] = ln
                     st['w'] = ax[4]
             st.pop('_l1', None)
+            # which way the stair runs, from any drawing of it (for climbing in switchbacks where its doors
+            # stand one over the other)
+            if 'ax1' not in st:
+                for n_, ax in (info.get('axes') or {}).items():
+                    q = n_.split('_')
+                    if ax and len(q) == 3 and q[1].split('#')[0] == L and _fnum(q[0]) in (k[1], k[2]):
+                        st['dir'] = ax[:4]; break
             best = None
             for n_, ax in (info.get('axes') or {}).items():
                 q = n_.split('_')
