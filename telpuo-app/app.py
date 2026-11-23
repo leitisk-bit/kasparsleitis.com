@@ -573,9 +573,9 @@ def _warps3d(mid, m, texs, pieces):
             N, _E, _P, info_ = store.load_graph(mid)
             tex_ = [dict(x, piece=x.get('piece', x.get('wp'))) for x in texs if x.get('piece', x.get('wp')) is not None]
             cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None) or {}
-            ex = set(cfg.get('imperial', {}).keys()) | set(cfg.get('imperial', {}).values())
+            ex = set(cfg.get('imperial', {}).keys()) | {v for v in cfg.get('imperial', {}).values() if v}
             # (a staircase whose letters are drawn apart on purpose - top, bottom and side doors - keeps them apart)
-            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'))
+            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'), keep_floors=cfg.get('keep_floors', ()))
         except Exception:
             traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
     return _WARPS[key]
@@ -1040,7 +1040,11 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
 # the main flight goes on straight down to the ground (floor 1), and two side flights (C, E, G, K) turn back
 # from the landing on both sides of the upper flight, down to floor 2.
 SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
-                {'imperial': {'Q': 'Č', 'R': 'Ē', 'S': 'Ģ', 'T': 'Ķ'}, 'floors': (1, 2, 3)})]
+                {'imperial': {'Q': 'Č', 'R': 'Ē', 'S': 'Ģ', 'T': 'Ķ', 'P': None, 'U': None, 'O': None, 'V': None},
+                 'floors': (1, 2, 3),
+                 # the grandstand (floor 3) is drawn as it is: bending it to put its edge letters on the
+                 # floor-1 letters squeezed it into a thin crescent - those stairs run between the two
+                 'keep_floors': (3,)})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
@@ -1060,8 +1064,8 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
         return r
     for main, branch in cfg['imperial'].items():
         st = next((x for x in out if x['letter'] == main and (x['f1'], x['f2']) == (f1, f3)), None)
-        tops, bots, sides = at(main, f3), at(main, f1), at(branch, f2)
-        if not st or not tops or not bots or not sides: continue
+        tops, bots, sides = at(main, f3), at(main, f1), (at(branch, f2) if branch else [])
+        if not st or not tops or not bots or (branch and not sides): continue      # (P, U, O, V: no side flights)
         st['imperial'] = {'branch': branch, 'top': tops[0], 'bottom': bots[0], 'sides': sides, 'f2': f2}
         # Kaspars: they all run down outwards, away from the field, as far as the map goes there
         pc = three.piece_of(pieces, f3, *tops[0]) if pieces else None
@@ -1071,7 +1075,7 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
             st['imperial']['u'] = [round(u[0], 4), round(u[1], 4)]
             st['imperial']['avail'] = round(_map_reach(mid_of(m), f1, tops[0], u, texs) * mpp, 1)
         for x in out:
-            if x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
+            if branch and x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out
 
 def mid_of(m): return (m or {}).get('id')

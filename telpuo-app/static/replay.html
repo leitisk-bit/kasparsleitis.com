@@ -1236,15 +1236,15 @@ async function start(){
         slab(ix, Lh, iz, ux, uz, LD, LW, stairMat);
         downFlight(lx, Lh, lz, ux, uz, runL, Lh - ground, w, stairMat);
         const off = w / 2 + gap + cw / 2;
-        for (const sd of [-1, 1]) downFlight(ix + vx * sd * off, Lh, iz + vz * sd * off, -ux, -uz, runC, Lh - f2y, cw, stairMat);
+        if (im.branch) for (const sd of [-1, 1]) downFlight(ix + vx * sd * off, Lh, iz + vz * sd * off, -ux, -uz, runC, Lh - f2y, cw, stairMat);
         // handrails, 1 m above the steps, on both sides of each flight
         const rail = (x0, y0, z0, x1, y1, z1, wd) => { for (const sd of [-1, 1]){ const ox = vx * sd * wd / 2, oz = vz * sd * wd / 2;
           const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x0 + ox, y0 + 1, z0 + oz), new THREE.Vector3(x1 + ox, y1 + 1, z1 + oz)]);
           stairGrp.add(new THREE.Line(g, railMat)); } };
         rail(X, top, Z, ix, Lh, iz, w); rail(lx, Lh, lz, BX, ground, BZ, w);
-        for (const sd of [-1, 1]) rail(ix + vx * sd * off, Lh, iz + vz * sd * off, ix + vx * sd * off - ux * runC, f2y, iz + vz * sd * off - uz * runC, cw);
+        if (im.branch) for (const sd of [-1, 1]) rail(ix + vx * sd * off, Lh, iz + vz * sd * off, ix + vx * sd * off - ux * runC, f2y, iz + vz * sd * off - uz * runC, cw);
         tag(st.letter, (X + ix) / 2, top + 1.6, (Z + iz) / 2, st);
-        tag(im.branch, ix - ux * runC / 2 + vx * (off + 1.6), Lh + 1.2, iz - uz * runC / 2 + vz * (off + 1.6), st);
+        if (im.branch) tag(im.branch, ix - ux * runC / 2 + vx * (off + 1.6), Lh + 1.2, iz - uz * runC / 2 + vz * (off + 1.6), st);
         return;
       }
       if (st.imperial && LV){
