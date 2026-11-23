@@ -1028,7 +1028,9 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
     # floor 3: the audience grandstand, from the a-h row up to the top walkway (Q-T)
     {'floor': 3, 'within': [2000, 1150, 3350, 2000], 'lines': [
         [[[2170, 1190], [2350, 1270], [2630, 1285], [2900, 1270], [3190, 1180]], 3.0],
-        [[[2240, 1640], [2410, 1770], [2600, 1810], [2790, 1810], [2980, 1770], [3150, 1620]], 12.5]]},
+        # (the back rows: 10 m up on 10 m concrete columns, two storeys of toilets and kiosks under them -
+        # ir.lv 2017, "Skatitaju zonas aizmugurejas rindas tiks paceltas desmit metru augstuma")
+        [[[2240, 1640], [2410, 1770], [2600, 1810], [2790, 1810], [2980, 1770], [3150, 1620]], 10.0]]},
     # floor 5: the choir stand, steep, from its front edge by the stage to the top under the roof
     {'floor': 5, 'within': [1250, 780, 1950, 1200], 'lines': [
         [[[1260, 1190], [1400, 1150], [1560, 1120], [1720, 1150], [1940, 1180]], 0.0],

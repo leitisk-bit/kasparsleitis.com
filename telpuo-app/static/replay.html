@@ -1246,9 +1246,17 @@ async function start(){
         const [TX, TZ] = WX(st.f2, im.top[0], im.top[1]), [BX, BZ] = WX(st.f1, im.bottom[0], im.bottom[1]);
         const top = yAt(st.f2, im.top[0], im.top[1]), ground = yAt(st.f1, im.bottom[0], im.bottom[1]), f2y = yOf(im.f2);
         const H = top - ground, w = 3, cw = 2.4, LD = 3;
+        // one straight run of stairs, as built there (photos): flights of at most 17 steps (17 cm each), a 1.5 m
+        // landing between them, all on the same line
         const flat = (fx, fy, fz, tx, ty, tz, wd) => {
           const L = Math.hypot(tx - fx, tz - fz); if (L < 0.3 || fy - ty < 0.2) return;
-          downFlight(fx, fy, fz, (tx - fx) / L, (tz - fz) / L, L, fy - ty, wd, stairMat); rail(fx, fy, fz, tx, ty, tz, wd);
+          const ux = (tx - fx) / L, uz = (tz - fz) / L, rise = fy - ty, n = Math.max(1, Math.ceil(rise / 0.17 / 17));
+          const LL = n > 1 && L - (n - 1) * 1.5 > rise * 1.1 ? 1.5 : 0, run = (L - (n - 1) * LL) / n, r = rise / n;
+          for (let i = 0; i < n; i++){
+            const sx = fx + ux * i * (run + LL), sz = fz + uz * i * (run + LL), sy = fy - i * r;
+            downFlight(sx, sy, sz, ux, uz, run, r, wd, stairMat); rail(sx, sy, sz, sx + ux * run, sy - r, sz + uz * run, wd);
+            if (LL && i < n - 1) slab(sx + ux * run, sy - r, sz + uz * run, ux, uz, LL, wd, stairMat);
+          }
           stairSegs.push([fx, fz, tx, tz, wd / 2 + 1]);
         };
         let LX, LZ;
