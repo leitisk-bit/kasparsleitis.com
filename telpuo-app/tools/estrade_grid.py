@@ -29,7 +29,9 @@ for f in sorted(glob.glob(os.path.join(src, '*.las'))):
     except Exception as e:                       # (a file cut short: what was read stays)
         print('!', f, e); info.setdefault(os.path.basename(f), {})['error'] = str(e)
 top[cnt == 0] = np.nan; gnd[gnd > 1e8] = np.nan
-np.savez_compressed(os.path.join(out, 'grid.npz'), top=top, ground=gnd, count=cnt, x0=X0, y1=Y1, cell=cell)
+cm = lambda a: np.where(np.isnan(a), -32768, np.round(a * 100)).astype(np.int16)      # (centimetres, LAS-2000,5)
+np.savez_compressed(os.path.join(out, 'grid.npz'), top_cm=cm(top), ground_cm=cm(gnd), count=np.minimum(cnt, 255).astype(np.uint8),
+                    x0=X0, y1=Y1, cell=cell)
 info.update(grid=[nx, ny], cell=cell, box_lks92=[X0, Y0, X1, Y1], top_range=[float(np.nanmin(top)), float(np.nanmax(top))],
             ground_range=[float(np.nanmin(gnd)), float(np.nanmax(gnd))])
 json.dump(info, open(os.path.join(out, 'info.json'), 'w'), indent=1); print(json.dumps(info, indent=1))

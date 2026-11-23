@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       cell: { description: 'Grid cell (m)', required: false, default: '0.5' }
-permissions: { contents: read }
+permissions: { contents: write }
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,15 +15,23 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - run: pip install laspy lazrs numpy pyproj pillow scipy
+      - uses: actions/cache@v4
+        with: { path: las, key: estrade-las-2022 }
       - name: Download
         timeout-minutes: 300
         run: |
           mkdir -p las out
           # (the server is slow, about 0.5 MB/s a file: all tiles at once, resuming until complete)
-          dl() { for k in 1 2 3 4 5 6; do curl -sS --fail -C - --max-time 5400 -o las/$1.las https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las && break; sleep 10; done
+          dl() { [ -s las/$1.las ] && [ "$(stat -c %s las/$1.las)" = "$(curl -sSI --max-time 60 https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las | tr -d '\r' | grep -i content-length | awk '{print $2}')" ] && { echo "LAS $1 cached"; return; }
+                 for k in 1 2 3 4 5 6; do curl -sS --fail -C - --max-time 5400 -o las/$1.las https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las && break; sleep 10; done
                  echo "LAS $1 $(stat -c %s las/$1.las 2>/dev/null) bytes of $(curl -sSI --max-time 60 https://s3.lvdc.gov.lv/rdgis-opendata/LIDAR_2022/LAS/$1.las | tr -d '\r' | grep -i content-length)"; }
           for t in 4311-42-55.1.1 4311-42-55.1.2 4311-42-45.3.4 4311-42-45.3.3 4311-42-55.1.3 4311-42-55.1.4; do dl $t & done; wait
       - name: Height grid
         run: python telpuo-app/tools/estrade_grid.py las out ${{ inputs.cell }}
-      - uses: actions/upload-artifact@v4
-        with: { name: estrade-grid, path: out/ }
+      - name: Commit the grid
+        run: |
+          mkdir -p telpuo-app/data && cp out/grid.npz telpuo-app/data/estrade_grid.npz && cp out/info.json telpuo-app/data/estrade_grid.json
+          git config user.name "github-actions" && git config user.email "github-actions@users.noreply.github.com"
+          git add telpuo-app/data/estrade_grid.npz telpuo-app/data/estrade_grid.json
+          git commit -m "Estrade height grid from Riga open LiDAR 2022 (CC BY 4.0, Rigas valstspilsetas pasvaldiba)" || exit 0
+          for k in 1 2 3; do git pull --rebase -q && git push -q && break; sleep 5; done
