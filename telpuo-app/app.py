@@ -572,7 +572,10 @@ def _warps3d(mid, m, texs, pieces):
         try:
             N = store.load_graph(mid)[0]
             tex_ = [dict(x, piece=x.get('piece', x.get('wp'))) for x in texs if x.get('piece', x.get('wp')) is not None]
-            _WARPS[key] = three.piece_warps(N, pieces, tex_)
+            cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None) or {}
+            ex = set(cfg.get('imperial', {}).keys()) | set(cfg.get('imperial', {}).values())
+            # (a staircase whose letters are drawn apart on purpose - top, bottom and side doors - keeps them apart)
+            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex)
         except Exception:
             traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
     return _WARPS[key]
@@ -1040,35 +1043,26 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                 {'imperial': {'Q': 'Č', 'R': 'Ē', 'S': 'Ģ', 'T': 'Ķ'}, 'floors': (1, 2, 3)})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None):
+    """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
+    edge (floor 3) down to a landing among its side doors (floor 2), on down to its letter on the ground (floor
+    1), with a side flight from the landing to each side door. Gives the letters as lined up on their floors."""
     cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None)
-    if not cfg or 'imperial' not in cfg: return out
+    if not cfg or 'imperial' not in cfg or not N: return out
     f1, f2, f3 = cfg['floors']
-    axes = (info or {}).get('axes') or {}
+    def at(L, f):
+        r = []
+        for n_, (fl, x, y) in N.items():
+            q = n_.split('_')
+            if len(q) == 3 and q[2] in ('up', 'dn') and q[1].split('#')[0] == L and fl == f:
+                pc = three.piece_of(pieces, f, x, y) if pieces else None
+                o = pc['off'] if pc else [0, 0]
+                r.append([round(x - o[0], 1), round(y - o[1], 1)])
+        return r
     for main, branch in cfg['imperial'].items():
         st = next((x for x in out if x['letter'] == main and (x['f1'], x['f2']) == (f1, f3)), None)
-        if not st: continue
-        top = st['b']                                   # its door on the top edge (floor 3, as lined up)
-        u = None
-        for n_, ax in axes.items():                     # the way it runs down: its floor-3 drawing, away from the door
-            q = n_.split('_')
-            if ax and len(q) == 3 and q[1].split('#')[0] == main and _fnum(q[0]) == f3 and N and n_ in N:
-                pc = three.piece_of(pieces, f3, N[n_][1], N[n_][2]) if pieces else None
-                o = pc['off'] if pc else [0, 0]
-                e1 = (ax[0] - o[0], ax[1] - o[1]); e2 = (ax[2] - o[0], ax[3] - o[1])
-                if math.hypot(e2[0] - top[0], e2[1] - top[1]) < math.hypot(e1[0] - top[0], e1[1] - top[1]): e1, e2 = e2, e1
-                u = (e2[0] - e1[0], e2[1] - e1[1]); break
-        if u is None and pieces:                       # (map not re-read yet) straight out from the stand's middle
-            pc = three.piece_of(pieces, f3, top[0], top[1])
-            if pc:
-                b = pc['box']; c_ = ((b[0] + b[2]) / 2 - pc['off'][0], (b[1] + b[3]) / 2 - pc['off'][1])
-                u = (top[0] - c_[0], top[1] - c_[1])
-        if not u: continue
-        pc = three.piece_of(pieces, f3, top[0], top[1]) if pieces else None
-        if pc:      # down from the top edge outwards, away from the field (Kaspars)
-            b_ = pc['box']; c_ = ((b_[0] + b_[2]) / 2 - pc['off'][0], (b_[1] + b_[3]) / 2 - pc['off'][1])
-            if u[0] * (top[0] - c_[0]) + u[1] * (top[1] - c_[1]) < 0: u = (-u[0], -u[1])
-        L = math.hypot(*u) or 1.0
-        st['imperial'] = {'branch': branch, 'u': [round(u[0] / L, 4), round(u[1] / L, 4)], 'f2': f2}
+        tops, bots, sides = at(main, f3), at(main, f1), at(branch, f2)
+        if not st or not tops or not bots or not sides: continue
+        st['imperial'] = {'branch': branch, 'top': tops[0], 'bottom': bots[0], 'sides': sides, 'f2': f2}
         for x in out:
             if x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out

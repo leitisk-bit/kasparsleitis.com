@@ -217,7 +217,7 @@ def shape_grids(tex, pieces, shape, cell=30):
     return out
 
 
-def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0):
+def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0, exclude=()):
     """Floors drawn to different shapes. A map may draw one floor bigger or bent against the next (TELPO
     2. posms: the grandstand on floor 3 against the building under it on floor 1), so after shifting a piece
     its stair letters still miss the same letters on the floor below by up to 25 m - while each stair is in
@@ -253,6 +253,7 @@ def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0):
         for i in todo:
             pairs = []
             for L, p in lets.get(i, {}).items():
+                if L in exclude: continue
                 tg = [lets[j][L] + clamp(j, disp(j, [lets[j][L]]))[0] for j in placed
                       if L in lets.get(j, {}) and pieces[j]['floor'] != pieces[i]['floor']]
                 if tg: pairs.append((p, np.mean(tg, 0)))
