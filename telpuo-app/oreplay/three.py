@@ -190,7 +190,7 @@ def height_grids(tex, pieces, samples, cell=30):
     return out
 
 
-def shape_grids(tex, pieces, shape, cell=30, sampler=None):
+def shape_grids(tex, pieces, shape, cell=30):
     """The known shape of the ground under map pieces (see app.SITE_SHAPES): each point's height lies between
     the heights of the lines drawn across the piece, by its distance to each (two lines: straight between)."""
     out = []
@@ -213,15 +213,6 @@ def shape_grids(tex, pieces, shape, cell=30, sampler=None):
             w = 1.0 / np.maximum(d, 3.0)
             num += w * h; den += w
         G = ndi.gaussian_filter(num / den, 0.7)
-        if sp.get('lidar') and sampler:                    # measured heights where the survey has them
-            Z = sampler(GX - ox, GY - oy)
-            if Z is not None and np.isfinite(Z).any():
-                # (the field only: what lies outside its edge is the ground below - the map's edge letters, a
-                # metre or two out by the fit, take the height of the field next to them)
-                ok = np.isfinite(Z) & (Z > sp.get('lidar_min', 1.5))
-                if ok.any():
-                    _, (iy, ix) = ndi.distance_transform_edt(~ok, return_indices=True)
-                    G = Z[iy, ix]
         out.append({'piece': t['piece'], 'nx': nx, 'ny': ny, 'h': [round(float(v), 2) for v in G.ravel()], 'shape': True})
     return out
 
