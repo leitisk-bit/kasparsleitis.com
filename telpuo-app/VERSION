@@ -1,1 +1,1 @@
-{"n": 165, "commit": "111e725", "date": "2026-11-24T18:35:45+02:00", "change": "Telpu O Strava: runner's own name in the results picks the nearest run even if times differ"}
+{"n": 166, "commit": "fa2bbc2", "date": "2026-11-24T18:37:39+02:00", "change": "Telpu O Strava: save at once when the runner's name and time match; Latvian text"}
