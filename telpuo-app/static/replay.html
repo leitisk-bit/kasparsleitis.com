@@ -1236,6 +1236,11 @@ async function start(){
     const tag = (t, x, y, z, st) => { const l = textSprite(t); l.scale.multiplyScalar(0.8); l.position.set(x, y, z); l.renderOrder = 6; l.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(l); };
     (D.stairs || []).forEach(st => {
       if (st.skip) return;
+      if (!st.tower && !st.portal && !st.imperial && LV && st.a && st.b){
+        // (an ordinary stair: the runner climbs it from one door to the other, not in a hop)
+        const [ax_, az_] = WX(st.f1, st.a[0], st.a[1]), [bx_, bz_] = WX(st.f2, st.b[0], st.b[1]);
+        stairPaths.push({ P:[[ax_, yAt(st.f1, st.a[0], st.a[1]), az_], [bx_, yAt(st.f2, st.b[0], st.b[1]), bz_]], F:[st.f1, st.f2] });
+      }
       if (st.tower && LV){
         // a stair tower at the back of the choir stand (the photo): switchback flights to and fro along the wall,
         // a landing at each end, from floor 1 up to the top it reaches
@@ -1258,9 +1263,16 @@ async function start(){
         }
         // (each floor it serves: the landing nearest that floor's level)
         const F = P.map(() => null); F[0] = st.f1; F[P.length - 1] = tw.top_f;
-        for (let f = st.f1 + 1; f < tw.top_f; f++){ if (!LV || yOf(f) === undefined) continue;
-          let kb = -1; for (let k = 2; k < P.length - 1; k += 2) if (kb < 0 || Math.abs(P[k][1] - yOf(f)) < Math.abs(P[kb][1] - yOf(f))) kb = k;
-          if (kb > 0 && F[kb] === null) F[kb] = f; }
+        // (in order up the tower; where the drawn floors don't match its height, one landing each all the same)
+        let kPrev = 0;
+        for (let f = st.f1 + 1; f < tw.top_f; f++){
+          const left = tw.top_f - f;                                     // floors still to place above this one
+          let kb = -1;
+          for (let k = kPrev + 2; k <= P.length - 1 - 2 * left; k += 2)
+            if (kb < 0 || Math.abs(P[k][1] - yOf(f)) < Math.abs(P[kb][1] - yOf(f))) kb = k;
+          if (kb < 0) kb = Math.min(P.length - 2, kPrev + 2);
+          if (kb > kPrev && kb < P.length - 1){ F[kb] = f; kPrev = kb; }
+        }
         stairPaths.push({ P, F });
         tag(st.letter, Ox, y1 + 1.6, Oz, st);
         return;
@@ -1572,8 +1584,10 @@ async function start(){
       stairPaths.forEach(sp => {
         sp.F.forEach((fa, ia) => { if (fa !== a) return; sp.F.forEach((fb, ib) => { if (fb !== b) return;
           const s0 = sp.P[ia], s1 = sp.P[ib];
-          const e = Math.hypot(s0[0] - A.ox, s0[2] - A.oz) + Math.hypot(s1[0] - B.ox, s1[2] - B.oz);
-          if (e < 30 && (!best || e < best[0])) best = [e, ia < ib ? sp.P.slice(ia, ib + 1) : sp.P.slice(ib, ia + 1).reverse()];
+          // (only the staircase the route really takes there: both its ends near where the runner leaves and
+          // arrives - a stair beside it, like A by T, is not it)
+          const e0 = Math.hypot(s0[0] - A.ox, s0[2] - A.oz), e1 = Math.hypot(s1[0] - B.ox, s1[2] - B.oz), e = e0 + e1;
+          if (e0 < 12 && e1 < 12 && (!best || e < best[0])) best = [e, ia < ib ? sp.P.slice(ia, ib + 1) : sp.P.slice(ib, ia + 1).reverse()];
         }); });
       });
       if (!best) continue;
