@@ -1,1 +1,1 @@
-{"n": 163, "commit": "d09d730", "date": "2026-11-24T18:13:13+02:00", "change": "Telpu O: take runs from Strava (connect, pick race-day activity, automatic import)"}
+{"n": 164, "commit": "54c2ee3", "date": "2026-11-24T18:29:09+02:00", "change": "Telpu O Strava: pick the race activity by result time and runner name"}
