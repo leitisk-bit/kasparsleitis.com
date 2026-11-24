@@ -72,12 +72,17 @@ $chatId = trim((string)($cfg['chat_id'] ?? ''));
 $chatFile = $dataDir . '/chat_id.txt';
 if ($chatId === '' && is_file($chatFile)) $chatId = trim(file_get_contents($chatFile));
 if ($chatId === '') {
+    $me = tg($token, 'getMe', []);
+    if ($me === null) reply(false, 'Not connected: the server cannot reach Telegram.', 503);
+    if (!($me['ok'] ?? false)) reply(false, 'Not connected: Telegram rejected the bot token.', 503);
+    $botName = '@' . ($me['result']['username'] ?? '?');
     $upd = tg($token, 'getUpdates', ['limit' => 100]);
+    if (!($upd['ok'] ?? false)) reply(false, "Not connected: cannot read updates of $botName (" . ($upd['description'] ?? 'no answer') . ').', 503);
     foreach (($upd['result'] ?? []) as $u) {
         $chat = $u['message']['chat'] ?? null;
         if ($chat && ($chat['type'] ?? '') === 'private') { $chatId = (string)$chat['id']; break; }
     }
-    if ($chatId === '') reply(false, 'Messaging is not connected yet.', 503);
+    if ($chatId === '') reply(false, "Not connected yet: press Start in $botName on Telegram, then send again.", 503);
     file_put_contents($chatFile, $chatId);
     tg($token, 'sendMessage', ['chat_id' => $chatId,
         'text' => "✅ This chat is now connected to the message box on kasparsleitis.com."]);
