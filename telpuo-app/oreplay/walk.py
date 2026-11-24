@@ -100,6 +100,12 @@ def dash_bridges(lines, lo=6, hi=45, gap=20, ang=15):
 def _flight_zone(cls, k):
     """Up and down flights and the landings right at them: where a stair's outline is opened at its door."""
     rb = np.isin(cls, [k['red'], k['blue']])
+    # (a flight is a small symbol; a long red or blue band - the edge of a grandstand - is not, and the row
+    # lines beside it stay closed: Kaspars, the route across the seat rows below the stage band)
+    lab, n = ndi.label(rb)
+    if n:
+        sz = ndi.sum(rb, lab, range(1, n + 1)); big = np.nonzero(sz > 12000)[0] + 1
+        if len(big): rb &= ~np.isin(lab, big)
     return ndi.binary_dilation(rb | ((cls == k['landing']) & ndi.binary_dilation(rb, iterations=8)), iterations=4)
 
 def walk_mask(img, features, cls=None, k=None):
@@ -764,9 +770,16 @@ def build(img, features, progress=None):
     # from F to A, B, through the walls)
     walked = {(a_, b_) for a_, b_, px_, fl_, _ in E if not fl_}
     WLn = np.array([w_[:4] for w_ in features.get('wall_lines', [])], float).reshape(-1, 4)
-    def through_wall(a_, b_):
-        if not len(WLn): return False
-        (px_, py_), (qx_, qy_) = N[a_][1:], N[b_][1:]; x1, y1, x2, y2 = WLn.T
+    # (the outline and middle line of a stair symbol are not walls between its own two halves)
+    if len(WLn):
+        fz_ = _flight_zone(cls, k); H_, W_ = fz_.shape
+        mx_ = np.clip(((WLn[:, 0] + WLn[:, 2]) / 2).astype(int), 0, W_ - 1); my_ = np.clip(((WLn[:, 1] + WLn[:, 3]) / 2).astype(int), 0, H_ - 1)
+        WLx = WLn[~fz_[my_, mx_]]
+    else: WLx = WLn
+    def through_wall(a_, b_, lines=None):
+        L_ = WLn if lines is None else lines
+        if not len(L_): return False
+        (px_, py_), (qx_, qy_) = N[a_][1:], N[b_][1:]; x1, y1, x2, y2 = L_.T
         d_ = (qx_ - px_) * (y2 - y1) - (qy_ - py_) * (x2 - x1)
         with np.errstate(divide='ignore', invalid='ignore'):
             t_ = ((x1 - px_) * (y2 - y1) - (y1 - py_) * (x2 - x1)) / d_; u_ = ((x1 - px_) * (qy_ - py_) - (y1 - py_) * (qx_ - px_)) / d_
@@ -785,6 +798,7 @@ def build(img, features, progress=None):
         # half's way out, and the stairwell is still passed inside, as Č on floor 3 of 4. posms B)
         if any(math.hypot(bx - mx, by - my) < 75 and (not strict or ln_ >= 40)
                for bx, by, ln_ in features.get('stair_bars', [])): continue
+        if through_wall(n, o, WLx): continue        # (the two halves apart, a wall between: walked round on the floor)
         add(n, o, d, 0); add(o, n, d, 0)
     # A flight closed at this floor (no door: a purple bracket across its top, TELPO 2. posms Q and T on
     # floor 3) ends on a landing shared with other flights drawn onto it (the small C and K flights down to
