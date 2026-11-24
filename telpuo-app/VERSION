@@ -1,1 +1,1 @@
-{"n": 155, "commit": "9a55c0e", "date": "2026-11-24T09:43:24+02:00", "change": "Routes never through black lines: drawn walls burned in, dashed lines closed, no straight joins through walls"}
+{"n": 156, "commit": "5499074", "date": "2026-11-24T10:40:40+02:00", "change": "Routes and walls: the stage band is not a stair, an up/down join never through a wall"}
