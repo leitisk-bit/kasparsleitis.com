@@ -217,7 +217,7 @@ def shape_grids(tex, pieces, shape, cell=30):
     return out
 
 
-def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0, exclude=(), axes=None, keep_floors=()):
+def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0, exclude=(), axes=None, keep_floors=(), anchors=None):
     """Floors drawn to different shapes. A map may draw one floor bigger or bent against the next (TELPO
     2. posms: the grandstand on floor 3 against the building under it on floor 1), so after shifting a piece
     its stair letters still miss the same letters on the floor below by up to 25 m - while each stair is in
@@ -263,6 +263,10 @@ def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0, exclude=(), 
                 if tg: pairs.append((p, np.mean(tg, 0)))
             if not best or len(pairs) > len(best[1]): best = (i, pairs)
         i, pairs = best; todo.remove(i); placed.add(i)
+        if anchors and anchors.get(i):              # where the piece really lies is known (a survey): bent onto it
+            S = np.array([a for a, _ in anchors[i]], float); D = np.array([b for _, b in anchors[i]], float) - S
+            rbf = RBFInterpolator(S, D, kernel='thin_plate_spline', smoothing=0.5)
+            fields[i] = (rbf, float(np.hypot(D[:, 0], D[:, 1]).max() * 1.3)); continue
         if len(pairs) < min_pairs or pieces[i]['floor'] in keep_floors: continue
         S = np.array([p for p, _ in pairs]); D = np.array([t - p for p, t in pairs])
         if np.median(np.hypot(D[:, 0], D[:, 1])) < min_err: continue

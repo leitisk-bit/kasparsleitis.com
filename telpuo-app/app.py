@@ -575,7 +575,27 @@ def _warps3d(mid, m, texs, pieces):
             cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None) or {}
             ex = set(cfg.get('imperial', {}).keys()) | {v for v in cfg.get('imperial', {}).values() if v}
             # (a staircase whose letters are drawn apart on purpose - top, bottom and side doors - keeps them apart)
-            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'), keep_floors=cfg.get('keep_floors', ()))
+            anchors = {}
+            fr, res = _lidar_frame(cfg, N) if cfg.get('lidar_stairs') else (None, None)
+            if fr:
+                # the grandstand (floor 3) onto the survey: its back staircases' top letters onto the tops measured,
+                # its front aisle letters (a-h) onto the same letters on floor 1 (short stairs, one over the other)
+                f1_, _f2, f3_ = cfg['floors']; ls = _lidar_stairs(cfg)
+                def at_(L, f):
+                    r_ = []
+                    for n_, (fl, x, y) in N.items():
+                        q = n_.split('_')
+                        if fl == f and len(q) == 3 and q[2] in ('up', 'dn') and q[1].split('#')[0] == L:
+                            pc = three.piece_of(pieces, f, x, y); r_.append((pieces.index(pc), x - pc['off'][0], y - pc['off'][1]))
+                    return r_
+                for L, v in ls.items():
+                    for i_, x, y in at_(L, f3_)[:1]: anchors.setdefault(i_, []).append(((x, y), fr(*v['lks']['top'])))
+                for L in 'abcdefgh':
+                    a3, a1 = at_(L, f3_), at_(L, f1_)
+                    if a3 and a1: anchors.setdefault(a3[0][0], []).append(((a3[0][1], a3[0][2]), (a1[0][1], a1[0][2])))
+                anchors = {i_: v for i_, v in anchors.items() if len(v) >= 6}
+            _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'),
+                                            keep_floors=() if anchors else cfg.get('keep_floors', ()), anchors=anchors)
         except Exception:
             traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
     return _WARPS[key]
@@ -1008,8 +1028,10 @@ FIXED_SCALES = [(re.compile(r'^\s*TELPO\s+2026\s+1\.\s*posms\b', re.I), 1780,
                # TELPO 2026 2. posms, Mezaparks Liela estrade: Kaspars' watch GPS at his 11 outdoor controls fitted to
                # the controls on the sheet -> 0.166-0.177 m a pixel, 1:1960-2090 (the sheet's 1:1000 made every
                # distance half its real length: the 12 m stairs at the back had no room to come down)
-               (re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\b', re.I), 2000,
-                'Worked out from the GPS of a run on it (controls vs watch positions)')]
+               # (then the 2022 LiDAR: the six back staircases' feet against their letters on floor 1 -> 1:1917,
+               # within 0.4-2 m each; the GPS fit was 1:1960-2090)
+               (re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\b', re.I), 1920,
+                'Worked out from the 2022 LiDAR survey of the estrade (the back staircases against the map)')]
 
 # The real shape of the ground on certain outdoor sites, for the 3D view: [(name regex, [{'floor', 'within'
 # (sheet box holding the piece's centre), 'lines': [[[x, y], …], metres over floor 1], …}])]. Each map piece
@@ -1112,11 +1134,35 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
             lp = ls['land_m'] / mpp
             st['imperial']['land'] = [round(tops[0][0] + d_[0] * lp, 1), round(tops[0][1] + d_[1] * lp, 1)]
             st['imperial']['measured'] = True
+            fr, _ = _lidar_frame(cfg, N)
+            if fr and ls.get('lks'):
+                # where it really is (the floors are bent onto the survey): top, landing and foot as measured
+                for k_ in ('top', 'land', 'foot'): st['imperial']['w' + k_] = fr(*ls['lks'][k_])
         for x in out:
             if branch and x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out
 
 def mid_of(m): return (m or {}).get('id')
+
+def _lidar_frame(cfg, N):
+    """The survey in the map's own frame: the staircases' feet measured in the LiDAR against the same letters
+    on floor 1 (where the map draws each back staircase landing on the ground - they fit within 0.4-2 m).
+    Returns (to_map(E, N) -> [x, y] floor-1 sheet px, fit residuals m) or (None, None)."""
+    ls = _lidar_stairs(cfg)
+    if not ls or not N: return None, None
+    A, B = [], []
+    for L, v in ls.items():
+        pts = [(x, y) for n_, (fl, x, y) in N.items() if fl == cfg['floors'][0] and len(n_.split('_')) == 3
+               and n_.split('_')[1].split('#')[0] == L and n_.split('_')[2] in ('up', 'dn')]
+        if pts and v.get('lks'):
+            A.append(complex(np.mean([p_[0] for p_ in pts]), -np.mean([p_[1] for p_ in pts]))); B.append(complex(*v['lks']['foot']))
+    if len(A) < 3: return None, None
+    A, B = np.array(A), np.array(B); a, b = A - A.mean(), B - B.mean()
+    s_ = (np.conj(a) @ b) / (np.conj(a) @ a); t_ = B.mean() - s_ * A.mean()
+    res = np.abs(B - (s_ * A + t_))
+    def to_map(E, N_):
+        c = (complex(E, N_) - t_) / s_; return [round(c.real, 1), round(-c.imag, 1)]
+    return to_map, res
 
 _LSTAIRS = {}
 def _lidar_stairs(cfg):
