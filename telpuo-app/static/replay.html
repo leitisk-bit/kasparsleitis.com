@@ -1234,6 +1234,30 @@ async function start(){
     const tag = (t, x, y, z, st) => { const l = textSprite(t); l.scale.multiplyScalar(0.8); l.position.set(x, y, z); l.renderOrder = 6; l.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(l); };
     (D.stairs || []).forEach(st => {
       if (st.skip) return;
+      if (st.portal && LV){
+        // a tunnel mouth cut into the foot of the choir stand (Mezaparks E, the photo): a dark opening under a
+        // concrete lintel, its side walls running back into the stand, as wide as the drawn ramp
+        const gy = yAt(st.f2, st.portal.at[0], st.portal.at[1]);
+        // (its mouth at the foot of the stand, where the server found the front row; else at the drawn letter)
+        const [px, pz] = st.portal.face ? [st.portal.face[0] * M - cx, st.portal.face[1] * M - cz] : WX(st.f2, st.portal.at[0], st.portal.at[1]);
+        const ax = st.ax1 || [st.a[0] - 20, st.a[1], st.a[0] + 20, st.a[1]];
+        const [a1x, a1z] = WX(st.f2, ax[0], ax[1]), [a2x, a2z] = WX(st.f2, ax[2], ax[3]);
+        let vx = a2x - a1x, vz = a2z - a1z; const Wd = Math.max(6, Math.min(14, Math.hypot(vx, vz))); vx /= Math.hypot(vx, vz) || 1; vz /= Math.hypot(a2x - a1x, a2z - a1z) || 1;
+        // into the stand: towards the choir stand's middle
+        const t5 = D.tex.find(t => t.floor === st.portal.into);
+        let ux = -vz, uz = vx;
+        if (t5){ const [cx5, cz5] = WX(st.portal.into, t5.x0 + t5.w / 2, t5.y0 + t5.h / 2); if (ux * (cx5 - px) + uz * (cz5 - pz) < 0){ ux = -ux; uz = -uz; } }
+        const Hh = 3.0, Dp = 9, th = 0.5, ang = -Math.atan2(uz, ux);   // (its back part buried in the slope)
+        const box = (w, h, d, mat, ox, oy, oz) => { const b = new THREE.Mesh(new THREE.BoxGeometry(d, h, w), mat);
+          b.position.set(px + ux * ox + vx * oz, gy + oy, pz + uz * ox + vz * oz); b.rotation.y = ang; stairGrp.add(b); };
+        const dark = new THREE.MeshBasicMaterial({ color:0x1b1e22 });
+        box(Wd, Hh, Dp, dark, Dp / 2, Hh / 2, 0);                                   // the dark tunnel
+        box(Wd + 2 * th, th, Dp + 0.6, stairMat, Dp / 2 - 0.3, Hh + th / 2, 0);     // the flat concrete roof
+        box(th, Hh, Dp, stairMat, Dp / 2, Hh / 2, -(Wd / 2 + th / 2));               // side walls
+        box(th, Hh, Dp, stairMat, Dp / 2, Hh / 2, Wd / 2 + th / 2);
+        tag(st.letter, px, gy + Hh + 1.6, pz, st);
+        return;
+      }
       // Mezaparks (Kaspars): from the top edge down to a wide landing; the main flight goes on to the ground,
       // two side flights turn back from the landing on both sides of the upper flight, down to floor 2
       if (st.imperial && LV && st.imperial.u){

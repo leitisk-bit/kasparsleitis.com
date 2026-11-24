@@ -522,7 +522,7 @@ def api_three(mid):
                    tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
-                                       (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid)), texs))
+                                       (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid)), texs, place))
 
 _HGRID = {}
 def _heights3d(mid, m, t):
@@ -1080,9 +1080,9 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'keep_floors': (3,), 'lidar_stairs': 'sitedata/estrade_stairs.json',
                  'lidar_grid': 'sitedata/estrade_grid.npz', 'lidar_zero': 8.3,
                  # the a-h aisles: the field just slopes on down there, no stairs to draw (Kaspars, the LiDAR)
-                 'no_stairs': 'abcdefgh'})]
+                 'no_stairs': 'abcdefgh', 'portals': 'E', 'portal_into': 5})]
 
-def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
+def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None, place=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
     edge (floor 3) down to a landing among its side doors (floor 2), on down to its letter on the ground (floor
     1), with a side flight from the landing to each side door. Gives the letters as lined up on their floors."""
@@ -1100,6 +1100,20 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
         return r
     for x in out:
         if x['letter'] in cfg.get('no_stairs', ''): x['skip'] = True
+        # a tunnel mouth in the foot of the choir stand (E, Kaspars' photo): a concrete portal, not a stair
+        if x['letter'] in cfg.get('portals', '') and x['f2'] == f1:
+            x['portal'] = {'at': x['b'], 'into': cfg.get('portal_into')}
+            # its mouth at the foot of the stand: the front row line of the stand (SITE_SHAPES) nearest to it
+            try:
+                sh = site_shape_of(m) or []; f5 = cfg.get('portal_into')
+                sp = next((q for q in sh if q['floor'] == f5), None); pc5 = next((pc for pc in pieces if pc['floor'] == f5), None)
+                if sp and pc5 and place:
+                    line = sp['lines'][0][0]; P_ = []
+                    for (a0, b0), (a1, b1) in zip(line, line[1:]):
+                        for t_ in np.linspace(0, 1, 40): P_.append(place(f5, a0 + (a1 - a0) * t_ - pc5['off'][0], b0 + (b1 - b0) * t_ - pc5['off'][1]))
+                    P_ = np.array(P_); bw = place(f1, *x['b']); k_ = int(np.argmin(np.hypot(P_[:, 0] - bw[0], P_[:, 1] - bw[1])))
+                    x['portal']['face'] = [round(float(P_[k_, 0]), 1), round(float(P_[k_, 1]), 1)]
+            except Exception: traceback.print_exc()
     for main, branch in cfg['imperial'].items():
         st = next((x for x in out if x['letter'] == main and (x['f1'], x['f2']) == (f1, f3)), None)
         tops, bots, sides = at(main, f3), at(main, f1), (at(branch, f2) if branch else [])
