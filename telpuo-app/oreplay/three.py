@@ -291,4 +291,16 @@ def piece_warps(N, pieces, tex, cell=30, min_pairs=4, min_err=15.0, exclude=(), 
         if not best_ or best_[1] not in fields: return [x, y]
         d = clamp(best_[1], disp(best_[1], [[x, y]]))[0]
         return [round(x + float(d[0]), 1), round(y + float(d[1]), 1)]
+    def many(fl, X, Y):                             # (place() for many points of one floor at once)
+        X = np.asarray(X, float); Y = np.asarray(Y, float); P = np.c_[X, Y]; out = P.copy()
+        cands = [(i, texOf.get(i)) for i, pc in enumerate(pieces) if pc['floor'] == fl and texOf.get(i)]
+        if not cands: return out.tolist()
+        D_ = np.stack([np.hypot(np.maximum.reduce([t['x0'] - X, np.zeros_like(X), X - t['x0'] - t['w']]),
+                                np.maximum.reduce([t['y0'] - Y, np.zeros_like(Y), Y - t['y0'] - t['h']])) for _, t in cands])
+        near = np.array([cands[k][0] for k in D_.argmin(0)])
+        for i in set(near.tolist()):
+            if i not in fields: continue
+            sel = near == i; out[sel] += clamp(i, disp(i, P[sel]))
+        return np.round(out, 1).tolist()
+    place.many = many
     return warps, place

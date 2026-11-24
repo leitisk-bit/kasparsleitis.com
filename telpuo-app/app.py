@@ -1056,8 +1056,11 @@ SITE_SHAPES = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I), [
         [[[2240, 1640], [2410, 1770], [2600, 1810], [2790, 1810], [2980, 1770], [3150, 1620]], 10.0]]},
     # floor 5: the choir stand, steep, from its front edge by the stage to the top under the roof
     {'floor': 5, 'within': [1250, 780, 1950, 1200], 'lines': [
-        [[[1260, 1190], [1400, 1150], [1560, 1120], [1720, 1150], [1940, 1180]], 0.0],
-        [[[1300, 1050], [1350, 960], [1450, 900], [1560, 860], [1680, 870], [1800, 930], [1900, 1060]], 17.8]]},
+        # (front row at the stage floor, 3.7 m under the ground outside in the LiDAR; top row about 22 m over
+        # the stage by the runners' watches at 2-51 - about 33 m deep at 1:1920, so some 33 degrees. The
+        # survey can't give it: the lattice roof is over it)
+        [[[1260, 1190], [1400, 1150], [1560, 1120], [1720, 1150], [1940, 1180]], -3.9],
+        [[[1300, 1050], [1350, 960], [1450, 900], [1560, 860], [1680, 870], [1800, 930], [1900, 1060]], 18.0]]},
 ])]
 
 # How the stairs of certain outdoor sites are built, for the 3D view. Mezaparks (the photos; Kaspars):
@@ -1184,34 +1187,52 @@ def _lidar_heights(mid, m, grids, texs, pieces, place):
         texOf = {x.get('piece', x.get('wp')): x for x in texs}
         f1_, _f2, f3_ = cfg['floors']
         # where the grandstand lies (floor 1 under it is the building, not the field)
-        stand = []
+        stand = []; choir = []
         for i, pc in enumerate(pieces):
             tt = texOf.get(i)
             if pc['floor'] not in (f3_, 5) or not tt: continue          # (the grandstand, the choir stand)
             from PIL import Image
             A = np.asarray(Image.open(os.path.join(store.map_dir(mid), f"tex{tt['floor']}_{i}.webp")).convert('RGBA'))[..., 3] > 100
             ys, xs = np.nonzero(A[::4, ::4]); sx, sy = tt['w'] / A.shape[1] * 4, tt['h'] / A.shape[0] * 4
-            stand += [place(pc['floor'], tt['x0'] + x * sx, tt['y0'] + y * sy) for x, y in zip(xs, ys)]
+            (stand if pc['floor'] == f3_ else choir).extend(place(pc['floor'], tt['x0'] + x * sx, tt['y0'] + y * sy) for x, y in zip(xs, ys))
         # (as a raster in the lined-up frame, 4 px cells; floor 1 keeps the survey's ground up to 8 m in under
         # the grandstand's edge, so the field runs on under its front without a step)
-        inside = None
-        if stand:
-            S_ = np.array(stand); o_ = S_.min(0) - 40; R_ = np.zeros(tuple((np.ceil((S_.max(0) - o_ + 40) / 4)).astype(int))[::-1], bool)
+        def footprint(P, grow_m):
+            """In the lined-up frame (4 px cells): is a point inside the piece, grown (+) or shrunk (-) by metres."""
+            if not P: return None
+            S_ = np.array(P); o_ = S_.min(0) - 80; R_ = np.zeros(tuple((np.ceil((S_.max(0) - o_ + 80) / 4)).astype(int))[::-1], bool)
             R_[((S_[:, 1] - o_[1]) / 4).astype(int), ((S_[:, 0] - o_[0]) / 4).astype(int)] = True
             R_ = ndi.binary_fill_holes(ndi.binary_closing(R_, iterations=3))
-            R_ = ndi.binary_erosion(R_, iterations=max(1, int(8.0 / (4 * mpp_of(m)))))
-            def inside(W):
+            k_ = max(1, int(abs(grow_m) / (4 * mpp_of(m))))
+            R_ = ndi.binary_dilation(R_, iterations=k_) if grow_m > 0 else ndi.binary_erosion(R_, iterations=k_)
+            def f(W):
                 r = ((W[:, 1] - o_[1]) / 4).astype(int); c = ((W[:, 0] - o_[0]) / 4).astype(int)
                 ok = (r >= 0) & (r < R_.shape[0]) & (c >= 0) & (c < R_.shape[1]); out_ = np.zeros(len(W), bool)
                 out_[ok] = R_[r[ok], c[ok]]; return out_
+            return f
+        # floor 1 keeps the survey's ground up to 8 m in under the grandstand's edge (the field runs on under its
+        # front without a step), but none of it under or just round the choir stand (the building below it)
+        in_stand, in_choir = footprint(stand, -8.0), footprint(choir, 4.0)
+        on_stand, by_choir = footprint(stand, 1.0), footprint(choir, 14.0)
+        def inside(W):
+            r_ = np.zeros(len(W), bool)
+            for f in (in_stand, in_choir):
+                if f: r_ |= f(W)
+            return r_
         out = []
         for g in grids:
             g = dict(g); pc = pieces[g['piece']]; tt = texOf.get(g['piece'])
-            if tt and pc['floor'] in (f1_, f3_, 5):
-                nx, ny = g['nx'], g['ny']
+            if tt and pc['floor'] in (f1_, f3_):
+                # (a finer grid than the guess had - about 2 m: the stage's edge and the field's corners are sharp,
+                # and a 5 m grid makes saw teeth of them)
+                cn, rn = g['nx'], g['ny']; Hc = np.array(g['h'], np.float32).reshape(rn, cn)
+                nx = max(2, int(tt['w'] * mpp_of(m) / 2.0) + 1); ny = max(2, int(tt['h'] * mpp_of(m) / 2.0) + 1)
+                yy_, xx_ = np.mgrid[0:ny, 0:nx]
+                H = ndi.map_coordinates(Hc, [yy_ * (rn - 1) / (ny - 1), xx_ * (cn - 1) / (nx - 1)], order=1).ravel().astype(np.float32)
+                g['nx'], g['ny'] = nx, ny
                 GX, GY = np.meshgrid(tt['x0'] + np.arange(nx) * tt['w'] / (nx - 1), tt['y0'] + np.arange(ny) * tt['h'] / (ny - 1))
-                W = np.array([place(pc['floor'], x, y) for x, y in zip(GX.ravel(), GY.ravel())])
-                H = np.array(g['h'], np.float32)
+                W = np.array(place.many(pc['floor'], GX.ravel(), GY.ravel())) if hasattr(place, 'many') else \
+                    np.array([place(pc['floor'], x, y) for x, y in zip(GX.ravel(), GY.ravel())])
                 if pc['floor'] == 5:
                     # the choir stand under the stage's lattice roof: the lowest return in each cell is the stand
                     # itself (the roof above lets the laser through); from the stage up to its top row
@@ -1220,18 +1241,40 @@ def _lidar_heights(mid, m, grids, texs, pieces, place):
                 elif pc['floor'] == f3_:
                     Z = sample('top', W[:, 0], W[:, 1]); Z[(Z > 13.8) | (Z < 0.5)] = np.nan
                 else:
-                    Z = sample('ground', W[:, 0], W[:, 1]); Z[(Z > 13.8) | (Z < -4)] = np.nan
-                    if inside is not None: Z[inside(W)] = np.nan
+                    Z = sample('ground', W[:, 0], W[:, 1])
+                    if 'low' in G:                         # (the paved stage plaza has few ground-class returns: the
+                        Zl = sample('low', W[:, 0], W[:, 1])   # lowest return there, where it lies below the ground round)
+                        Z = np.where(np.isnan(Z) & (Zl < 0.5), Zl, Z)
+                    Z[(Z > 13.8) | (Z < -4.5)] = np.nan
+                    Z[inside(W)] = np.nan
+                    # under the grandstand's edge only the low front (the field running on under it), not its
+                    # high back; by the choir stand only the stage and the field's foot, not its lowest rows
+                    if on_stand: Z[on_stand(W) & (Z > 4.0)] = np.nan
+                    if by_choir: Z[by_choir(W) & (Z > 1.5)] = np.nan
                 ok = np.isfinite(Z)
                 if ok.any():
                     Zg = Z.reshape(ny, nx); okg = ok.reshape(ny, nx)
                     dd, (iy, ix) = ndi.distance_transform_edt(~okg, return_indices=True)
                     if pc['floor'] in (f3_, 5):            # (a gap - a path, an edge - from its neighbours)
                         Zg = Zg[iy, ix]; okg[:] = True
+                    if pc['floor'] == 5:                   # (one even bowl of rows: no single return - a riser,
+                        Zg = ndi.gaussian_filter(ndi.median_filter(Zg, 5), 0.8)   # stage gear - puts a wave in it)
                     else:                                  # (paths have no ground returns: from the lawn beside)
-                        fill = (~okg) & (dd <= 2)
-                        if inside is not None: fill &= ~inside(W).reshape(ny, nx)
+                        # (and under the choir stand: the stage floor in front of it, carried in - not a step
+                        # back to the old guess cell by cell)
+                        fill = ((~okg) & (dd <= 2) & ~inside(W).reshape(ny, nx)) | ((~okg) & in_choir(W).reshape(ny, nx) if in_choir else False)
                         Zg = np.where(fill, Zg[iy, ix], Zg); okg = okg | fill
+                        Zm = ndi.median_filter(np.where(okg, Zg, np.nan), 5, mode='nearest')   # (one stray return)
+                        Zg = np.where(okg & np.isfinite(Zm), Zm, Zg)
+                        if in_choir and by_choir:
+                            # under the choir stand floor 1 stays at the stage floor: anything higher pokes up
+                            # through the stand's lowest rows
+                            ic = in_choir(W).reshape(ny, nx); bc = by_choir(W).reshape(ny, nx) & okg & ~ic
+                            if bc.any():
+                                stage = float(np.percentile(Zg[bc], 20)); Zg = np.where(ic, np.minimum(Zg, stage), Zg); okg = okg | ic
+                                # and the paved plaza in front of it is flat (Kaspars' photo): the stage's tent and
+                                # gear the survey saw there are not the ground
+                                Zg = np.where(bc, np.minimum(Zg, stage + 0.3), Zg)
                     Hg = H.reshape(ny, nx); Hg[okg] = Zg[okg]
                     g['h'] = [round(float(v), 2) for v in Hg.ravel()]
             out.append(g)
