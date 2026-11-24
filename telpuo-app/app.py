@@ -1209,18 +1209,20 @@ def _strava_pick(mid, a, xs):
     mine = {_name_key(a.get('name'))} | {_name_key(r['name']) for r in a.get('runners', []) if r.get('site') == site_of(store.get_meta(mid))}
     mine.discard('')
     entries = [x for g in res.get('groups', []) for x in g.get('runners', []) if x.get('legs')]
+    mine_e = [x for x in entries if _name_key(x['name']) in mine]          # my own line(s) in the results
     for act in xs:
-        d = act.get('elapsed') or 0
-        fits = [x for x in entries if not act['trainer'] and not act['manual'] and sum(x['legs']) - MATCH_EARLY <= d <= sum(x['legs']) + MATCH_LATE]
-        me = [x for x in fits if _name_key(x['name']) in mine]
+        d = act.get('elapsed') or 0; ok = not act['trainer'] and not act['manual']
+        fits = [x for x in entries if ok and sum(x['legs']) - MATCH_EARLY <= d <= sum(x['legs']) + MATCH_LATE]
         act['fits'] = len(fits)
-        act['who'] = (me[0]['name'] if me else None)
+        me = sorted(mine_e, key=lambda x: abs(d - sum(x['legs']))) if ok else []
+        act['who'] = me[0]['name'] if me else None
         act['diff'] = (d - sum(me[0]['legs'])) if me else None
+        act['who_fits'] = bool(me) and me[0] in fits
     named = [x for x in xs if x['who']]
     if named:
-        named.sort(key=lambda x: abs(x['diff']))
-        if len(named) == 1 or abs(named[0]['diff']) + 60 < abs(named[1]['diff']): return named[0]['id'], named[0]['who']
-        return None, None
+        # my name is in the results: the run nearest my result time is the race, even if the times differ
+        named.sort(key=lambda x: (not x['who_fits'], abs(x['diff'])))
+        return named[0]['id'], named[0]['who']
     fit = [x for x in xs if x['fits']]
     return (fit[0]['id'], None) if len(fit) == 1 else (None, None)
 

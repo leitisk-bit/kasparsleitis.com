@@ -322,6 +322,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^([+−][\d:]+) from (.*)'s result$/, '$1 no $2 rezultāta'],
     [/^fits (.*)'s result$/, 'atbilst $1 rezultātam'],
     [/^No Strava activities on (.*)\.$/, 'Strava aktivitāšu $1 nav.'],
     [/^© (\d{4}) TELPO\. All rights reserved\.$/, '© $1 TELPO. Visas tiesības aizsargātas.'],
