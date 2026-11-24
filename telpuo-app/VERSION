@@ -1,1 +1,1 @@
-{"n": 154, "commit": "99bc1cf", "date": "2026-11-24T08:04:46+02:00", "change": "Replay 3D: runners climb every staircase the route takes, and only that one"}
+{"n": 155, "commit": "9a55c0e", "date": "2026-11-24T09:43:24+02:00", "change": "Routes never through black lines: drawn walls burned in, dashed lines closed, no straight joins through walls"}
