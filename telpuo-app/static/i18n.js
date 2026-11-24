@@ -15,7 +15,7 @@
     'Or take your run straight from Strava, no file needed.': 'Vai paņem savu skrējienu tieši no Strava, fails nav vajadzīgs.',
     'Get my run from Strava': 'Paņemt manu skrējienu no Strava', 'Disconnect Strava': 'Atvienot Strava',
     'Add my runs from Strava automatically (saved runs are public on this site)': 'Pievienot manus skrējienus no Strava automātiski (saglabātie skrējieni šajā vietnē ir publiski)',
-    'Use this': 'Izmantot', 'via Strava': 'no Strava', 'Strava connected.': 'Strava pievienota.', 'Strava disconnected.': 'Strava atvienota.',
+    'Found the race in Strava:': 'Sacensības atrastas Strava:', 'Use this': 'Izmantot', 'fits a result': 'atbilst rezultātam', 'no result fits this time': 'neviens rezultāts neatbilst šim laikam', 'via Strava': 'no Strava', 'Strava connected.': 'Strava pievienota.', 'Strava disconnected.': 'Strava atvienota.',
     'Strava was not connected.': 'Strava netika pievienota.', 'Reading activities from Strava…': 'Nolasa aktivitātes no Strava…',
     'Getting the run from Strava…': 'Ņem skrējienu no Strava…', 'No Strava activities found.': 'Strava aktivitātes nav atrastas.',
     'Connect Strava first.': 'Vispirms pievieno Strava.', 'Automatic adding is off.': 'Automātiskā pievienošana izslēgta.',
@@ -322,6 +322,7 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^fits (.*)'s result$/, 'atbilst $1 rezultātam'],
     [/^No Strava activities on (.*)\.$/, 'Strava aktivitāšu $1 nav.'],
     [/^© (\d{4}) TELPO\. All rights reserved\.$/, '© $1 TELPO. Visas tiesības aizsargātas.'],
     [/^(.*) has no altitude readings\. The activity must be an outdoor Run \(not an indoor or treadmill run\): see How to get your watch file under the map\.$/, '$1 nav augstuma mērījumu. Aktivitātei jābūt āra skrējienam (Run), nevis telpu vai skrejceliņa skrējienam: skat. “Kā iegūt pulksteņa failu” zem kartes.'],

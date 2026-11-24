@@ -1192,7 +1192,37 @@ def api_strava_activities(mid):
     ev = _event_date(store.get_results(mid))
     try: xs = strava.activities(a['id'], ev)
     except strava.StravaError as e: return jsonify(error=str(e)), 502 if e.status != 401 else 401
-    return jsonify(date=ev, activities=xs)
+    best, who = _strava_pick(mid, a, xs)
+    return jsonify(date=ev, activities=xs, best=best, who=who)
+
+def _name_key(n):
+    """'Vītols Kaspars' and 'kaspars vitols' -> the same key (word order, case and Latvian letters ignored)."""
+    import unicodedata
+    n = unicodedata.normalize('NFKD', n or '').encode('ascii', 'ignore').decode().lower()
+    return ' '.join(sorted(re.findall(r'[a-z]+', n)))
+
+def _strava_pick(mid, a, xs):
+    """Mark each Strava activity with the results it fits (watch time vs result time, as for a watch file)
+    and the runner it most likely is: the Strava name or a name saved before. Returns (activity id, name)
+    when exactly one race-day activity is clearly the race, else (None, None)."""
+    res = store.get_results(mid) or {}
+    mine = {_name_key(a.get('name'))} | {_name_key(r['name']) for r in a.get('runners', []) if r.get('site') == site_of(store.get_meta(mid))}
+    mine.discard('')
+    entries = [x for g in res.get('groups', []) for x in g.get('runners', []) if x.get('legs')]
+    for act in xs:
+        d = act.get('elapsed') or 0
+        fits = [x for x in entries if not act['trainer'] and not act['manual'] and sum(x['legs']) - MATCH_EARLY <= d <= sum(x['legs']) + MATCH_LATE]
+        me = [x for x in fits if _name_key(x['name']) in mine]
+        act['fits'] = len(fits)
+        act['who'] = (me[0]['name'] if me else None)
+        act['diff'] = (d - sum(me[0]['legs'])) if me else None
+    named = [x for x in xs if x['who']]
+    if named:
+        named.sort(key=lambda x: abs(x['diff']))
+        if len(named) == 1 or abs(named[0]['diff']) + 60 < abs(named[1]['diff']): return named[0]['id'], named[0]['who']
+        return None, None
+    fit = [x for x in xs if x['fits']]
+    return (fit[0]['id'], None) if len(fit) == 1 else (None, None)
 
 @app.get('/api/maps/<mid>/strava/<act>.tcx')
 def api_strava_tcx(mid, act):

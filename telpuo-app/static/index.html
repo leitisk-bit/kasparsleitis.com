@@ -543,15 +543,21 @@ $('#stravaGet').onclick=async()=>{ if (!M) return; const L=$('#stravaList'); L.i
   let r; try{ r=await api('maps/'+M.id+'/strava/activities?'+Date.now()); }
   catch(e){ L.innerHTML=`<div class="bad">${esc(e.message)}</div>`; if (/Connect Strava/.test(e.message)) loadStrava(); return; }
   if (!r.activities.length){ L.innerHTML=`<div class="muted">${r.date ? 'No Strava activities on '+esc(r.date)+'.' : 'No Strava activities found.'}</div>`; return; }
-  L.innerHTML=r.activities.map(a=>`<div class="row" style="grid-template-columns:1fr auto auto"><div style="min-width:0"><b>${esc(a.name)}</b><div class="muted">${esc(a.type)} · ${esc((a.start_local||'').slice(8,10)+'.'+(a.start_local||'').slice(5,7)+'.')} ${hhmm(a.start_local)}${a.trainer?' · <span class="warn">indoor/treadmill: no altitude</span>':''}</div></div><span class="mono">${fmt(a.elapsed)}</span><button class="btn small" type="button" data-act="${esc(a.id)}">Use this</button></div>`).join('');
+  if (r.best){ const a=r.activities.find(x=>x.id===r.best); L.innerHTML=`<div class="muted">Found the race in Strava: <b>${esc(a.name)}</b> (${fmt(a.elapsed)}).</div>`;
+    return useStrava(r.best, null, r.who); }
+  r.activities.sort((x,y)=>(!!y.who-!!x.who)||(!!y.fits-!!x.fits));
+  L.innerHTML=r.activities.map(a=>`<div class="row" style="grid-template-columns:1fr auto auto"><div style="min-width:0"><b>${esc(a.name)}</b><div class="muted">${esc(a.type)} · ${esc((a.start_local||'').slice(8,10)+'.'+(a.start_local||'').slice(5,7)+'.')} ${hhmm(a.start_local)}${a.trainer?' · <span class="warn">indoor/treadmill: no altitude</span>':''}${a.who?' · <span class="ok">fits '+esc(a.who)+'\'s result</span>':a.fits?' · fits a result':(a.trainer||a.manual?'':' · <span class="muted">no result fits this time</span>')}</div></div><span class="mono">${fmt(a.elapsed)}</span><button class="btn small" type="button" data-act="${esc(a.id)}">Use this</button></div>`).join('');
   L.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>useStrava(b.dataset.act, b)); };
-async function useStrava(id, b){ b.disabled=true; b.textContent='Getting the run from Strava…';
+async function useStrava(id, b, who){ if (b){ b.disabled=true; b.textContent='Getting the run from Strava…'; }
   try{ const r=await fetch('api/maps/'+M.id+'/strava/'+id+'.tcx',{headers:H()});
     if (!r.ok){ const j=await r.json().catch(()=>({})); throw new Error(j.error||r.statusText); }
     const file=new File([await r.blob()], 'strava-'+id+'.tcx', {type:'application/xml'});
     const dt=new DataTransfer(); dt.items.add(file); $('#rTrack').files=dt.files;
-    $('#stravaList').innerHTML=''; await $('#rTrack').onchange(); STRAVA_PICK=id; }
-  catch(e){ toast(e.message); b.disabled=false; b.textContent='Use this'; } }
+    if (b) $('#stravaList').innerHTML=''; await $('#rTrack').onchange(); STRAVA_PICK=id;
+    if (who){ const k=x=>JSON.parse(x.value).name===who; const r=$$('#whoList input').find(k);
+      if (r){ r.checked=true; $('#whoAll').value=''; } else { const o=[...$('#whoAll').options].find(o=>o.value&&k(o)); if (o){ $('#whoAll').value=o.value; $$('#whoList input').forEach(x=>x.checked=false); $('#whoMore').open=true; } }
+      updateWho(); } }
+  catch(e){ toast(e.message); if (b){ b.disabled=false; b.textContent='Use this'; } } }
 // back from Strava's page: swap the one-time ticket for this site's own cookie, then tidy the address
 (async()=>{ const q=new URLSearchParams(location.search);
   if (q.get('strava_claim')){ try{ await api('strava/claim',{method:'POST',headers:JSONH,body:JSON.stringify({ticket:q.get('strava_claim')})}); toast('Strava connected.'); }catch(e){ toast(e.message); } }
