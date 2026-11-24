@@ -1,1 +1,1 @@
-{"n": 160, "commit": "ee06d4d", "date": "2026-11-24T12:16:16+02:00", "change": "No map is rebuilt by itself; the new wall rules only on the trial map"}
+{"n": 161, "commit": "a4ad9a9", "date": "2026-11-24T15:15:04+02:00", "change": "Map reading: control circles cut into short pieces close together are found (Garā B 4-50, 5-39, 17-38)"}
