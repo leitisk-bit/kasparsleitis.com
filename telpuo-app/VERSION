@@ -1,1 +1,1 @@
-{"n": 142, "commit": "dcedef8", "date": "2026-11-24T01:57:23+02:00", "change": "Estrade grid: keep LiDAR class 18 - it holds the stands and stairs behind the field"}
+{"n": 144, "commit": "0959289", "date": "2026-11-24T02:08:29+02:00", "change": "Mezaparks: back staircases as measured in the 2022 LiDAR"}
