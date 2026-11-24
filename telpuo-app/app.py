@@ -369,12 +369,25 @@ def rules_key(m):
 
 # pink patches runners run along, per map (Kaspars, 2. posms Garā B: along the strip from 9-64 to 10-53, and
 # under the stand on floor 2 up the small Č flights to 12-45)
+# walls added per map where the reading leaves a gap in a drawn line (Kaspars, 2. posms Garā B: 3-59 is inside
+# the wall by B; the wall runs on to the end of the stand's red band - no way in from the orange area there)
+EXTRA_WALLS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2896.4, 2454.7, 2914.0, 2502.0, 3.0]])]
+def extra_walls_of(m):
+    nm = (m or {}).get('name') or ''
+    return next((v for rx, v in EXTRA_WALLS if rx.search(nm)), None)
+
 PINK_WALK = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), {'floors': [1, 2], 'max_px': 2500})]
 def pink_walk_of(m):
     nm = (m or {}).get('name') or ''
     return next((v for rx, v in PINK_WALK if rx.search(nm)), None)
 
-TRIAL_RULES = re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*A\b', re.I)
+TRIAL_RULES = re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*[AB]\b', re.I)
+def _walls3_of(m):
+    """The wall rules for the maps they are tried on: Garā A all of them; Garā B without closing dashed lines
+    on floor -1 (they shut its maze: legs to 17-38 and 18-55 got no route)."""
+    if not _trial_map(m): return False
+    return {'nodash_floors': [-1]} if re.search(r'Gar.\s*B\b', (m or {}).get('name') or '') else True
+
 def _trial_map(m): return bool(TRIAL_RULES.search((m or {}).get('name') or ''))
 
 def _rules_changed(m):
@@ -395,7 +408,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, walls3=_trial_map(store.get_meta(mid)), pink_walk=pink_walk_of(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
+    feat = dict(feat, walls3=_walls3_of(store.get_meta(mid)), pink_walk=pink_walk_of(store.get_meta(mid)), extra_walls=extra_walls_of(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg

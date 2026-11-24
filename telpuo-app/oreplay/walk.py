@@ -161,6 +161,11 @@ def walk_mask(img, features, cls=None, k=None):
     # was built with: Kaspars)
     W3 = bool(features.get('walls3'))
     br = dash_bridges(features.get('wall_lines') or []) if W3 else []
+    # (not on the floors the map says: in 2. posms Garā B's floor -1 maze closing the dashes shut 17-38 in)
+    nd_ = features.get('walls3').get('nodash_floors', []) if isinstance(features.get('walls3'), dict) else []
+    if br and nd_:
+        fb_ = [b_ for f_ in features.get('floors', []) if f_['floor'] in nd_ for b_ in f_['boxes']]
+        br = [b_ for b_ in br if not any(q[0] <= (b_[0] + b_[2]) / 2 <= q[2] and q[1] <= (b_[1] + b_[3]) / 2 <= q[3] for q in fb_)]
     if br: walk &= ~vector_mask(img.shape, br, extra=1)
     # and every black line as drawn closes the floor, also where the picture leaves a pixel's gap at a
     # corner (Kaspars: a route by B squeezed between a wall's end and the stage band) - not over a stair
@@ -215,6 +220,9 @@ def walk_mask(img, features, cls=None, k=None):
     # wall's end through the line beside the steps - Kaspars)
     if W3 and features.get('wall_lines'):
         walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
+    # walls the map's own settings add (where the drawing's lines leave a gap the reading can't close by
+    # itself: 2. posms Garā B, the building's wall by 3-59 running on to the end of the stand's red band)
+    if features.get('extra_walls'): walk &= ~vector_mask(img.shape, features['extra_walls'], extra=1)
     R_, B_ = cls == k['red'], cls == k['blue']
     rb = ndi.binary_dilation(R_, iterations=6) & ndi.binary_dilation(B_, iterations=6)
     seam = (rb & ~R_ & ~B_ & ~base) | (R_ & ndi.binary_dilation(B_, iterations=2)) | (B_ & ndi.binary_dilation(R_, iterations=2))
