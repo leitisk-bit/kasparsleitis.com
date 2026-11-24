@@ -1133,7 +1133,7 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'lidar_grid': 'sitedata/estrade_grid.npz', 'lidar_zero': 8.3,
                  # the a-h aisles: the field just slopes on down there, no stairs to draw (Kaspars, the LiDAR)
                  'no_stairs': 'abcdefgh', 'portals': 'E', 'portal_into': 5,
-                 'band_join': {'floor': 5, 'color': 'blue', 'onto': 1, 'onto_color': 'red'}})]
+                 'band_join': {'floor': 5, 'color': 'blue', 'onto': 1, 'onto_color': 'red'}, 'towers': 'FGHIJKLM'})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None, place=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
@@ -1151,6 +1151,22 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None, place=N
                 o = pc['off'] if pc else [0, 0]
                 r.append([round(x - o[0], 1), round(y - o[1], 1)])
         return r
+    # the stair towers behind the choir stand (F-M, Kaspars' photo): each letter one switchback tower from
+    # floor 1 to the top it reaches, flights to and fro along the building's back wall, landings at both ends
+    tw = cfg.get('towers', '')
+    if tw:
+        segs = {L: [x for x in out if x['letter'] == L] for L in tw}
+        base = {L: min(v, key=lambda x: x['f1']) for L, v in segs.items() if v}
+        if len(base) >= 3:
+            P_ = np.array([b['a'] for b in base.values()], float)
+            A_ = np.c_[2 * P_, np.ones(len(P_))]; sol = np.linalg.lstsq(A_, (P_ ** 2).sum(1), rcond=None)[0]
+            cen = sol[:2]                                   # (the circle through the doors: the building's back)
+            for L, b in base.items():
+                top = max(segs[L], key=lambda x: x['f2'])
+                o = np.array(b['a'], float) - cen; o /= (np.linalg.norm(o) or 1.0)
+                b['tower'] = {'top_f': top['f2'], 'top': top['b'], 'out': [round(float(o[0]), 4), round(float(o[1]), 4)]}
+                for x in segs[L]:
+                    if x is not b: x['skip'] = True
     for x in out:
         if x['letter'] in cfg.get('no_stairs', ''): x['skip'] = True
         # a tunnel mouth in the foot of the choir stand (E, Kaspars' photo): a concrete portal, not a stair
@@ -1307,6 +1323,24 @@ def _lidar_heights(mid, m, grids, texs, pieces, place):
                     Z[(Z > 16.5) | (Z < -5)] = np.nan
                 elif pc['floor'] == f3_:
                     Z = sample('top', W[:, 0], W[:, 1]); Z[(Z > 13.8) | (Z < 0.5)] = np.nan
+                    # only where the map draws the field: behind its edge the survey has the stand's back and the
+                    # staircases, lower than the edge - they must not pull the edge down
+                    try:
+                        from PIL import Image
+                        Al = np.asarray(Image.open(os.path.join(store.map_dir(mid), f"tex{tt['floor']}_{g['piece']}.webp")).convert('RGBA'))[..., 3] > 100
+                        Al = ndi.binary_erosion(ndi.binary_closing(Al, iterations=2), iterations=2)
+                        ai = np.clip(((GY.ravel() - tt['y0']) / tt['h'] * Al.shape[0]).astype(int), 0, Al.shape[0] - 1)
+                        aj = np.clip(((GX.ravel() - tt['x0']) / tt['w'] * Al.shape[1]).astype(int), 0, Al.shape[1] - 1)
+                        Z[~Al[ai, aj]] = np.nan
+                    except Exception: traceback.print_exc()
+                    # the audience field is one smooth bowl (the survey, Kaspars): the staircases, railings and
+                    # people the laser also hit on it are taken off (a median over ~6 m) and what is left smoothed
+                    ok_ = np.isfinite(Z)
+                    if ok_.sum() > 50:
+                        Zg_ = Z.reshape(g['ny'] if False else ny, nx).copy(); okg_ = np.isfinite(Zg_)
+                        _, (iy_, ix_) = ndi.distance_transform_edt(~okg_, return_indices=True); Zg_ = Zg_[iy_, ix_]
+                        Zg_ = ndi.gaussian_filter(ndi.median_filter(Zg_, size=3), 0.7)
+                        Z = np.where(ok_, Zg_.ravel(), np.nan).astype(np.float32)
                 else:
                     Z = sample('ground', W[:, 0], W[:, 1])
                     if 'low' in G:                         # (the paved stage plaza has few ground-class returns: the
@@ -1344,6 +1378,7 @@ def _lidar_heights(mid, m, grids, texs, pieces, place):
                                 Zg = np.where(bc, np.minimum(Zg, stage + 0.3), Zg)
                     Hg = H.reshape(ny, nx); Hg[okg] = Zg[okg]
                     g['h'] = [round(float(v), 2) for v in Hg.ravel()]
+                    if pc['floor'] == f3_: g['measured'] = True
             out.append(g)
         _LHEIGHTS.clear(); _LHEIGHTS[key] = out
         return out

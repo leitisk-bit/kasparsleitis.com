@@ -1033,7 +1033,7 @@ async function start(){
   renderer.setPixelRatio(Math.min(2, devicePixelRatio)); box.prepend(renderer.domElement);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, 1, 0.5, 3000);
   const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.495;
-  window.IOR3D = { camera, controls, scene, WX: (...a) => WX(...a) };   // (for looking at a spot when checking the view)
+  window.IOR3D = { camera, controls, scene, WX: (...a) => WX(...a), runners: () => R, posAt: (r, t) => posAt(r, t), paths: () => stairPaths };   // (for looking at a spot when checking the view)
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 2.2));
   const M = D.mpp, H0 = D.floorH; let gapK = 3;
   // floors at their real heights when the watches measured them (a site like Mežaparks, not a stack of
@@ -1079,7 +1079,7 @@ async function start(){
   const loader = new THREE.TextureLoader(), plates = [];
   D.tex.forEach(t => {
     const g = t.piece !== undefined ? HG[t.piece] : null;
-    const wg = WG[pidOf(t)] && (!g || (WG[pidOf(t)].nx === g.nx && WG[pidOf(t)].ny === g.ny)) ? WG[pidOf(t)] : null;
+    const wg = WG[pidOf(t)] || null;            // (bent: a warp grid of its own size, read at each vertex)
     const tex = loader.load(t.img, tx => { if (g && LV){ t.cells = cellMask(tx.image, g); buildSkirts(); } });
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
     const gg = g || wg;
@@ -1121,6 +1121,7 @@ async function start(){
   // (see-through: the floors and the route inside the building under the stands stay visible)
   const skirtMat = new THREE.MeshLambertMaterial({ color:0xd6d0c4, side:THREE.DoubleSide, transparent:true, opacity:0.55, depthWrite:false });
   const skirtGrp = new THREE.Group(); scene.add(skirtGrp);
+  const stairPaths = [];                 // [{lo, hi, P:[[x,y,z] from the lower floor up]}]: where runners walk on them
   const stairSegs = [];                  // (outside staircases, so no column of the stand stands in one)
   function buildSkirts(){
     skirtGrp.children.forEach(o => o.geometry.dispose()); skirtGrp.clear();
@@ -1130,6 +1131,7 @@ async function start(){
       // (stands rise above the ground; nothing under floor 1) - only a stand whose shape is known: the
       // watches' heights under a floor inside a building are not a stand (walls through floor 2's corridors)
       if (!g || !m || t.floor <= 1 || !g.shape) return;
+      if (g.measured) return;                      // (a surveyed field: what stands under its edge is drawn as measured)
       const hmin = Math.min(...g.h), hmax = Math.max(...g.h);
       if (hmax - hmin < 3) return;               // only the sloped stands (a flat floor inside a building has rooms under it)
       const nx = g.nx, ny = g.ny, cw = (nx - 1) * SUB, ch = (ny - 1) * SUB, P = [];
@@ -1211,7 +1213,7 @@ async function start(){
   const railMat = new THREE.LineBasicMaterial({ color:0x4a4a4a });
   const stairLabels = {};
   function buildStairs(){
-    stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); }); stairSegs.length = 0;
+    stairGrp.children.slice().forEach(o => { stairGrp.remove(o); if (o.geometry) o.geometry.dispose(); }); stairSegs.length = 0; stairPaths.length = 0;
     // a flight of steps going down from (x, y, z) a horizontal run along (ux, uz)
     const downFlight = (x, y, z, ux, uz, run, rise, w, mat) => {
       if (rise <= 0.2 || run <= 0.2) return;
@@ -1234,6 +1236,30 @@ async function start(){
     const tag = (t, x, y, z, st) => { const l = textSprite(t); l.scale.multiplyScalar(0.8); l.position.set(x, y, z); l.renderOrder = 6; l.userData = { f1:st.f1, f2:st.f2 }; stairGrp.add(l); };
     (D.stairs || []).forEach(st => {
       if (st.skip) return;
+      if (st.tower && LV){
+        // a stair tower at the back of the choir stand (the photo): switchback flights to and fro along the wall,
+        // a landing at each end, from floor 1 up to the top it reaches
+        const tw = st.tower, [bx, bz] = WX(st.f1, st.a[0], st.a[1]), y0 = yAt(st.f1, st.a[0], st.a[1]);
+        const y1 = Math.max(y0 + 2, yAt(tw.top_f, tw.top[0], tw.top[1]));
+        // the wall's direction from the outward normal (sheet y and world z both point the same way)
+        const ox = tw.out[0], oz = tw.out[1], tx = -oz, tz = ox;
+        const w = 1.4, gap = 0.2, LDd = 1.5, H = y1 - y0, n = Math.max(2, Math.ceil(H / 1.75)), r = H / n, run = Math.min(5.5, Math.max(2.6, r / 0.62));
+        const Ox = bx + ox * 1.0, Oz = bz + oz * 1.0;                    // (just outside the wall)
+        const lane = k => [Ox + ox * (k ? 1.5 * w + gap : w / 2), Oz + oz * (k ? 1.5 * w + gap : w / 2)];
+        const P = [[bx, y0, bz]];
+        for (let i = 0; i < n; i++){
+          const d = i % 2 ? -1 : 1, [lx, lz] = lane(i % 2), yl = y0 + i * r, yh = yl + r;
+          const hx = lx + tx * d * run / 2, hz = lz + tz * d * run / 2, lo_x = lx - tx * d * run / 2, lo_z = lz - tz * d * run / 2;
+          downFlight(hx, yh, hz, -tx * d, -tz * d, run, r, w, stairMat); rail(hx, yh, hz, lo_x, yl, lo_z, w);
+          // the landing at its top end, across both lanes
+          const mx = Ox + ox * (w + gap / 2), mz = Oz + oz * (w + gap / 2);
+          slab(mx + tx * d * run / 2, yh, mz + tz * d * run / 2, tx * d, tz * d, LDd, 2 * w + gap, stairMat);
+          P.push([lo_x, yl, lo_z], [hx, yh, hz]);
+        }
+        stairPaths.push({ lo:st.f1, hi:tw.top_f, P });
+        tag(st.letter, Ox, y1 + 1.6, Oz, st);
+        return;
+      }
       if (st.portal && LV){
         // a tunnel mouth cut into the foot of the choir stand (Mezaparks E, the photo): a dark opening under a
         // concrete lintel, its side walls running back into the stand, as wide as the drawn ramp
@@ -1310,12 +1336,14 @@ async function start(){
             // (from the landing's edge on the door's side, so it never runs under the landing)
             const e = ((sx - lx0) * ux + (sz - lz0) * uz) >= LL ? LL : 0;
             const bx = lx0 + ux * e + vx * sd * (w / 2 + 0.3 + cw / 2), bz = lz0 + uz * e + vz * sd * (w / 2 + 0.3 + cw / 2);
-            // first sideways off the landing, then towards the door: down to floor 2, a level walk on
-            const L = Math.hypot(sx - bx, sz - bz); if (L < 0.5 || Lh - f2y < 0.2) return;
-            const rr = Lh - f2y, rn = Math.min(L, rr / S0), cx2 = bx + (sx - bx) / L * rn, cz2 = bz + (sz - bz) / L * rn;
-            flat(bx, Lh, bz, cx2, f2y, cz2, cw);
-            if (L - rn > 0.3) slab(cx2, f2y, cz2, (sx - bx) / L, (sz - bz) / L, L - rn, cw, stairMat);
+            // the wing: sideways off the landing along the outside of the stand (the survey: 5-14 m each way),
+            // down to floor-2 level, where the building's door is (inside, under the field: not drawn through it)
+            if (Lh - f2y < 0.2) return;
+            const rr = Lh - f2y, rn = Math.max(2, rr / S0), ex = lx0 + ux * LL / 2, ez = lz0 + uz * LL / 2;
+            const b2x = ex + vx * sd * (w / 2 + 0.3), b2z = ez + vz * sd * (w / 2 + 0.3);
+            flat(b2x, Lh, b2z, b2x + vx * sd * rn, f2y, b2z + vz * sd * rn, cw);
           });
+          stairPaths.push({ lo:st.f1, hi:st.f2, P:[[BX, ground, BZ], [TX, top, TZ]] });
           tag(st.letter, TX, top + 1.6, TZ, st);
           if (im.branch) tag(im.branch, lx0, Lh + 1.4, lz0, st);
           return;
@@ -1341,6 +1369,7 @@ async function start(){
         const r1 = Math.hypot(e1x - TX, e1z - TZ), r2 = Math.hypot(BX - e2x, BZ - e2z);
         let Lh = top - H * r1 / Math.max(0.1, r1 + r2);
         Lh = Math.min(top - 0.5, Math.max(ground + 0.5, Lh));
+        stairPaths.push({ lo:st.f1, hi:st.f2, P:[[BX, ground, BZ], [e2x, Lh, e2z], [e1x, Lh, e1z], [TX, top, TZ]] });
         flat(TX, top, TZ, e1x, Lh, e1z, w);
         // the landing: square to the upper flight, wide enough for every flight that leaves it
         const LW = back ? 2 * w + 0.4 + 2 * (cw + 0.4) : w + 2 * (cw + 0.4);
@@ -1518,9 +1547,34 @@ async function start(){
     ME = R.find(r => !r.ghost) || R[0] || null;
     layoutRunners(); resize();
   }
+  // A runner changing floors walks down (or up) the staircase there, not through the air: each change of floor
+  // is laid along the staircase whose ends are nearest to where the runner leaves and arrives
+  function onStairs(P){
+    P.forEach(p => { if (p.ox === undefined){ p.ox = p.x; p.oz = p.z; } p.x = p.ox; p.z = p.oz; p.yo = undefined; p.st = false; });
+    if (!stairPaths.length) return;
+    for (let j = 1; j < P.length; j++){
+      if (P[j].f === P[j-1].f) continue;
+      let i0 = j - 1; while (i0 > 0 && P[i0-1].f === P[j-1].f && P[i0].fz !== P[i0].f) i0--;
+      const a = P[j-1].f, b = P[j].f, A = P[Math.max(0, i0 - 1)], B = P[j];
+      let best = null;
+      stairPaths.forEach(sp => {
+        if (Math.min(a, b) < sp.lo || Math.max(a, b) > sp.hi) return;
+        const lo = sp.P[0], hi = sp.P[sp.P.length - 1], up = b > a;
+        const e = Math.hypot((up ? lo : hi)[0] - A.ox, (up ? lo : hi)[2] - A.oz) + Math.hypot((up ? hi : lo)[0] - B.ox, (up ? hi : lo)[2] - B.oz);
+        if (e < 60 && (!best || e < best[0])) best = [e, sp, up];
+      });
+      if (!best) continue;
+      const [, sp, up] = best, Q = up ? sp.P : sp.P.slice().reverse();
+      const L = [0]; for (let k = 1; k < Q.length; k++) L.push(L[k-1] + Math.hypot(Q[k][0] - Q[k-1][0], Q[k][1] - Q[k-1][1], Q[k][2] - Q[k-1][2]));
+      const at = s => { const d = s * L[L.length - 1]; let k = 1; while (k < Q.length - 1 && L[k] < d) k++;
+        const u = (d - L[k-1]) / ((L[k] - L[k-1]) || 1); return [0, 1, 2].map(c => Q[k-1][c] + (Q[k][c] - Q[k-1][c]) * u); };
+      const span = j - i0 + 1;
+      for (let i = i0; i < j; i++){ const q = at((i - i0 + 1) / span); P[i].x = q[0]; P[i].yo = q[1]; P[i].z = q[2]; P[i].st = true; }
+    }
+  }
   function layoutRunners(){
-    R.forEach(r => { const a = new Float32Array(r.P.length*3);
-      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = yAtF(p.fz, p.ax, p.ay) + 0.5; a[i*3+2] = p.z; });
+    R.forEach(r => { const a = new Float32Array(r.P.length*3); onStairs(r.P);
+      r.P.forEach((p, i) => { a[i*3] = p.x; a[i*3+1] = (p.yo !== undefined ? p.yo : yAtF(p.fz, p.ax, p.ay)) + 0.5; a[i*3+2] = p.z; });
       r.A = a; r.legI0 = -1; setLine(r.g1, a); setLine(r.g2, a); });
   }
   function layout(){
@@ -1530,7 +1584,8 @@ async function start(){
         const pos = m.geometry.attributes.position, n = (g || wg).nx, nr = (g || wg).ny;
         for (let k = 0; k < pos.count; k++){
           const i = k % n, j = Math.floor(k / n);
-          if (wg){ pos.setX(k, ((i / (n - 1) - 0.5) * t.w + wg.dx[k]) * M); pos.setY(k, ((0.5 - j / (nr - 1)) * t.h - wg.dy[k]) * M); }
+          if (wg){ const d = warpAt(m.userData.floor, t.x0 + i / (n - 1) * t.w, t.y0 + j / (nr - 1) * t.h);
+            pos.setX(k, ((i / (n - 1) - 0.5) * t.w + d[0]) * M); pos.setY(k, ((0.5 - j / (nr - 1)) * t.h - d[1]) * M); }
           pos.setZ(k, g ? g.h[k] * gapK / 3 : yOf(m.userData.floor));
         }
         pos.needsUpdate = true; m.geometry.computeBoundingSphere();
@@ -1550,9 +1605,11 @@ async function start(){
   function posAt(r, tt){
     const i = idxAt(r, tt), a = r.P[i], b = r.P[Math.min(i+1, r.P.length-1)];
     const u = b.t > a.t ? Math.min(1, Math.max(0, (tt - a.t) / (b.t - a.t))) : 0;
-    const jump = b.f !== a.f && Math.hypot(b.x - a.x, b.z - a.z) > 3, fz = a.fz + (b.fz - a.fz)*u;
+    const jump = b.f !== a.f && Math.hypot(b.x - a.x, b.z - a.z) > 3 && !a.st && !b.st, fz = a.fz + (b.fz - a.fz)*u;
     const ax = jump ? a.ax : a.ax + (b.ax - a.ax)*u, ay = jump ? a.ay : a.ay + (b.ay - a.ay)*u;
-    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:yAtF(fz, ax, ay) + 0.5, fz, ax, ay };
+    const ya = a.yo !== undefined ? a.yo : yAtF(a.fz, a.ax, a.ay), yb = b.yo !== undefined ? b.yo : yAtF(b.fz, b.ax, b.ay);
+    const y = (a.st || b.st) ? ya + (yb - ya) * u : yAtF(fz, ax, ay);
+    return { i, x: jump ? a.x : a.x + (b.x - a.x)*u, z: jump ? a.z : a.z + (b.z - a.z)*u, y:y + 0.5, fz, ax, ay };
   }
   let follow = true; const tgt = new THREE.Vector3();
   // the floor shown: the runner's, or one picked with the floor buttons (looking over the whole route);
