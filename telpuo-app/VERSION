@@ -1,1 +1,1 @@
-{"n": 153, "commit": "ae5024d", "date": "2026-11-24T07:38:42+02:00", "change": "Replay 3D: runners take the right part of the staircase between the floors they change"}
+{"n": 154, "commit": "99bc1cf", "date": "2026-11-24T08:04:46+02:00", "change": "Replay 3D: runners climb every staircase the route takes, and only that one"}
