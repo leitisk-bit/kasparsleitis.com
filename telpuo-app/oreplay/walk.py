@@ -186,6 +186,25 @@ def walk_mask(img, features, cls=None, k=None):
         win = cls[max(0, cy_ - 6):cy_ + 7, max(0, cx_ - 6):cx_ + 7]
         if not (win == k['pink']).mean() > 0.5: continue
         walk[y0:int(y1), x0:int(x1)] |= cls[y0:int(y1), x0:int(x1)] == k['pink']
+    # small pink patches that runners do run along, on the floors the map says (TELPO 2. posms Garā B: the
+    # strip at the foot of the grey building from 9-64 to 10-53 on floor 1, the patches in the corridor under
+    # the stand on floor 2 - Kaspars); big pink zones stay closed
+    pw = features.get('pink_walk')
+    if pw:
+        pk = cls == k['pink']; lab_, n_ = ndi.label(pk)
+        if n_:
+            sz_ = ndi.sum(pk, lab_, range(1, n_ + 1)); com_ = ndi.center_of_mass(pk, lab_, range(1, n_ + 1))
+            def fl_at(x_, y_):
+                for f_ in features.get('floors', []):
+                    if any(b_[0] <= x_ <= b_[2] and b_[1] <= y_ <= b_[3] for b_ in f_['boxes']): return f_['floor']
+            ok_ = [i_ + 1 for i_ in range(n_) if sz_[i_] <= pw.get('max_px', 2500) and fl_at(com_[i_][1], com_[i_][0]) in pw['floors']]
+            if ok_:
+                pm_ = np.isin(lab_, ok_)
+                # (and the course overprint lying on such a patch - a circle's outline across the strip - but
+                # never a drawn wall under it)
+                ov_ = ndi.binary_dilation(pm_, iterations=5) & (cls == k['over'])
+                if features.get('wall_lines'): ov_ &= ~vector_mask(img.shape, features['wall_lines'], extra=2)
+                walk |= pm_ | ov_
     st = np.isin(cls, [k['red'], k['blue'], k['same']])
     # the step edge (landing colour) belongs to the steps: the thin white outline round small
     # same-floor steps would otherwise cut them off from the corridor (TELPO 1. posms)

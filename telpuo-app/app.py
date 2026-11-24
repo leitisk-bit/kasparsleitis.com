@@ -367,6 +367,13 @@ def rules_key(m):
     tail = ['walls3'] if _trial_map(m) else []
     return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale')] + tail)
 
+# pink patches runners run along, per map (Kaspars, 2. posms Garā B: along the strip from 9-64 to 10-53, and
+# under the stand on floor 2 up the small Č flights to 12-45)
+PINK_WALK = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), {'floors': [1, 2], 'max_px': 2500})]
+def pink_walk_of(m):
+    nm = (m or {}).get('name') or ''
+    return next((v for rx, v in PINK_WALK if rx.search(nm)), None)
+
 TRIAL_RULES = re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*A\b', re.I)
 def _trial_map(m): return bool(TRIAL_RULES.search((m or {}).get('name') or ''))
 
@@ -388,7 +395,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, walls3=_trial_map(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
+    feat = dict(feat, walls3=_trial_map(store.get_meta(mid)), pink_walk=pink_walk_of(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
