@@ -747,6 +747,10 @@ def build(img, features, progress=None):
                 if not (0 <= tx < x1 - x0 and 0 <= ty < y1 - y0): continue
                 cst = cum[ty, tx]
                 if not np.isfinite(cst): continue
+                # (a straight way of its own already joins them - across a crossing sign, through a one-way
+                # passage: the walked detour round it must not replace its line, or a runner on the straight
+                # way is drawn racing round the detour, across tape - 2. posms floor -1; per map)
+                if (s, t) in POLY and features.get('twin_letters'): continue
                 tb = m.traceback((ty, tx))
                 poly = pull_tight(Wm, [(int(x), int(y)) for y, x in tb[::2]] + [(int(tb[-1][1]), int(tb[-1][0]))])
                 E.append((s, t, float(min(cst, plen(poly))), 0, True)); POLY[(s, t)] = [(x + x0, y + y0) for x, y in poly]
