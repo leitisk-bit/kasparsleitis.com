@@ -556,7 +556,12 @@ async function useStrava(id, b, who){ if (b){ b.disabled=true; b.textContent='Ge
     if (b) $('#stravaList').innerHTML=''; await $('#rTrack').onchange(); STRAVA_PICK=id;
     if (who){ const k=x=>JSON.parse(x.value).name===who; const r=$$('#whoList input').find(k);
       if (r){ r.checked=true; $('#whoAll').value=''; } else { const o=[...$('#whoAll').options].find(o=>o.value&&k(o)); if (o){ $('#whoAll').value=o.value; $$('#whoList input').forEach(x=>x.checked=false); $('#whoMore').open=true; } }
-      updateWho(); } }
+      updateWho();
+      // sure: my name, the time fits, no run of mine here yet -> save straight away, no list to answer
+      const c=r && JSON.parse(r.value);
+      if (c && c.fits && !c.has_run){ $('#whoBox').hidden=true;
+        $('#rCheck').innerHTML=`Strava run ${fmt(CHECK.duration)} · saving it as <b>${esc(c.name)}</b> (${esc(c.group)})…`;
+        $('#runForm').requestSubmit(); } } }
   catch(e){ toast(e.message); if (b){ b.disabled=false; b.textContent='Use this'; } } }
 // back from Strava's page: swap the one-time ticket for this site's own cookie, then tidy the address
 (async()=>{ const q=new URLSearchParams(location.search);

@@ -322,6 +322,9 @@
 
   /* texts with numbers or names in them: [pattern, Latvian] ($1… = the parts in brackets) */
   var P = [
+    [/^(.*)Choose your name below; the results closest to this time are first\.$/, '$1Izvēlies savu vārdu zemāk; pirmie ir rezultāti, kas tuvākie šim laikam.'],
+    [/^Strava run ([\d:]+) · saving it as$/, 'Strava skrējiens $1 · saglabā to kā'],
+    [/^Strava run ([\d:]+) · saving it as (.*)…$/, 'Strava skrējiens $1 · saglabā to kā $2…'],
     [/^([+−][\d:]+) from (.*)'s result$/, '$1 no $2 rezultāta'],
     [/^fits (.*)'s result$/, 'atbilst $1 rezultātam'],
     [/^No Strava activities on (.*)\.$/, 'Strava aktivitāšu $1 nav.'],
