@@ -1767,6 +1767,16 @@ try:
     for m_ in store.list_maps(): _apply_fixed_scale(m_['id'], rebuild=False)
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
+# a rebuild Kaspars asked for by name, done once (each token once per map)
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'maze-lines-2026-11-24')]
+try:
+    for m_ in store.list_maps():
+        mm = store.get_meta(m_['id']) or {}
+        for rx_, tok_ in FORCE_REBUILD:
+            if rx_.search(mm.get('name') or '') and mm.get('forced') != tok_ and mm.get('status') == 'ready' and store.get_features(m_['id']):
+                store.set_meta(m_['id'], forced=tok_, status='building', message='Rebuilding the route network…')
+                store.background(_build, m_['id'], on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
+except Exception: traceback.print_exc()
 
 if __name__ == '__main__':
     app.run(host=os.environ.get('HOST', '127.0.0.1'), port=int(os.environ.get('PORT', 8090)), debug=False, threaded=True)
