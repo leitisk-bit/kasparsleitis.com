@@ -1,1 +1,1 @@
-{"n": 164, "commit": "54c2ee3", "date": "2026-11-24T18:29:09+02:00", "change": "Telpu O Strava: pick the race activity by result time and runner name"}
+{"n": 165, "commit": "111e725", "date": "2026-11-24T18:35:45+02:00", "change": "Telpu O Strava: runner's own name in the results picks the nearest run even if times differ"}
