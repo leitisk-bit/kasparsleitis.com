@@ -1,1 +1,1 @@
-{"n": 159, "commit": "28ae018", "date": "2026-11-24T11:51:20+02:00", "change": "Drop waiting rules-only rebuilds of non-trial maps (they had no rules_key, so they still queued)"}
+{"n": 160, "commit": "ee06d4d", "date": "2026-11-24T12:16:16+02:00", "change": "No map is rebuilt by itself; the new wall rules only on the trial map"}
