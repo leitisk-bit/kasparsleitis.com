@@ -1,1 +1,1 @@
-{"n": 171, "commit": "a20f885", "date": "2026-11-24T23:04:22+02:00", "change": "Garā B: a long wall stays shut beside a stair drawn against it (4-50 on floor -1); rebuild Garā B once more"}
+{"n": 172, "commit": "217d2d4", "date": "2026-11-25T00:04:53+02:00", "change": "The black-line rule checked on the result: no way on a floor crosses a drawn black line or tape"}
