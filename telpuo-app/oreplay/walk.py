@@ -45,6 +45,17 @@ def classify(a):
         out[s:s + 1_000_000] = idx[d.argmin(1)]
     return out.reshape(h, w), {n: i for i, n in enumerate(names)}
 
+def _trim(poly, d):
+    """The polyline without its first d pixels."""
+    out = [tuple(poly[0])]; left = d
+    for (x0, y0), (x1, y1) in zip(poly, poly[1:]):
+        L = math.hypot(x1 - x0, y1 - y0)
+        if left > 0:
+            if L <= left: left -= L; out = [(x1, y1)]; continue
+            f_ = left / L; out = [(x0 + (x1 - x0) * f_, y0 + (y1 - y0) * f_)]; left = 0
+        out.append((x1, y1))
+    return out
+
 def vector_mask(shape, lines, extra=0):
     from PIL import Image, ImageDraw
     H, W = shape[:2]
@@ -763,6 +774,45 @@ def build(img, features, progress=None):
                 poly = pull_tight(Wm, [(int(x), int(y)) for y, x in tb[::2]] + [(int(tb[-1][1]), int(tb[-1][0]))])
                 E.append((s, t, float(min(cst, plen(poly))), 0, True)); POLY[(s, t)] = [(x + x0, y + y0) for x, y in poly]
         if progress: progress(f'floor {fl} done')
+    # THE RULE, checked on the result: no way on a floor crosses a drawn black line or tape (Kaspars). The
+    # network above follows the picture's pixels, and a pixel's gap in a line - where it meets a band, a circle
+    # or another line - let a way through; so every way is tested against the lines as drawn, and one that
+    # crosses any is dropped. Not tested: a stair's own outline (where its steps are got on) and the straight
+    # ways of a crossing sign or one-way passage. (switched on per map)
+    if features.get('walls3'):
+        fz_r = _flight_zone(cls, k); Hr, Wr = fz_r.shape
+        Lr = np.array([w_[:4] for w_ in features.get('wall_lines', [])], float).reshape(-1, 4)
+        if len(Lr):
+            mx_ = np.clip(((Lr[:, 0] + Lr[:, 2]) / 2).astype(int), 0, Wr - 1); my_ = np.clip(((Lr[:, 1] + Lr[:, 3]) / 2).astype(int), 0, Hr - 1)
+            Lr = Lr[~fz_r[my_, mx_]]
+        Tr = np.array([t_[:4] for t_ in features.get('tape_lines', [])], float).reshape(-1, 4)
+        Lr = np.vstack([Lr, Tr]) if len(Tr) else Lr
+        special = {(a_, b_) for a_, b_, px_, fl_, _ in E if ('_x' in a_ and '_x' in b_) or ('_ow' in a_ and '_ow' in b_)}
+        def crosses_(poly):
+            if not len(Lr): return False
+            x1, y1, x2, y2 = Lr.T
+            for (px_, py_), (qx_, qy_) in zip(poly, poly[1:]):
+                d_ = (qx_ - px_) * (y2 - y1) - (qy_ - py_) * (x2 - x1)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    t_ = ((x1 - px_) * (y2 - y1) - (y1 - py_) * (x2 - x1)) / d_; u_ = ((x1 - px_) * (qy_ - py_) - (y1 - py_) * (qx_ - px_)) / d_
+                if ((np.abs(d_) > 1e-9) & (t_ > 0) & (t_ < 1) & (u_ > 0) & (u_ < 1)).any(): return True
+            return False
+        keep_, dropped_ = [], []
+        for e in E:
+            a_, b_ = e[0], e[1]
+            pl_ = POLY.get((a_, b_)) or [N[a_][1:], N[b_][1:]]
+            # (a stair's point is its door, in the gap of the outline round it: the first few pixels out of it
+            # pass the ends of that outline, so they are not tested)
+            if a_ in FL0 and len(pl_) > 1: pl_ = _trim(pl_, 8)
+            if b_ in FL0 and len(pl_) > 1: pl_ = _trim(pl_[::-1], 8)[::-1]
+            if e[3] or N[a_][0] != N[b_][0] or (a_, b_) in special or len(pl_) < 2 or not crosses_(pl_):
+                keep_.append(e)
+            else: dropped_.append((a_, b_))
+        E[:] = keep_
+        for ab in dropped_: POLY.pop(ab, None)
+        if progress and dropped_: progress(f'{len(dropped_)} ways across a drawn line dropped')
+        global LAST_DROPPED; LAST_DROPPED = dropped_
+        print('walls rule: dropped', len(dropped_), 'ways crossing a drawn line', dropped_[:20], flush=True)
     # stairs (directed)
     # a flight leads to the next floor (up or down) where the same stairwell appears: floors may be 0, 1, 1.5, 2 …
     def fnum(t): v = float(t); return int(v) if v == int(v) else v

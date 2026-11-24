@@ -1768,7 +1768,7 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'long-walls-2026-11-24')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'walls-rule-2026-11-25')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
