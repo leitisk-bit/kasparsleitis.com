@@ -5,6 +5,7 @@ Run:  python3 app.py            (dev, port 8090)
 """
 import os, time, json, math, re, traceback, threading, hmac, hashlib, collections
 import numpy as np
+from scipy import ndimage as ndi
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
 from oreplay import store, analyze, walk, results, three, serverinfo
@@ -517,7 +518,7 @@ def api_three(mid):
                 if len(ids) == 1: x['wp'] = ids[0]
     warps, place = _warps3d(mid, m, texs, pieces)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'], pieces=pieces,
-                   levels=_levels3d(mid), heights=_heights3d(mid, m, t), warps=warps,
+                   levels=_levels3d(mid), heights=_lidar_heights(mid, m, _heights3d(mid, m, t), texs, pieces, place), warps=warps,
                    tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
@@ -1073,7 +1074,10 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'floors': (1, 2, 3),
                  # the grandstand (floor 3) is drawn as it is: bending it to put its edge letters on the
                  # floor-1 letters squeezed it into a thin crescent - those stairs run between the two
-                 'keep_floors': (3,), 'lidar_stairs': 'sitedata/estrade_stairs.json'})]
+                 'keep_floors': (3,), 'lidar_stairs': 'sitedata/estrade_stairs.json',
+                 'lidar_grid': 'sitedata/estrade_grid.npz', 'lidar_zero': 8.3,
+                 # the a-h aisles: the field just slopes on down there, no stairs to draw (Kaspars, the LiDAR)
+                 'no_stairs': 'abcdefgh'})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
@@ -1091,6 +1095,8 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
                 o = pc['off'] if pc else [0, 0]
                 r.append([round(x - o[0], 1), round(y - o[1], 1)])
         return r
+    for x in out:
+        if x['letter'] in cfg.get('no_stairs', ''): x['skip'] = True
     for main, branch in cfg['imperial'].items():
         st = next((x for x in out if x['letter'] == main and (x['f1'], x['f2']) == (f1, f3)), None)
         tops, bots, sides = at(main, f3), at(main, f1), (at(branch, f2) if branch else [])
@@ -1143,6 +1149,96 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     return out
 
 def mid_of(m): return (m or {}).get('id')
+def mpp_of(m): return ((m or {}).get('scale') or 1000) / (300 / 0.0254)
+
+_LGRID = {}
+def _lidar_grid(fn):
+    if fn not in _LGRID:
+        z = np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)); g = {}
+        for k in ('top_cm', 'ground_cm', 'low_cm'):
+            if k in z:
+                a = z[k].astype(np.float32); a[a == -32768] = np.nan; g[k[:-3]] = a / 100.0
+        g.update(x0=float(z['x0']), y1=float(z['y1']), cell=float(z['cell'])); _LGRID[fn] = g
+    return _LGRID[fn]
+
+_LHEIGHTS = {}
+def _lidar_heights(mid, m, grids, texs, pieces, place):
+    """The ground as the 2022 LiDAR measures it (Mezaparks, Kaspars: the field slopes evenly from the top edge
+    down to the stage - no steps at the a-h aisles): the grandstand (floor 3) from the survey's top surface, the
+    rest of the field and the ground round it (floor 1, outside the grandstand) from its ground returns.
+    Each grid point taken where it now lies (the floors bent onto the survey)."""
+    cfg = next((d for rx, d in SITE_STAIRS if rx.search((m or {}).get('name') or '')), None) or {}
+    if not grids or not cfg.get('lidar_grid'): return grids
+    key = (mid, int(m.get('built') or 0), id(grids))
+    if key in _LHEIGHTS: return _LHEIGHTS[key]
+    try:
+        N = store.load_graph(mid)[0]
+        fr, _ = _lidar_frame(cfg, N)
+        if not fr: return grids
+        G = _lidar_grid(cfg['lidar_grid']); zero = cfg.get('lidar_zero', 8.3)
+        def sample(name, wx, wy):
+            E_, N_ = fr.forward(wx, wy); a = G[name]
+            c = np.round((E_ - G['x0']) / G['cell']).astype(int); r = np.round((G['y1'] - N_) / G['cell']).astype(int)
+            ok = (r >= 0) & (r < a.shape[0]) & (c >= 0) & (c < a.shape[1]); Z = np.full(np.shape(wx), np.nan, np.float32)
+            Z[ok] = a[r[ok], c[ok]] - zero; return Z
+        texOf = {x.get('piece', x.get('wp')): x for x in texs}
+        f1_, _f2, f3_ = cfg['floors']
+        # where the grandstand lies (floor 1 under it is the building, not the field)
+        stand = []
+        for i, pc in enumerate(pieces):
+            tt = texOf.get(i)
+            if pc['floor'] not in (f3_, 5) or not tt: continue          # (the grandstand, the choir stand)
+            from PIL import Image
+            A = np.asarray(Image.open(os.path.join(store.map_dir(mid), f"tex{tt['floor']}_{i}.webp")).convert('RGBA'))[..., 3] > 100
+            ys, xs = np.nonzero(A[::4, ::4]); sx, sy = tt['w'] / A.shape[1] * 4, tt['h'] / A.shape[0] * 4
+            stand += [place(pc['floor'], tt['x0'] + x * sx, tt['y0'] + y * sy) for x, y in zip(xs, ys)]
+        # (as a raster in the lined-up frame, 4 px cells; floor 1 keeps the survey's ground up to 8 m in under
+        # the grandstand's edge, so the field runs on under its front without a step)
+        inside = None
+        if stand:
+            S_ = np.array(stand); o_ = S_.min(0) - 40; R_ = np.zeros(tuple((np.ceil((S_.max(0) - o_ + 40) / 4)).astype(int))[::-1], bool)
+            R_[((S_[:, 1] - o_[1]) / 4).astype(int), ((S_[:, 0] - o_[0]) / 4).astype(int)] = True
+            R_ = ndi.binary_fill_holes(ndi.binary_closing(R_, iterations=3))
+            R_ = ndi.binary_erosion(R_, iterations=max(1, int(8.0 / (4 * mpp_of(m)))))
+            def inside(W):
+                r = ((W[:, 1] - o_[1]) / 4).astype(int); c = ((W[:, 0] - o_[0]) / 4).astype(int)
+                ok = (r >= 0) & (r < R_.shape[0]) & (c >= 0) & (c < R_.shape[1]); out_ = np.zeros(len(W), bool)
+                out_[ok] = R_[r[ok], c[ok]]; return out_
+        out = []
+        for g in grids:
+            g = dict(g); pc = pieces[g['piece']]; tt = texOf.get(g['piece'])
+            if tt and pc['floor'] in (f1_, f3_, 5):
+                nx, ny = g['nx'], g['ny']
+                GX, GY = np.meshgrid(tt['x0'] + np.arange(nx) * tt['w'] / (nx - 1), tt['y0'] + np.arange(ny) * tt['h'] / (ny - 1))
+                W = np.array([place(pc['floor'], x, y) for x, y in zip(GX.ravel(), GY.ravel())])
+                H = np.array(g['h'], np.float32)
+                if pc['floor'] == 5:
+                    # the choir stand under the stage's lattice roof: the lowest return in each cell is the stand
+                    # itself (the roof above lets the laser through); from the stage up to its top row
+                    Z = sample('low', W[:, 0], W[:, 1]) if 'low' in G else np.full(len(W), np.nan, np.float32)
+                    Z[(Z > 16.5) | (Z < -5)] = np.nan
+                elif pc['floor'] == f3_:
+                    Z = sample('top', W[:, 0], W[:, 1]); Z[(Z > 13.8) | (Z < 0.5)] = np.nan
+                else:
+                    Z = sample('ground', W[:, 0], W[:, 1]); Z[(Z > 13.8) | (Z < -4)] = np.nan
+                    if inside is not None: Z[inside(W)] = np.nan
+                ok = np.isfinite(Z)
+                if ok.any():
+                    Zg = Z.reshape(ny, nx); okg = ok.reshape(ny, nx)
+                    dd, (iy, ix) = ndi.distance_transform_edt(~okg, return_indices=True)
+                    if pc['floor'] in (f3_, 5):            # (a gap - a path, an edge - from its neighbours)
+                        Zg = Zg[iy, ix]; okg[:] = True
+                    else:                                  # (paths have no ground returns: from the lawn beside)
+                        fill = (~okg) & (dd <= 2)
+                        if inside is not None: fill &= ~inside(W).reshape(ny, nx)
+                        Zg = np.where(fill, Zg[iy, ix], Zg); okg = okg | fill
+                    Hg = H.reshape(ny, nx); Hg[okg] = Zg[okg]
+                    g['h'] = [round(float(v), 2) for v in Hg.ravel()]
+            out.append(g)
+        _LHEIGHTS.clear(); _LHEIGHTS[key] = out
+        return out
+    except Exception:
+        traceback.print_exc(); return grids
 
 def _lidar_frame(cfg, N):
     """The survey in the map's own frame: the staircases' feet measured in the LiDAR against the same letters
@@ -1162,6 +1258,7 @@ def _lidar_frame(cfg, N):
     res = np.abs(B - (s_ * A + t_))
     def to_map(E, N_):
         c = (complex(E, N_) - t_) / s_; return [round(c.real, 1), round(-c.imag, 1)]
+    to_map.forward = lambda x, y: (lambda c: (c.real, c.imag))(s_ * (np.asarray(x, float) - 1j * np.asarray(y, float)) + t_)
     return to_map, res
 
 _LSTAIRS = {}
