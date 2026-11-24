@@ -1,0 +1,155 @@
+{
+ "_": "Back staircases of the audience field measured in Riga open LiDAR 2022 (CC BY 4.0, Rigas valstspilsetas pasvaldiba; their points are filed as class 18). dir: sheet-pixel direction from the top edge down to the ground; run_m: top edge to ground; land_m: top edge to the landing with its side wings; heights in m over the ground outside.",
+ "stairs": {
+  "P": {
+   "dir": [
+    -0.9607,
+    0.2775
+   ],
+   "run_m": 16.0,
+   "land_m": 8.5,
+   "top_h": 6.72,
+   "land_h": 3.56,
+   "wing_m": 5.5,
+   "lks": {
+    "top": [
+     509220.62,
+     318961.88
+    ],
+    "land": [
+     509215.69,
+     318954.95
+    ],
+    "foot": [
+     509211.35,
+     318948.83
+    ]
+   }
+  },
+  "Q": {
+   "dir": [
+    -0.721,
+    0.693
+   ],
+   "run_m": 23.5,
+   "land_m": 6.5,
+   "top_h": 9.73,
+   "land_h": 7.18,
+   "wing_m": 14.0,
+   "lks": {
+    "top": [
+     509253.69,
+     318958.59
+    ],
+    "land": [
+     509252.83,
+     318952.15
+    ],
+    "foot": [
+     509250.56,
+     318935.3
+    ]
+   }
+  },
+  "R": {
+   "dir": [
+    -0.2484,
+    0.9687
+   ],
+   "run_m": 27.0,
+   "land_m": 10.0,
+   "top_h": 11.2,
+   "land_h": 7.34,
+   "wing_m": 14.5,
+   "lks": {
+    "top": [
+     509282.16,
+     318967.12
+    ],
+    "land": [
+     509286.24,
+     318958.0
+    ],
+    "foot": [
+     509293.19,
+     318942.48
+    ]
+   }
+  },
+  "S": {
+   "dir": [
+    0.1307,
+    0.9914
+   ],
+   "run_m": 26.0,
+   "land_m": 8.5,
+   "top_h": 11.2,
+   "land_h": 7.67,
+   "wing_m": 14.5,
+   "lks": {
+    "top": [
+     509306.29,
+     318982.66
+    ],
+    "land": [
+     509312.4,
+     318976.75
+    ],
+    "foot": [
+     509324.99,
+     318964.6
+    ]
+   }
+  },
+  "T": {
+   "dir": [
+    0.5872,
+    0.8094
+   ],
+   "run_m": 23.5,
+   "land_m": 6.0,
+   "top_h": 9.75,
+   "land_h": 7.48,
+   "wing_m": 14.0,
+   "lks": {
+    "top": [
+     509323.47,
+     319007.12
+    ],
+    "land": [
+     509329.24,
+     319005.51
+    ],
+    "foot": [
+     509346.1,
+     319000.81
+    ]
+   }
+  },
+  "U": {
+   "dir": [
+    0.9119,
+    0.4104
+   ],
+   "run_m": 16.5,
+   "land_m": 2.5,
+   "top_h": 6.73,
+   "land_h": 6.5,
+   "wing_m": 12.5,
+   "lks": {
+    "top": [
+     509331.29,
+     319039.33
+    ],
+    "land": [
+     509333.71,
+     319039.94
+    ],
+    "foot": [
+     509347.29,
+     319043.38
+    ]
+   }
+  }
+ }
+}

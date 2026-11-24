@@ -1051,7 +1051,7 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'floors': (1, 2, 3),
                  # the grandstand (floor 3) is drawn as it is: bending it to put its edge letters on the
                  # floor-1 letters squeezed it into a thin crescent - those stairs run between the two
-                 'keep_floors': (3,)})]
+                 'keep_floors': (3,), 'lidar_stairs': 'sitedata/estrade_stairs.json'})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
@@ -1101,11 +1101,31 @@ def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None):
             u = (tops[0][0] - c_[0], tops[0][1] - c_[1]); L = math.hypot(*u) or 1.0; u = (u[0] / L, u[1] / L)
             st['imperial']['u'] = [round(u[0], 4), round(u[1], 4)]
             st['imperial']['avail'] = round(_map_reach(mid_of(m), f1, tops[0], u, texs) * mpp, 1)
+
+        # the staircase as the 2022 LiDAR measures it (sitedata/estrade_stairs.json): straight down the stand
+        # from the top edge, its landing with wings, to the ground - from the map's top letter, the measured
+        # direction, length and landing
+        ls = _lidar_stairs(cfg).get(main)
+        if ls:
+            px = ls['run_m'] / mpp; d_ = ls['dir']
+            st['imperial']['foot'] = [round(tops[0][0] + d_[0] * px, 1), round(tops[0][1] + d_[1] * px, 1)]
+            lp = ls['land_m'] / mpp
+            st['imperial']['land'] = [round(tops[0][0] + d_[0] * lp, 1), round(tops[0][1] + d_[1] * lp, 1)]
+            st['imperial']['measured'] = True
         for x in out:
             if branch and x['letter'] == branch: x['skip'] = True    # drawn as part of the main staircase
     return out
 
 def mid_of(m): return (m or {}).get('id')
+
+_LSTAIRS = {}
+def _lidar_stairs(cfg):
+    fn = cfg.get('lidar_stairs')
+    if not fn: return {}
+    if fn not in _LSTAIRS:
+        try: _LSTAIRS[fn] = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)))['stairs']
+        except Exception: traceback.print_exc(); _LSTAIRS[fn] = {}
+    return _LSTAIRS[fn]
 
 def _map_reach(mid, fl, p, u, texs, step=3.0, most=400):
     """How far (sheet pixels) from p along u the floor's map is still drawn (not see-through)."""
