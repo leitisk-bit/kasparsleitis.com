@@ -1488,14 +1488,20 @@ def _apply_fixed_scale(mid, rebuild=True):
         store.set_meta(mid, status='building', message='Rebuilding the route network (map scale fixed)…')
         store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
 
+def _graph_current(mid):
+    """The map has routes built after its last edit (so a waiting rebuild was only for new rules)."""
+    d = store.map_dir(mid); g = os.path.join(d, 'graph.pkl'); f = os.path.join(d, 'features.json')
+    return os.path.exists(g) and (not os.path.exists(f) or os.path.getmtime(g) >= os.path.getmtime(f))
+
 def _resume():
     """Jobs cut off by a restart (the server updates itself): start them again."""
     for m in store.list_maps():
         mid = m['id']
         if m.get('status') in ('queued', 'building') and not _trial_map(m) and (m.get('job') or {}).get('step') in ('queued', 'network') \
-           and os.path.exists(os.path.join(store.map_dir(mid), 'graph.pkl')) and not _rules_changed(m):
-            # (a rebuild for new rules, cut off or still waiting: dropped - the map keeps its routes)
-            store.set_meta(mid, status='ready', message='', job=None); continue
+           and _graph_current(mid):
+            # (a rebuild for new rules, cut off or still waiting: dropped - the map keeps its routes; its rules are
+            # stamped as current so it is not queued again)
+            store.set_meta(mid, status='ready', message='', job=None, rules_key=rules_key(m)); continue
         if m.get('status') in ('queued', 'analysing', 'building'):
             if store.get_features(mid) and m.get('job', {}).get('step') not in (None, 'reading') and m.get('status') != 'analysing':
                 store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
