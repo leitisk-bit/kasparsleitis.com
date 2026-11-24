@@ -323,6 +323,7 @@ def flights(cls, k, features, axes=None):
             if h is None or h == bi: continue
             if dist(bi, li) > 1.5 * dist(bi, ln) and 0.5 <= blobs[bi][5] / blobs[h][5] <= 2:
                 dup[bi] = ln
+        taken = {}
         for bi, li in sorted(asg.items(), key=lambda t_: -blobs[t_[0]][5]):
             tag, cx, cy, px, py, npx, _bx, _pts = blobs[bi]
             if bi in dup:
@@ -331,7 +332,19 @@ def flights(cls, k, features, axes=None):
                 name = f"{fl}_{L_}#{j_}_{tag}"
             else:
                 name = f"{fl}_{lab_here[li]['letter']}_{tag}"
-                if name in out: continue
+                if name in out:
+                    # the same letter printed twice on a floor, each beside a flight of its own (2. posms floor 3:
+                    # Ķ either side of T, Ē either side of R; switched on per map): both are flights
+                    # (or one letter between two like flights: 2. posms floor 2, Ē between its two red flights)
+                    if not features.get('twin_letters'): continue
+                    if li == taken[name][0]:
+                        o_ = blobs[taken[name][1]]
+                        gap_ = math.hypot(o_[1] - cx, o_[2] - cy)
+                        if not (0.5 <= npx / o_[5] <= 2 and max(dist(bi, li), dist(taken[name][1], li)) < gap_): continue
+                    j_ = 2
+                    while f"{fl}_{lab_here[li]['letter']}#{j_}_{tag}" in out: j_ += 1
+                    name = f"{fl}_{lab_here[li]['letter']}#{j_}_{tag}"
+                taken.setdefault(name, (li, bi))
             out[name] = (fl, px, py, npx)
             if axes is not None: axes[name] = _axis(_pts)
     return {n: v[:3] for n, v in out.items()}
