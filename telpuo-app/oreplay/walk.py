@@ -45,6 +45,28 @@ def classify(a):
         out[s:s + 1_000_000] = idx[d.argmin(1)]
     return out.reshape(h, w), {n: i for i, n in enumerate(names)}
 
+def _step_lines(cls, k, features):
+    """Drawn lines inside a same-floor staircase area the map names (2. posms: the choir stand on floor 1 -
+    its rows, the red band on top and the corridor's edge onto it; Kaspars: you move up and down there):
+    step edges, not walls. A line counts when the colours either side of it are both stand or corridor."""
+    areas = features.get('step_areas') or []
+    if not areas or not features.get('wall_lines'): return []
+    ok = np.isin(cls, [k['same'], k['red'], k['beige'], k['white'], k['over']])
+    H, W = cls.shape; out = []
+    for w_ in features['wall_lines']:
+        x0, y0, x1, y1 = w_[:4]; mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+        if not any(b[0] <= mx <= b[2] and b[1] <= my <= b[3] for b in areas): continue
+        L = math.hypot(x1 - x0, y1 - y0) or 1; nx_, ny_ = -(y1 - y0) / L, (x1 - x0) / L
+        good, stand = True, False
+        for f_ in (0.25, 0.5, 0.75):
+            px, py = x0 + (x1 - x0) * f_, y0 + (y1 - y0) * f_
+            for sg in (1, -1):
+                qx, qy = int(round(px + sg * 5 * nx_)), int(round(py + sg * 5 * ny_))
+                if not (0 <= qx < W and 0 <= qy < H and ok[qy, qx]): good = False
+                elif cls[qy, qx] in (k['same'], k['red']): stand = True
+        if good and stand: out.append(w_)      # (a line with corridor on both sides is the corridor's own)
+    return out
+
 def _trim(poly, d):
     """The polyline without its first d pixels."""
     out = [tuple(poly[0])]; left = d
@@ -241,6 +263,8 @@ def walk_mask(img, features, cls=None, k=None):
         if long_w: walk &= ~vector_mask(img.shape, long_w)
     # walls the map's own settings add (where the drawing's lines leave a gap the reading can't close by
     # itself: 2. posms Garā B, the building's wall by 3-59 running on to the end of the stand's red band)
+    st_l = _step_lines(cls, k, features)
+    if st_l: walk |= vector_mask(img.shape, st_l, extra=1) & ~ndi.binary_dilation(cls == k['tape'], iterations=2)
     if features.get('extra_walls'): walk &= ~vector_mask(img.shape, features['extra_walls'], extra=1)
     R_, B_ = cls == k['red'], cls == k['blue']
     rb = ndi.binary_dilation(R_, iterations=6) & ndi.binary_dilation(B_, iterations=6)
@@ -785,6 +809,8 @@ def build(img, features, progress=None):
         if len(Lr):
             mx_ = np.clip(((Lr[:, 0] + Lr[:, 2]) / 2).astype(int), 0, Wr - 1); my_ = np.clip(((Lr[:, 1] + Lr[:, 3]) / 2).astype(int), 0, Hr - 1)
             Lr = Lr[~fz_r[my_, mx_]]
+        st_l = {tuple(w_[:4]) for w_ in _step_lines(cls, k, features)}
+        if st_l and len(Lr): Lr = np.array([w_ for w_ in Lr if tuple(w_) not in st_l], float).reshape(-1, 4)
         Tr = np.array([t_[:4] for t_ in features.get('tape_lines', [])], float).reshape(-1, 4)
         Lr = np.vstack([Lr, Tr]) if len(Tr) else Lr
         special = {(a_, b_) for a_, b_, px_, fl_, _ in E if ('_x' in a_ and '_x' in b_) or ('_ow' in a_ and '_ow' in b_)}

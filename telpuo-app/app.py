@@ -376,6 +376,13 @@ def extra_walls_of(m):
     nm = (m or {}).get('name') or ''
     return next((v for rx, v in EXTRA_WALLS if rx.search(nm)), None)
 
+# same-floor staircase areas per map: their drawn lines are step edges, not walls (Kaspars, 2. posms Garā B: the
+# choir stand on floor 1 where 7-61 is - rows, the red band and the corridor's edge onto it; you move up and down)
+STEP_AREAS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2230, 2380, 3020, 2620]])]
+def step_areas_of(m):
+    nm = (m or {}).get('name') or ''
+    return next((v for rx, v in STEP_AREAS if rx.search(nm)), None)
+
 PINK_WALK = []   # (none: Kaspars, the pink is a structure and is never crossed - every 2. posms map)
 def pink_walk_of(m):
     nm = (m or {}).get('name') or ''
@@ -412,7 +419,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, walls3=_walls3_of(store.get_meta(mid)), pink_walk=pink_walk_of(store.get_meta(mid)), extra_walls=extra_walls_of(store.get_meta(mid)), twin_letters=_posms2(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
+    feat = dict(feat, walls3=_walls3_of(store.get_meta(mid)), pink_walk=pink_walk_of(store.get_meta(mid)), extra_walls=extra_walls_of(store.get_meta(mid)), step_areas=step_areas_of(store.get_meta(mid)), twin_letters=_posms2(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -1768,7 +1775,7 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'walls-rule-2026-11-25b')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'choir-steps-2026-11-25')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
