@@ -23,6 +23,37 @@ if ($token === '') reply(false, 'Messaging is not set up yet.', 503);
 
 $dataDir = __DIR__ . '/data';
 
+// Readable "device" line from the browser's User-Agent.
+function device_info($ua) {
+    if ($ua === '') return 'unknown';
+    $os = 'Unknown OS';
+    if (preg_match('/iPhone OS ([\d_]+)/', $ua, $m)) $os = 'iOS ' . str_replace('_', '.', $m[1]);
+    elseif (preg_match('/iPad.*OS ([\d_]+)/', $ua, $m)) $os = 'iPadOS ' . str_replace('_', '.', $m[1]);
+    elseif (preg_match('/Android ([\d.]+)/', $ua, $m)) $os = 'Android ' . $m[1];
+    elseif (preg_match('/Windows NT 10/', $ua)) $os = 'Windows 10/11';
+    elseif (preg_match('/Windows NT ([\d.]+)/', $ua, $m)) $os = 'Windows NT ' . $m[1];
+    elseif (stripos($ua, 'Mac OS X') !== false) $os = 'macOS';  // browsers freeze the version at 10.15.7
+    elseif (stripos($ua, 'CrOS') !== false) $os = 'ChromeOS';
+    elseif (stripos($ua, 'Linux') !== false) $os = 'Linux';
+
+    $type = 'Computer';
+    if (stripos($ua, 'iPhone') !== false) $type = 'iPhone';
+    elseif (stripos($ua, 'iPad') !== false) $type = 'iPad';
+    elseif (stripos($ua, 'Android') !== false) {
+        $type = stripos($ua, 'Mobile') !== false ? 'Android phone' : 'Android tablet';
+        if (preg_match('/Android [\d.]+; ([^;)]+)\)/', $ua, $m) && trim($m[1]) !== 'K') $type .= ' (' . trim($m[1]) . ')';
+    }
+    if (preg_match('/bot|crawl|spider|curl|python|wget/i', $ua)) $type = 'Bot/script';
+
+    $br = 'Unknown browser';
+    foreach ([['Edg', 'Edge'], ['OPR', 'Opera'], ['SamsungBrowser', 'Samsung Internet'], ['CriOS', 'Chrome'],
+              ['FxiOS', 'Firefox'], ['Firefox', 'Firefox'], ['Chrome', 'Chrome'], ['Version', 'Safari']] as [$k, $n]) {
+        if (preg_match('#' . $k . '/(\d+)#', $ua, $m)) { $br = "$n {$m[1]}"; break; }
+    }
+    return "$type · $os · $br";
+}
+
+
 function tg($token, $method, $params) {
     $ch = curl_init("https://api.telegram.org/bot$token/$method");
     curl_setopt_array($ch, [
@@ -91,6 +122,15 @@ if ($chatId === '') {
 // --- send ---
 $body = "📩 New message from kasparsleitis.com\n\n" . $text;
 if ($contact !== '') $body .= "\n\n👤 Contact: " . $contact;
+$ua = substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 400);
+$extra = [];
+foreach (['screen' => 'Screen', 'lang' => 'Language', 'tz' => 'Time zone'] as $k => $label) {
+    $v = trim(substr((string)($_POST[$k] ?? ''), 0, 60));
+    if ($v !== '') $extra[] = "$label: $v";
+}
+$body .= "\n\n🌐 IP: " . $ip;
+$body .= "\n📱 Device: " . device_info($ua);
+if ($extra) $body .= "\n" . implode(' · ', $extra);
 $body .= "\n\n🕒 " . (new DateTime('now', new DateTimeZone('Europe/Riga')))->format('Y-m-d H:i');
 
 $res = tg($token, 'sendMessage', ['chat_id' => $chatId, 'text' => $body, 'disable_web_page_preview' => 'true']);

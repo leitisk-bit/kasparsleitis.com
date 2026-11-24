@@ -47,4 +47,6 @@ Its `config.php` is generated during deploy from these repository secrets (never
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
 | `TELEGRAM_CHAT_ID` | Optional. If empty, the first private chat that pressed **Start** in the bot is used and remembered in `contact/data/chat_id.txt` on the server. |
 
+Each message includes the sender IP, device (from the browser), screen size, language and time zone.
+
 Limits: 3000 characters per message, 5 messages per 10 minutes per visitor, hidden spam-trap field.

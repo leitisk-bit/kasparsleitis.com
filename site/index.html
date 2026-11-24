@@ -42,7 +42,11 @@ document.getElementById('msg').addEventListener('submit', async e => {
   const f = e.target, btn = f.querySelector('button'), st = document.getElementById('status');
   btn.disabled = true; st.textContent = 'Sending…';
   try {
-    const r = await fetch('/contact/send.php', { method: 'POST', body: new FormData(f) });
+    const fd = new FormData(f);
+    fd.append('screen', screen.width + '×' + screen.height);
+    fd.append('lang', navigator.language || '');
+    try { fd.append('tz', Intl.DateTimeFormat().resolvedOptions().timeZone || ''); } catch {}
+    const r = await fetch('/contact/send.php', { method: 'POST', body: fd });
     const j = await r.json();
     st.textContent = j.message;
     if (j.ok) f.reset();
