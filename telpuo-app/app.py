@@ -388,7 +388,7 @@ def _build_now(mid):
     def prog(msg):
         done_fl[0] += 1
         _job(mid, 'network', msg, min(done_fl[0], nfl), nfl, status='building', message='Building the route network: ' + msg)
-    feat = dict(feat, stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
+    feat = dict(feat, walls3=_trial_map(store.get_meta(mid)), stair_rule=stair_rule_of(store.get_meta(mid)), stair_deadends=stair_deadends_of(store.get_meta(mid)), stair_up_only=stair_up_only_of(store.get_meta(mid)))
     N, E, POLY, info = walk.build(img, feat, progress=prog)
     store.save_graph(mid, (N, E, POLY, info))
     # quick check: shortest route per leg
@@ -1497,11 +1497,10 @@ def _resume():
     """Jobs cut off by a restart (the server updates itself): start them again."""
     for m in store.list_maps():
         mid = m['id']
-        if m.get('status') in ('queued', 'building') and not _trial_map(m) and (m.get('job') or {}).get('step') in ('queued', 'network') \
-           and _graph_current(mid):
-            # (a rebuild for new rules, cut off or still waiting: dropped - the map keeps its routes; its rules are
-            # stamped as current so it is not queued again)
-            store.set_meta(mid, status='ready', message='', job=None, rules_key=rules_key(m)); continue
+        if m.get('status') in ('queued', 'building') and os.path.exists(os.path.join(store.map_dir(mid), 'graph.pkl')):
+            # (a rebuild cut off by a restart is never started again by itself: the map keeps the routes it has -
+            # Kaspars, a new version must not change the routes of maps nobody asked about)
+            store.set_meta(mid, status='ready', message='', job=None); continue
         if m.get('status') in ('queued', 'analysing', 'building'):
             if store.get_features(mid) and m.get('job', {}).get('step') not in (None, 'reading') and m.get('status') != 'analysing':
                 store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
@@ -1515,13 +1514,8 @@ def _resume():
 try: _resume()
 except Exception: traceback.print_exc()
 try:
-    for m_ in store.list_maps(): _apply_fixed_scale(m_['id'])
-    # only the trial map is rebuilt under new rules; others keep their routes (Kaspars)
-    for m_ in store.list_maps():
-        mm = store.get_meta(m_['id']) or {}
-        if _trial_map(mm) and mm.get('status') == 'ready' and store.get_features(m_['id']) and _rules_changed(mm):
-            store.set_meta(m_['id'], status='building', message='Rebuilding the route network (new wall rules)…')
-            store.background(_build, m_['id'], on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
+    for m_ in store.list_maps(): _apply_fixed_scale(m_['id'], rebuild=False)
+    # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 
 if __name__ == '__main__':

@@ -157,12 +157,15 @@ def walk_mask(img, features, cls=None, k=None):
                        ((sides[2] & sides[3]) & (dist[2] + dist[3] - 1 <= 10)))
         walk &= ~bridge
     # a dashed black line is a line all the same (Kaspars: a route never goes between its dashes)
-    br = dash_bridges(features.get('wall_lines') or [])
+    # (these wall rules only where they are switched on - the trial map; every other map keeps the routes it
+    # was built with: Kaspars)
+    W3 = bool(features.get('walls3'))
+    br = dash_bridges(features.get('wall_lines') or []) if W3 else []
     if br: walk &= ~vector_mask(img.shape, br, extra=1)
     # and every black line as drawn closes the floor, also where the picture leaves a pixel's gap at a
     # corner (Kaspars: a route by B squeezed between a wall's end and the stage band) - not over a stair
     # symbol, whose outline the stair code opens where its door is
-    if features.get('wall_lines'):
+    if W3 and features.get('wall_lines'):
         # (only the up and down flights themselves: a field of seat rows or a landing is crossed by its aisles,
         # not through its row lines)
         walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
@@ -191,7 +194,7 @@ def walk_mask(img, features, cls=None, k=None):
     walk |= ndi.binary_dilation(st, iterations=3) & ~np.isin(cls, [k['tape'], k['grey']])
     # (that widening must not eat a black line beside small same-floor steps: by B the route went round the
     # wall's end through the line beside the steps - Kaspars)
-    if features.get('wall_lines'):
+    if W3 and features.get('wall_lines'):
         walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
     R_, B_ = cls == k['red'], cls == k['blue']
     rb = ndi.binary_dilation(R_, iterations=6) & ndi.binary_dilation(B_, iterations=6)
@@ -769,7 +772,7 @@ def build(img, features, progress=None):
     # that way - already an edge - is the one; a straight line through a wall is no way at all - Kaspars: route
     # from F to A, B, through the walls)
     walked = {(a_, b_) for a_, b_, px_, fl_, _ in E if not fl_}
-    WLn = np.array([w_[:4] for w_ in features.get('wall_lines', [])], float).reshape(-1, 4)
+    WLn = np.array([w_[:4] for w_ in (features.get('wall_lines', []) if features.get('walls3') else [])], float).reshape(-1, 4)
     # (the outline and middle line of a stair symbol are not walls between its own two halves)
     if len(WLn):
         fz_ = _flight_zone(cls, k); H_, W_ = fz_.shape
