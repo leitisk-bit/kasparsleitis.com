@@ -1,1 +1,1 @@
-{"n": 172, "commit": "217d2d4", "date": "2026-11-25T00:04:53+02:00", "change": "The black-line rule checked on the result: no way on a floor crosses a drawn black line or tape"}
+{"n": 173, "commit": "cf89ca9", "date": "2026-11-25T00:17:27+02:00", "change": "A rebuild asked for by name is started again if a restart cut it off"}
