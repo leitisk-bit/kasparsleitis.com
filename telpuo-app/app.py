@@ -362,9 +362,23 @@ def _requeue_runs(mid):
 def rules_key(m):
     """What the map-specific rules were when the routes were built: when they change in a new version,
     the map's routes are rebuilt by themselves at start."""
-    # (and the wall rules of the route network: 'walls2' = every drawn black line and dashed line closes the
-    # floor, straight joins never through a wall - so every map's routes are rebuilt once with them)
-    return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale'), 'walls3'])
+    # (and the wall rules of the route network, 'walls3' - for now only on the map they are being tried on:
+    # Kaspars, not every map at once until it is right there)
+    tail = ['walls3'] if _trial_map(m) else []
+    return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale')] + tail)
+
+TRIAL_RULES = re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*A\b', re.I)
+def _trial_map(m): return bool(TRIAL_RULES.search((m or {}).get('name') or ''))
+
+def _rules_changed(m):
+    """Built under other rules than now? (a map built with the trial rules before they were limited to the
+    trial map counts as current: no second rebuild for it)"""
+    try: old = json.loads(m.get('rules_key') or 'null')
+    except Exception: old = None
+    new = json.loads(rules_key(m))
+    if old == new: return False
+    if isinstance(old, list) and old[:3] == new[:3] and not _trial_map(m): return False
+    return True
 
 def _build_now(mid):
     feat = store.get_features(mid); img = store.load_render(mid)
@@ -1469,7 +1483,7 @@ def _apply_fixed_scale(mid, rebuild=True):
         return
     sc, why = fx
     store.set_meta(mid, scale=sc, scale_fixed=why)
-    changed = m.get('rules_key') != rules_key(store.get_meta(mid))     # scale or stair rules changed since built
+    changed = _rules_changed(store.get_meta(mid))                     # scale or stair rules changed since built
     if changed and rebuild and m.get('status') == 'ready' and store.get_features(mid):
         store.set_meta(mid, status='building', message='Rebuilding the route network (map scale fixed)…')
         store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
@@ -1478,6 +1492,10 @@ def _resume():
     """Jobs cut off by a restart (the server updates itself): start them again."""
     for m in store.list_maps():
         mid = m['id']
+        if m.get('status') in ('queued', 'building') and not _trial_map(m) and (m.get('job') or {}).get('step') in ('queued', 'network') \
+           and os.path.exists(os.path.join(store.map_dir(mid), 'graph.pkl')) and not _rules_changed(m):
+            # (a rebuild for new rules, cut off or still waiting: dropped - the map keeps its routes)
+            store.set_meta(mid, status='ready', message='', job=None); continue
         if m.get('status') in ('queued', 'analysing', 'building'):
             if store.get_features(mid) and m.get('job', {}).get('step') not in (None, 'reading') and m.get('status') != 'analysing':
                 store.background(_build, mid, on_error=lambda e, mid=mid: store.set_meta(mid, status='error', message=e))
@@ -1492,10 +1510,10 @@ try: _resume()
 except Exception: traceback.print_exc()
 try:
     for m_ in store.list_maps(): _apply_fixed_scale(m_['id'])
-    # every other map whose routes were built under older rules (the wall rules changed): built again, once
+    # only the trial map is rebuilt under new rules; others keep their routes (Kaspars)
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
-        if mm.get('status') == 'ready' and store.get_features(m_['id']) and mm.get('rules_key') != rules_key(mm):
+        if _trial_map(mm) and mm.get('status') == 'ready' and store.get_features(m_['id']) and _rules_changed(mm):
             store.set_meta(m_['id'], status='building', message='Rebuilding the route network (new wall rules)…')
             store.background(_build, m_['id'], on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
 except Exception: traceback.print_exc()
