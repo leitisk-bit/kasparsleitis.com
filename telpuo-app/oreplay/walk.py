@@ -53,6 +53,55 @@ def vector_mask(shape, lines, extra=0):
         d.line([(x0, y0), (x1, y1)], fill=255, width=max(1, int(round(wd + extra))))
     return np.array(im) > 0
 
+def dash_bridges(lines, lo=6, hi=45, gap=20, ang=15):
+    """The gaps of dashed black lines: short strokes in a row, the next one starting within `gap` px of the
+    last one's end, all in one direction. Returns the strokes that close the gaps."""
+    L = np.array([l_[:5] for l_ in lines], float).reshape(-1, 5)
+    if not len(L): return []
+    ln = np.hypot(L[:, 2] - L[:, 0], L[:, 3] - L[:, 1]); S = L[(ln >= lo) & (ln <= hi)]
+    if len(S) < 2: return []
+    from scipy.spatial import cKDTree
+    ends = np.r_[S[:, :2], S[:, 2:4]]; idx = np.r_[np.arange(len(S)), np.arange(len(S))]
+    dirs = (S[:, 2:4] - S[:, :2]) / np.hypot(*(S[:, 2:4] - S[:, :2]).T)[:, None]
+    tree = cKDTree(ends); out = []; ca = math.cos(math.radians(ang))
+    for i, j in tree.query_pairs(gap):
+        a, b = idx[i], idx[j]
+        if a == b: continue
+        if abs(dirs[a] @ dirs[b]) < ca: continue
+        v = ends[j] - ends[i]; dv = np.hypot(*v)
+        if dv < 1.5: continue                                    # (touching: one line already)
+        if abs((v / dv) @ dirs[a]) < ca: continue               # (the gap runs along the line, not across)
+        la, lb = np.hypot(*(S[a, 2:4] - S[a, :2])), np.hypot(*(S[b, 2:4] - S[b, :2]))
+        if max(la, lb) / max(1e-6, min(la, lb)) > 1.6 or dv > 0.9 * min(la, lb): continue   # (dashes alike, gaps shorter)
+        out.append((a, b, [float(ends[i][0]), float(ends[i][1]), float(ends[j][0]), float(ends[j][1]), float(max(S[a, 4], S[b, 4]))]))
+    # only a real dashed line: at least four dashes in a row (two strokes with a gap between are a wall and its
+    # door - never closed)
+    nb = collections.Counter([a for a, b, _ in out] + [b for a, b, _ in out])
+    adj = collections.defaultdict(set)
+    for a, b, _ in out: adj[a].add(b); adj[b].add(a)
+    comp, cid = {}, 0
+    for v in adj:
+        if v in comp: continue
+        st_ = [v]; comp[v] = cid
+        while st_:
+            u = st_.pop()
+            for w in adj[u]:
+                if w not in comp: comp[w] = cid; st_.append(w)
+        cid += 1
+    size = collections.Counter(comp.values())
+    # (or a few loose dashes: short strokes touching nothing else at either end - a wall's end beside a door
+    # always meets another wall)
+    allE = np.r_[L[:, :2], L[:, 2:4]]; atree = cKDTree(allE)
+    def loose(a):
+        return all(len(atree.query_ball_point(e_, 3.0)) <= 1 for e_ in (S[a, :2], S[a, 2:4]))
+    return [l_ for a, b, l_ in out if size[comp[a]] >= 4 or (S[a, 4] <= 3 and S[b, 4] <= 3 and loose(a) and loose(b)
+                                                             and max(np.hypot(*(S[a, 2:4] - S[a, :2])), np.hypot(*(S[b, 2:4] - S[b, :2]))) <= 30)]
+
+def _flight_zone(cls, k):
+    """Up and down flights and the landings right at them: where a stair's outline is opened at its door."""
+    rb = np.isin(cls, [k['red'], k['blue']])
+    return ndi.binary_dilation(rb | ((cls == k['landing']) & ndi.binary_dilation(rb, iterations=8)), iterations=4)
+
 def walk_mask(img, features, cls=None, k=None):
     if cls is None: cls, k = classify(img)
     # the blue lines between floors have the colour of a down flight: they are neither stairs nor floor
@@ -101,6 +150,16 @@ def walk_mask(img, features, cls=None, k=None):
         bridge = ov & (((sides[0] & sides[1]) & (dist[0] + dist[1] - 1 <= 10)) |
                        ((sides[2] & sides[3]) & (dist[2] + dist[3] - 1 <= 10)))
         walk &= ~bridge
+    # a dashed black line is a line all the same (Kaspars: a route never goes between its dashes)
+    br = dash_bridges(features.get('wall_lines') or [])
+    if br: walk &= ~vector_mask(img.shape, br, extra=1)
+    # and every black line as drawn closes the floor, also where the picture leaves a pixel's gap at a
+    # corner (Kaspars: a route by B squeezed between a wall's end and the stage band) - not over a stair
+    # symbol, whose outline the stair code opens where its door is
+    if features.get('wall_lines'):
+        # (only the up and down flights themselves: a field of seat rows or a landing is crossed by its aisles,
+        # not through its row lines)
+        walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
     # and wherever the drawing has a wall under the overprint, it is a wall
     if (~known).any() and (features.get('wall_lines') or features.get('wall_polys')):
         from PIL import Image as _I, ImageDraw as _D
@@ -124,6 +183,10 @@ def walk_mask(img, features, cls=None, k=None):
     st |= (cls == k['landing']) & ndi.binary_dilation(np.isin(cls, [k['same']]), iterations=6)
     base = walk.copy()
     walk |= ndi.binary_dilation(st, iterations=3) & ~np.isin(cls, [k['tape'], k['grey']])
+    # (that widening must not eat a black line beside small same-floor steps: by B the route went round the
+    # wall's end through the line beside the steps - Kaspars)
+    if features.get('wall_lines'):
+        walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
     R_, B_ = cls == k['red'], cls == k['blue']
     rb = ndi.binary_dilation(R_, iterations=6) & ndi.binary_dilation(B_, iterations=6)
     seam = (rb & ~R_ & ~B_ & ~base) | (R_ & ndi.binary_dilation(B_, iterations=2)) | (B_ & ndi.binary_dilation(R_, iterations=2))
@@ -696,6 +759,19 @@ def build(img, features, progress=None):
     E[:] = [e for e in E if e[3] or not _same_well(e[0], e[1]) or not (opens[e[0]] or opens[e[1]])
             or not _over_landing((e[0], e[1]))]
     has_door = collections.Counter(a_ for a_, b_, px_, fl_, _ in E if not fl_)
+    # (the straight joins below never go through a black line: where the floor has a way round between the two,
+    # that way - already an edge - is the one; a straight line through a wall is no way at all - Kaspars: route
+    # from F to A, B, through the walls)
+    walked = {(a_, b_) for a_, b_, px_, fl_, _ in E if not fl_}
+    WLn = np.array([w_[:4] for w_ in features.get('wall_lines', [])], float).reshape(-1, 4)
+    def through_wall(a_, b_):
+        if not len(WLn): return False
+        (px_, py_), (qx_, qy_) = N[a_][1:], N[b_][1:]; x1, y1, x2, y2 = WLn.T
+        d_ = (qx_ - px_) * (y2 - y1) - (qy_ - py_) * (x2 - x1)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            t_ = ((x1 - px_) * (y2 - y1) - (y1 - py_) * (x2 - x1)) / d_; u_ = ((x1 - px_) * (qy_ - py_) - (y1 - py_) * (qx_ - px_)) / d_
+        return bool(((np.abs(d_) > 1e-9) & (t_ > 0.05) & (t_ < 0.95) & (u_ > 0) & (u_ < 1)).any())
+    def joinable(a_, b_): return (a_, b_) not in walked and not through_wall(a_, b_)
     for n in list(N):
         parts = n.split('_')
         if len(parts) != 3 or parts[2] != 'up': continue
@@ -734,7 +810,7 @@ def build(img, features, progress=None):
                 done_.add((a_, b_))
                 if a_.split('_')[1].split('#')[0] == b_.split('_')[1].split('#')[0] or N[a_][0] != N[b_][0] or not cid[a_] or cid[a_] != cid[b_]: continue
                 d = math.hypot(N[a_][1] - N[b_][1], N[a_][2] - N[b_][2])
-                if d < 150: add(a_, b_, d, 0); add(b_, a_, d, 0)
+                if d < 150 and joinable(a_, b_): add(a_, b_, d, 0); add(b_, a_, d, 0)
     # pockets: the control is only linked to its flight
     for c, fl_name in pocket_ctrl.items():
         if fl_name in N and c in N:

@@ -362,7 +362,9 @@ def _requeue_runs(mid):
 def rules_key(m):
     """What the map-specific rules were when the routes were built: when they change in a new version,
     the map's routes are rebuilt by themselves at start."""
-    return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale')])
+    # (and the wall rules of the route network: 'walls2' = every drawn black line and dashed line closes the
+    # floor, straight joins never through a wall - so every map's routes are rebuilt once with them)
+    return json.dumps([stair_rule_of(m), stair_deadends_of(m), (m or {}).get('scale'), 'walls2'])
 
 def _build_now(mid):
     feat = store.get_features(mid); img = store.load_render(mid)
