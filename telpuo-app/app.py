@@ -1492,6 +1492,12 @@ try: _resume()
 except Exception: traceback.print_exc()
 try:
     for m_ in store.list_maps(): _apply_fixed_scale(m_['id'])
+    # every other map whose routes were built under older rules (the wall rules changed): built again, once
+    for m_ in store.list_maps():
+        mm = store.get_meta(m_['id']) or {}
+        if mm.get('status') == 'ready' and store.get_features(m_['id']) and mm.get('rules_key') != rules_key(mm):
+            store.set_meta(m_['id'], status='building', message='Rebuilding the route network (new wall rules)…')
+            store.background(_build, m_['id'], on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
 except Exception: traceback.print_exc()
 
 if __name__ == '__main__':
