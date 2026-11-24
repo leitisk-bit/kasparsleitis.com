@@ -160,6 +160,8 @@ def walk_mask(img, features, cls=None, k=None):
     # (these wall rules only where they are switched on - the trial map; every other map keeps the routes it
     # was built with: Kaspars)
     W3 = bool(features.get('walls3'))
+    long_w = [w_ for w_ in (features.get('wall_lines') or []) if math.hypot(w_[2] - w_[0], w_[3] - w_[1]) >= 40] \
+        if isinstance(features.get('walls3'), dict) and features['walls3'].get('long_walls') else []
     br = dash_bridges(features.get('wall_lines') or []) if W3 else []
     # (not on the floors the map says: in 2. posms Garā B's floor -1 maze closing the dashes shut 17-38 in)
     nd_ = features.get('walls3').get('nodash_floors', []) if isinstance(features.get('walls3'), dict) else []
@@ -174,6 +176,9 @@ def walk_mask(img, features, cls=None, k=None):
         # (only the up and down flights themselves: a field of seat rows or a landing is crossed by its aisles,
         # not through its row lines)
         walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
+        # (a long wall stays shut beside a flight drawn against it: a stair's own outline is short pieces;
+        # Garā B 4-50, the room with a small flight on floor -1 was entered through its 80 px side wall)
+        if long_w: walk &= ~vector_mask(img.shape, long_w)
     # and wherever the drawing has a wall under the overprint, it is a wall
     if (~known).any() and (features.get('wall_lines') or features.get('wall_polys')):
         from PIL import Image as _I, ImageDraw as _D
@@ -220,6 +225,9 @@ def walk_mask(img, features, cls=None, k=None):
     # wall's end through the line beside the steps - Kaspars)
     if W3 and features.get('wall_lines'):
         walk &= ~(vector_mask(img.shape, features['wall_lines']) & ~_flight_zone(cls, k))
+        # (a long wall stays shut beside a flight drawn against it: a stair's own outline is short pieces;
+        # Garā B 4-50, the room with a small flight on floor -1 was entered through its 80 px side wall)
+        if long_w: walk &= ~vector_mask(img.shape, long_w)
     # walls the map's own settings add (where the drawing's lines leave a gap the reading can't close by
     # itself: 2. posms Garā B, the building's wall by 3-59 running on to the end of the stand's red band)
     if features.get('extra_walls'): walk &= ~vector_mask(img.shape, features['extra_walls'], extra=1)

@@ -390,7 +390,7 @@ def _walls3_of(m):
     """The wall rules for the maps they are tried on: Garā A all of them; Garā B without closing dashed lines
     on floor -1 (they shut its maze: legs to 17-38 and 18-55 got no route)."""
     if not _trial_map(m): return False
-    return {'nodash_floors': [-1]} if re.search(r'Gar.\s*B\b', (m or {}).get('name') or '') else True
+    return {'nodash_floors': [-1], 'long_walls': True} if re.search(r'Gar.\s*B\b', (m or {}).get('name') or '') else True
 
 def _trial_map(m): return bool(TRIAL_RULES.search((m or {}).get('name') or ''))
 
@@ -1768,7 +1768,7 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'maze-lines-2026-11-24')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'long-walls-2026-11-24')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
