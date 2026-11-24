@@ -1256,7 +1256,12 @@ async function start(){
           slab(mx + tx * d * run / 2, yh, mz + tz * d * run / 2, tx * d, tz * d, LDd, 2 * w + gap, stairMat);
           P.push([lo_x, yl, lo_z], [hx, yh, hz]);
         }
-        stairPaths.push({ lo:st.f1, hi:tw.top_f, P });
+        // (each floor it serves: the landing nearest that floor's level)
+        const F = P.map(() => null); F[0] = st.f1; F[P.length - 1] = tw.top_f;
+        for (let f = st.f1 + 1; f < tw.top_f; f++){ if (!LV || yOf(f) === undefined) continue;
+          let kb = -1; for (let k = 2; k < P.length - 1; k += 2) if (kb < 0 || Math.abs(P[k][1] - yOf(f)) < Math.abs(P[kb][1] - yOf(f))) kb = k;
+          if (kb > 0 && F[kb] === null) F[kb] = f; }
+        stairPaths.push({ P, F });
         tag(st.letter, Ox, y1 + 1.6, Oz, st);
         return;
       }
@@ -1342,8 +1347,12 @@ async function start(){
             const rr = Lh - f2y, rn = Math.max(2, rr / S0), ex = lx0 + ux * LL / 2, ez = lz0 + uz * LL / 2;
             const b2x = ex + vx * sd * (w / 2 + 0.3), b2z = ez + vz * sd * (w / 2 + 0.3);
             flat(b2x, Lh, b2z, b2x + vx * sd * rn, f2y, b2z + vz * sd * rn, cw);
+            // (on foot: up the main flight to the landing, along the wing to floor 2 - and from there up again)
+            const Lp = [lx0 + ux * LL / 2, Lh, lz0 + uz * LL / 2], Wp = [b2x + vx * sd * rn, f2y, b2z + vz * sd * rn];
+            stairPaths.push({ P:[[BX, ground, BZ], Lp, [b2x, Lh, b2z], Wp], F:[st.f1, null, null, im.f2] });
+            stairPaths.push({ P:[Wp, [b2x, Lh, b2z], Lp, [TX, top, TZ]], F:[im.f2, null, null, st.f2] });
           });
-          stairPaths.push({ lo:st.f1, hi:st.f2, P:[[BX, ground, BZ], [TX, top, TZ]] });
+          stairPaths.push({ P:[[BX, ground, BZ], [TX, top, TZ]], F:[st.f1, st.f2] });
           tag(st.letter, TX, top + 1.6, TZ, st);
           if (im.branch) tag(im.branch, lx0, Lh + 1.4, lz0, st);
           return;
@@ -1369,7 +1378,7 @@ async function start(){
         const r1 = Math.hypot(e1x - TX, e1z - TZ), r2 = Math.hypot(BX - e2x, BZ - e2z);
         let Lh = top - H * r1 / Math.max(0.1, r1 + r2);
         Lh = Math.min(top - 0.5, Math.max(ground + 0.5, Lh));
-        stairPaths.push({ lo:st.f1, hi:st.f2, P:[[BX, ground, BZ], [e2x, Lh, e2z], [e1x, Lh, e1z], [TX, top, TZ]] });
+        stairPaths.push({ P:[[BX, ground, BZ], [e2x, Lh, e2z], [e1x, Lh, e1z], [TX, top, TZ]], F:[st.f1, null, null, st.f2] });
         flat(TX, top, TZ, e1x, Lh, e1z, w);
         // the landing: square to the upper flight, wide enough for every flight that leaves it
         const LW = back ? 2 * w + 0.4 + 2 * (cw + 0.4) : w + 2 * (cw + 0.4);
@@ -1388,6 +1397,8 @@ async function start(){
           const cx2 = bx + (sx - bx) / L * run, cz2 = bz + (sz - bz) / L * run;
           flat(bx, Lh, bz, cx2, f2y, cz2, cw);
           if (L - run > 0.3) slab(cx2, f2y, cz2, (sx - bx) / L, (sz - bz) / L, L - run, cw, stairMat);
+          stairPaths.push({ P:[[BX, ground, BZ], [e2x, Lh, e2z], [bx, Lh, bz], [cx2, f2y, cz2], [sx, f2y, sz]], F:[st.f1, null, null, null, im.f2] });
+          stairPaths.push({ P:[[sx, f2y, sz], [cx2, f2y, cz2], [bx, Lh, bz], [e1x, Lh, e1z], [TX, top, TZ]], F:[im.f2, null, null, null, st.f2] });
         });
         tag(st.letter, TX, top + 1.6, TZ, st);
         if (im.branch) tag(im.branch, LX, Lh + 1.4, LZ, st);
@@ -1556,15 +1567,17 @@ async function start(){
       if (P[j].f === P[j-1].f) continue;
       let i0 = j - 1; while (i0 > 0 && P[i0-1].f === P[j-1].f && P[i0].fz !== P[i0].f) i0--;
       const a = P[j-1].f, b = P[j].f, A = P[Math.max(0, i0 - 1)], B = P[j];
+      // the stretch of a staircase from a point on floor a to a point on floor b (either way along it)
       let best = null;
       stairPaths.forEach(sp => {
-        if (Math.min(a, b) < sp.lo || Math.max(a, b) > sp.hi) return;
-        const lo = sp.P[0], hi = sp.P[sp.P.length - 1], up = b > a;
-        const e = Math.hypot((up ? lo : hi)[0] - A.ox, (up ? lo : hi)[2] - A.oz) + Math.hypot((up ? hi : lo)[0] - B.ox, (up ? hi : lo)[2] - B.oz);
-        if (e < 60 && (!best || e < best[0])) best = [e, sp, up];
+        sp.F.forEach((fa, ia) => { if (fa !== a) return; sp.F.forEach((fb, ib) => { if (fb !== b) return;
+          const s0 = sp.P[ia], s1 = sp.P[ib];
+          const e = Math.hypot(s0[0] - A.ox, s0[2] - A.oz) + Math.hypot(s1[0] - B.ox, s1[2] - B.oz);
+          if (e < 30 && (!best || e < best[0])) best = [e, ia < ib ? sp.P.slice(ia, ib + 1) : sp.P.slice(ib, ia + 1).reverse()];
+        }); });
       });
       if (!best) continue;
-      const [, sp, up] = best, Q = up ? sp.P : sp.P.slice().reverse();
+      const Q = best[1];
       const L = [0]; for (let k = 1; k < Q.length; k++) L.push(L[k-1] + Math.hypot(Q[k][0] - Q[k-1][0], Q[k][1] - Q[k-1][1], Q[k][2] - Q[k-1][2]));
       const at = s => { const d = s * L[L.length - 1]; let k = 1; while (k < Q.length - 1 && L[k] < d) k++;
         const u = (d - L[k-1]) / ((L[k] - L[k-1]) || 1); return [0, 1, 2].map(c => Q[k-1][c] + (Q[k][c] - Q[k-1][c]) * u); };
