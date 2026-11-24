@@ -1768,14 +1768,18 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'walls-rule-2026-11-25')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'walls-rule-2026-11-25b')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
         for rx_, tok_ in FORCE_REBUILD:
             if rx_.search(mm.get('name') or '') and mm.get('forced') != tok_ and mm.get('status') == 'ready' and store.get_features(m_['id']):
-                store.set_meta(m_['id'], forced=tok_, status='building', message='Rebuilding the route network…')
-                store.background(_build, m_['id'], on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
+                # (the token is kept only once the rebuild has finished: one cut off by a restart - the version
+                # stamp right after a change restarts the server again - is started again)
+                def _forced(mid, tok):
+                    _build(mid); store.set_meta(mid, forced=tok)
+                store.set_meta(m_['id'], status='building', message='Rebuilding the route network…')
+                store.background(_forced, m_['id'], tok_, on_error=lambda e, mid=m_['id']: store.set_meta(mid, status='error', message=e))
 except Exception: traceback.print_exc()
 
 if __name__ == '__main__':
