@@ -389,11 +389,19 @@ def analyze(pdf_path, page=0):
         for g in groups_:
             if min(math.hypot(p_[0] - q_[0], p_[1] - q_[1]) for p_ in pts for q_ in g) < 60: g.extend(pts); break
         else: groups_.append(list(pts))
+    R0 = float(np.median([c[2] for c in circles])) if circles else None
     for g in groups_:
         fit = _fit_circle(g)
-        # skip a fit that lands on a control already found (pieces of its own outline)
-        if fit and 15 < fit[2] < 60 and not any(math.hypot(fit[0] - c[0], fit[1] - c[1]) < max(8, 0.8 * c[2]) for c in circles):
-            circles.append(fit)
+        fits = [fit] if fit and 15 < fit[2] < 60 else []
+        # several circles cut into short pieces close together (TELPO 2. posms Garā B: 4-50, 5-39 and 17-38 in
+        # the maze on floor -1, each cut where it would cover a wall): each longer piece says where its own
+        # centre is, pieces with one centre are one circle
+        if not fits and R0:
+            fits = _split_arcs([pts for pts in arcs if any(math.hypot(pts[0][0] - q_[0], pts[0][1] - q_[1]) < 0.5 for q_ in g)], R0)
+        for fit in fits:
+            # skip a fit that lands on a control already found (pieces of its own outline)
+            if not any(math.hypot(fit[0] - c[0], fit[1] - c[1]) < max(8, 0.8 * c[2]) for c in circles):
+                circles.append(fit)
     # finish = two concentric circles
     used, ctrls, finish = set(), [], None
     for i, a in enumerate(circles):
@@ -717,6 +725,28 @@ def _fit_circle(pts):
     r = math.sqrt(r2)
     if max(abs(math.hypot(x - cx, y - cy) - r) for x, y in pts) > 0.15 * r: return None
     return (cx, cy, r)
+
+def _split_arcs(pieces, R0):
+    """Circles of about radius R0 from arc pieces of several circles mixed together: a piece long enough to
+    bend says where its centre is; pieces whose centres meet are fitted as one circle."""
+    cand = []
+    for pts in pieces:
+        if len(pts) < 9: continue
+        span = max(math.hypot(a[0] - b[0], a[1] - b[1]) for a in pts[::3] for b in pts[::3])
+        if span < 0.35 * R0: continue
+        f_ = _fit_circle(pts)
+        if f_ and 0.7 * R0 < f_[2] < 1.4 * R0: cand.append((f_, pts))
+    out, used = [], set()
+    for i, (fi, _) in enumerate(cand):
+        if i in used: continue
+        grp = [j for j, (fj, _) in enumerate(cand) if j not in used and math.hypot(fi[0] - fj[0], fi[1] - fj[1]) < 0.5 * R0]
+        used |= set(grp)
+        pts = [q_ for j in grp for q_ in cand[j][1]]
+        # (a short piece alone bends too little to be sure: two pieces, or one long one)
+        if len(grp) < 2 and max(math.hypot(a[0] - b[0], a[1] - b[1]) for a in pts[::3] for b in pts[::3]) < 0.9 * R0: continue
+        f_ = _fit_circle(pts)
+        if f_ and 0.75 * R0 < f_[2] < 1.3 * R0: out.append(f_)
+    return out
 
 def _seg_dist(p_, a, b):
     ax, ay = a; bx, by = b; px, py = p_
