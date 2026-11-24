@@ -36,3 +36,15 @@ Its `config.php` is generated during deploy from these repository secrets (never
 | `MUSICIF_PLAYER_KEY` | Long random key used in the player link |
 
 After adding or changing them: **Actions → Deploy to Namecheap → Run workflow**.
+
+## Message box → Telegram (`site/contact/`)
+
+The home page has a message box. Messages go to a Telegram bot via `/contact/send.php`.
+Its `config.php` is generated during deploy from these repository secrets (never committed):
+
+| Secret | What |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
+| `TELEGRAM_CHAT_ID` | Optional. If empty, the first private chat that pressed **Start** in the bot is used and remembered in `contact/data/chat_id.txt` on the server. |
+
+Limits: 3000 characters per message, 5 messages per 10 minutes per visitor, hidden spam-trap field.

@@ -4,3 +4,6 @@ site/musicif/data/*.lock
 __pycache__/
 *.pyc
 telpuo-app/update/
+site/contact/config.php
+site/contact/data/*.json
+site/contact/data/*.txt
