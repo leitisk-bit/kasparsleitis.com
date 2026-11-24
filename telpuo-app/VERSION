@@ -1,1 +1,1 @@
-{"n": 157, "commit": "1e0409e", "date": "2026-11-24T11:12:00+02:00", "change": "Rebuild every map whose routes were built under older rules, not only fixed-scale ones"}
+{"n": 158, "commit": "97fe3c6", "date": "2026-11-24T11:37:55+02:00", "change": "New wall rules only on the trial map (2. posms Garā A); stop the queued rebuilds of every other map"}
