@@ -597,9 +597,61 @@ def _warps3d(mid, m, texs, pieces):
                 anchors = {i_: v for i_, v in anchors.items() if len(v) >= 6}
             _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'),
                                             keep_floors=() if anchors else cfg.get('keep_floors', ()), anchors=anchors)
+            bj = cfg.get('band_join')
+            if bj and anchors is not None:
+                # the choir stand (floor 5) drawn on its own sheet: its front band (blue) onto the stage's edge band
+                # on floor 1 (red) - one edge, not two a few metres apart (Kaspars) - and its top letters onto the
+                # same letters on floor 1
+                extra = _band_anchors(mid, N, pieces, tex_, _WARPS[key][1], bj)
+                if extra:
+                    anchors = dict(anchors); anchors.update(extra)
+                    _WARPS[key] = three.piece_warps(N, pieces, tex_, exclude=ex, axes=info_.get('axes'),
+                                                    keep_floors=() if anchors else cfg.get('keep_floors', ()), anchors=anchors)
         except Exception:
             traceback.print_exc(); _WARPS[key] = ([], lambda f, x, y: [x, y])
     return _WARPS[key]
+
+def _band_mask(mid, t, color):
+    from PIL import Image
+    a = np.asarray(Image.open(os.path.join(store.map_dir(mid), f"tex{t['floor']}_{t['piece']}.webp")).convert('RGBA')).astype(int)
+    r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+    m = (al > 100) & ((r > 200) & (g < 90) & (b < 110) if color == 'red' else (b > 150) & (r < 60) & (g > 80) & (g < 160))
+    lab, n = ndi.label(m)
+    if not n: return None, None
+    sz = ndi.sum(m, lab, range(1, n + 1)); m = lab == (int(np.argmax(sz)) + 1)       # (the band: the biggest such)
+    ys, xs = np.nonzero(m); sx, sy = t['w'] / a.shape[1], t['h'] / a.shape[0]
+    return np.c_[t['x0'] + xs * sx, t['y0'] + ys * sy], m
+
+def _band_anchors(mid, N, pieces, tex, place, bj):
+    try:
+        from scipy.spatial import cKDTree
+        t5 = next((t for t in tex if pieces[t['piece']]['floor'] == bj['floor']), None)
+        t1 = next((t for t in tex if pieces[t['piece']]['floor'] == bj['onto']), None)
+        if not t5 or not t1: return {}
+        B, _ = _band_mask(mid, t5, bj['color']); Rd, _ = _band_mask(mid, t1, bj['onto_color'])
+        if B is None or Rd is None: return {}
+        # the band's two edges: its front (towards the field) is the edge to join; sample along it
+        B = B[::7]; P = np.array(place.many(bj['floor'], B[:, 0], B[:, 1])) if hasattr(place, 'many') else B
+        tree = cKDTree(Rd); d, k = tree.query(P)
+        ok = d < 150                                        # (only where the red band is near: ~25 m)
+        if ok.sum() < 20: return {}
+        sel = np.nonzero(ok)[0][::max(1, ok.sum() // 60)]
+        i5 = t5['piece']
+        A = [((float(B[j, 0]), float(B[j, 1])), (float(Rd[k[j], 0]), float(Rd[k[j], 1]))) for j in sel]
+        # the top: its stair letters onto the same letters on floor 1
+        for n_, (fl, x, y) in N.items():
+            q = n_.split('_')
+            if fl != bj['floor'] or len(q) != 3 or q[2] not in ('up', 'dn'): continue
+            pc = three.piece_of(pieces, fl, x, y)
+            if pieces.index(pc) != i5: continue
+            for n2, (f2_, x2, y2) in N.items():
+                q2 = n2.split('_')
+                if f2_ == bj['onto'] and len(q2) == 3 and q2[1] == q[1] and q2[2] in ('up', 'dn'):
+                    p2 = three.piece_of(pieces, f2_, x2, y2)
+                    A.append(((x - pc['off'][0], y - pc['off'][1]), (x2 - p2['off'][0], y2 - p2['off'][1]))); break
+        return {i5: A}
+    except Exception:
+        traceback.print_exc(); return {}
 
 _STAIRS = {}
 def _stairs3d(mid, built, off, pieces=None, place=None):
@@ -1080,7 +1132,8 @@ SITE_STAIRS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar', re.I),
                  'keep_floors': (3,), 'lidar_stairs': 'sitedata/estrade_stairs.json',
                  'lidar_grid': 'sitedata/estrade_grid.npz', 'lidar_zero': 8.3,
                  # the a-h aisles: the field just slopes on down there, no stairs to draw (Kaspars, the LiDAR)
-                 'no_stairs': 'abcdefgh', 'portals': 'E', 'portal_into': 5})]
+                 'no_stairs': 'abcdefgh', 'portals': 'E', 'portal_into': 5,
+                 'band_join': {'floor': 5, 'color': 'blue', 'onto': 1, 'onto_color': 'red'}})]
 
 def _site_stairs(m, out, mpp, info=None, pieces=None, N=None, texs=None, place=None):
     """Mezaparks' staircases (see SITE_STAIRS): each is drawn through its own letters - from its letter on the top
