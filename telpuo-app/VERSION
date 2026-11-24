@@ -1,1 +1,1 @@
-{"n": 156, "commit": "5499074", "date": "2026-11-24T10:40:40+02:00", "change": "Routes and walls: the stage band is not a stair, an up/down join never through a wall"}
+{"n": 157, "commit": "1e0409e", "date": "2026-11-24T11:12:00+02:00", "change": "Rebuild every map whose routes were built under older rules, not only fixed-scale ones"}
