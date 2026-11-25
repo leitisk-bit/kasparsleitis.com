@@ -378,7 +378,8 @@ def extra_walls_of(m):
 
 # same-floor staircase areas per map: their drawn lines are step edges, not walls (Kaspars, 2. posms Garā B: the
 # choir stand on floor 1 where 7-61 is - rows, the red band and the corridor's edge onto it; you move up and down)
-STEP_AREAS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2230, 2380, 3020, 2620]])]
+STEP_AREAS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2230, 2380, 3020, 2620]]),
+              (re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*A\b', re.I), [[2292, 2374, 3082, 2614]])]   # (the same stand on Garā A's sheet)
 def step_areas_of(m):
     nm = (m or {}).get('name') or ''
     return next((v for rx, v in STEP_AREAS if rx.search(nm)), None)
@@ -1775,7 +1776,7 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), 'choir-steps-2026-11-25')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*[AB]\b', re.I), 'rule-no-speck-2026-11-25')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}

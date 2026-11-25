@@ -806,7 +806,10 @@ def build(img, features, progress=None):
     if features.get('walls3'):
         fz_r = _flight_zone(cls, k); Hr, Wr = fz_r.shape
         Lr = np.array([w_[:4] for w_ in features.get('wall_lines', [])], float).reshape(-1, 4)
-        if len(Lr):
+        # (no line is let off for being near something red or blue: a speck of a band's end counted as a
+        # stair, and the wall by it went untested - Garā A and B, by B. Only a stair's own door is let off,
+        # by not testing the first pixels out of a stair's point, below)
+        if len(Lr) and features.get('walls3') is True and False:
             mx_ = np.clip(((Lr[:, 0] + Lr[:, 2]) / 2).astype(int), 0, Wr - 1); my_ = np.clip(((Lr[:, 1] + Lr[:, 3]) / 2).astype(int), 0, Hr - 1)
             Lr = Lr[~fz_r[my_, mx_]]
         st_l = {tuple(w_[:4]) for w_ in _step_lines(cls, k, features)}
