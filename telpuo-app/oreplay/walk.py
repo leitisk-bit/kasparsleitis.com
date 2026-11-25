@@ -51,7 +51,9 @@ def _step_lines(cls, k, features):
     step edges, not walls. A line counts when the colours either side of it are both stand or corridor."""
     areas = features.get('step_areas') or []
     if not areas or not features.get('wall_lines'): return []
-    ok = np.isin(cls, [k['same'], k['red'], k['beige'], k['white'], k['over']])
+    # (only lines inside the stand: rows and the band. The black line between the corridor and the band
+    # is a wall like any other - Kaspars: black is never crossed)
+    ok = np.isin(cls, [k['same'], k['red'], k['white'], k['over']])
     H, W = cls.shape; out = []
     for w_ in features['wall_lines']:
         x0, y0, x1, y1 = w_[:4]; mx, my = (x0 + x1) / 2, (y0 + y1) / 2
@@ -700,6 +702,13 @@ def build(img, features, progress=None):
         walk, FL, doors = strict_stairs(walk, cls, k, FL, loose, [(c['x'], c['y']) for c in features.get('controls', [])])
     else:                                                      # the legend rule, on every map
         walk, FL, _ = stair_open(walk, cls, k, FL)
+    # a stair's point set by the map where the reading puts it inside the stair, cut off (2. posms Garā B: E
+    # from floor -1 comes out at the bottom of its box onto the field - Kaspars; the circle of 7-61 over the
+    # box put the point in the middle of it)
+    for nm_, xy_ in (features.get('stair_points') or {}).items():
+        if nm_ in FL:
+            FL[nm_] = (FL[nm_][0], int(xy_[0]), int(xy_[1])); FL0[nm_] = FL[nm_]
+            walk[int(xy_[1]) - 2:int(xy_[1]) + 3, int(xy_[0]) - 2:int(xy_[0]) + 3] = True
     N = dict(FL)
     names = control_names(features)
     # pockets: only what the runner confirmed on the check screen is forced; the pixel network
@@ -809,9 +818,6 @@ def build(img, features, progress=None):
         # (no line is let off for being near something red or blue: a speck of a band's end counted as a
         # stair, and the wall by it went untested - Garā A and B, by B. Only a stair's own door is let off,
         # by not testing the first pixels out of a stair's point, below)
-        if len(Lr) and features.get('walls3') is True and False:
-            mx_ = np.clip(((Lr[:, 0] + Lr[:, 2]) / 2).astype(int), 0, Wr - 1); my_ = np.clip(((Lr[:, 1] + Lr[:, 3]) / 2).astype(int), 0, Hr - 1)
-            Lr = Lr[~fz_r[my_, mx_]]
         st_l = {tuple(w_[:4]) for w_ in _step_lines(cls, k, features)}
         if st_l and len(Lr): Lr = np.array([w_ for w_ in Lr if tuple(w_) not in st_l], float).reshape(-1, 4)
         Tr = np.array([t_[:4] for t_ in features.get('tape_lines', [])] + [w_[:4] for w_ in features.get('extra_walls') or []], float).reshape(-1, 4)
