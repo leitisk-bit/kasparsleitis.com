@@ -1,1 +1,1 @@
-{"n": 176, "commit": "3cf8ec1", "date": "2026-11-25T07:39:18+02:00", "change": "Viewers see the map itself, not the reading of it"}
+{"n": 177, "commit": "52f4a4d", "date": "2026-11-25T08:40:45+02:00", "change": "Map page: when the admin check comes back after the map opened, show the map again for who is looking"}
