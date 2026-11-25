@@ -814,7 +814,7 @@ def build(img, features, progress=None):
             Lr = Lr[~fz_r[my_, mx_]]
         st_l = {tuple(w_[:4]) for w_ in _step_lines(cls, k, features)}
         if st_l and len(Lr): Lr = np.array([w_ for w_ in Lr if tuple(w_) not in st_l], float).reshape(-1, 4)
-        Tr = np.array([t_[:4] for t_ in features.get('tape_lines', [])], float).reshape(-1, 4)
+        Tr = np.array([t_[:4] for t_ in features.get('tape_lines', [])] + [w_[:4] for w_ in features.get('extra_walls') or []], float).reshape(-1, 4)
         Lr = np.vstack([Lr, Tr]) if len(Tr) else Lr
         special = {(a_, b_) for a_, b_, px_, fl_, _ in E if ('_x' in a_ and '_x' in b_) or ('_ow' in a_ and '_ow' in b_)}
         def crosses_(poly):

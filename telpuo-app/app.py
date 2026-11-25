@@ -371,7 +371,8 @@ def rules_key(m):
 # under the stand on floor 2 up the small Č flights to 12-45)
 # walls added per map where the reading leaves a gap in a drawn line (Kaspars, 2. posms Garā B: 3-59 is inside
 # the wall by B; the wall runs on to the end of the stand's red band - no way in from the orange area there)
-EXTRA_WALLS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2896.4, 2454.7, 2914.0, 2502.0, 3.0]])]
+EXTRA_WALLS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), [[2896.4, 2454.7, 2914.0, 2502.0, 3.0]]),
+               (re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*A\b', re.I), [[2971.5, 2490.0, 2980.2, 2475.2, 3.0]])]   # (Garā A: across the tip of the band by B, between the wall's end and the band's edge)
 def extra_walls_of(m):
     nm = (m or {}).get('name') or ''
     return next((v for rx, v in EXTRA_WALLS if rx.search(nm)), None)
@@ -1776,7 +1777,7 @@ try:
     # (no map is rebuilt by itself when a new version starts - only when someone edits or rebuilds it)
 except Exception: traceback.print_exc()
 # a rebuild Kaspars asked for by name, done once (each token once per map)
-FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*[AB]\b', re.I), 'rule-no-speck-2026-11-25')]
+FORCE_REBUILD = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*[AB]\b', re.I), 'band-tip-2026-11-25')]
 try:
     for m_ in store.list_maps():
         mm = store.get_meta(m_['id']) or {}
