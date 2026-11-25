@@ -1,6 +1,7 @@
 {
  "title": "Stages",
  "season": "RK 2026",
+ "season_start": "2026-08-01",
  "series": "Rīgas telpu orientēšanās kauss 2026",
  "source": "https://telpuorientesanas.lv/",
  "intro": "Rīgas telpu orientēšanās kauss: six indoor stages in Riga's universities and schools, organised with the Latvian Orienteering Federation (LOF). Open a stage to see its maps and replay the runs, floor by floor and in 3D.",
@@ -91,23 +92,21 @@
    "date": "28.11.2026",
    "name": "Latvijas Universitātes Zinātņu māja",
    "place": "Rīga",
-   "img": "static/sites/lof/img/stage5-e0da03a5.jpg",
+   "img": "",
    "links": [
     {
      "text": "Information",
      "href": "https://telpuorientesanas.lv/telpu-orientesanas-liela-nedelas-nogale-cina-par-rigas-kausu-un-latvijas-cempionu-tituliem/",
      "main": true
     }
-   ],
-   "img_src": "https://telpuorientesanas.lv/latvijas-telpu-orientesanas-liga-5-posms/",
-   "img_auto_retry": true
+   ]
   },
   {
    "n": 6,
    "date": "29.11.2026",
    "name": "Babītes vidusskola",
    "place": "Babīte",
-   "img": "static/sites/lof/img/stage6-f2c8974c.jpg",
+   "img": "",
    "tag": "Final · Latvian Championship",
    "links": [
     {
@@ -115,9 +114,7 @@
      "href": "https://telpuorientesanas.lv/latvijas-cempionats-telpu-orientesanas-29-novembri-babites-vidusskola/",
      "main": true
     }
-   ],
-   "img_src": "https://telpuorientesanas.lv/latvijas-telpu-orientesanas-kauss-2017/",
-   "img_auto_retry": true
+   ]
   }
  ],
  "links": [

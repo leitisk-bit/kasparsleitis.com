@@ -41,6 +41,18 @@ def featured(p):
         return m.group(1) if m else None
 
 
+def photos(p):
+    """Pictures inside a post (race photos in results posts), skipping logos, icons and small images."""
+    out = []
+    for m in re.finditer(r'<img[^>]+>', (p.get('content') or {}).get('rendered') or ''):
+        tag = m.group(0); src = re.search(r'src="([^"]+)"', tag)
+        if not src or re.search(r'logo|icon|emoji|banner|sponsor|atbalst', tag, re.I): continue
+        w = re.search(r'width="(\d+)"', tag)
+        if w and int(w.group(1)) < 400: continue
+        out.append(re.sub(r'-\d+x\d+(?=\.\w+$)', '', src.group(1)))      # the full size, not a thumbnail
+    return out
+
+
 def title(p): return re.sub(r'<[^>]+>', '', (p.get('title') or {}).get('rendered') or '')
 
 
@@ -63,21 +75,22 @@ def commons(query):
     return None, None
 
 
-def find(e):
+def find(e, since):
     n, name = e['n'], e.get('name') or ''
     stage = re.compile(rf'\b{n}\.\s*posm', re.I)
-    # 1. posts about this stage (results first: they carry photos from the race)
-    posts = [p for p in wp_posts(search=f'{n}. posms') if stage.search(title(p))]
-    posts.sort(key=lambda p: (0 if re.search(r'rezult', title(p), re.I) else 1))
-    for p in posts:
+    after = since + 'T00:00:00'                     # this season's posts only (older seasons have the same stage numbers)
+    named = name and not re.fullmatch(r'\d+\.\s*posms', name)
+    posts = [p for p in wp_posts(search=f'{n}. posms', after=after) if stage.search(title(p))]
+    if named: posts += wp_posts(search=name, after=after)
+    res = [p for p in posts if re.search(r'rezult', title(p), re.I)]
+    # 1. race photos inside this stage's results post
+    for p in res:
+        for u in photos(p): return u, p.get('link'), 'telpuorientesanas.lv photo: ' + title(p)
+    # 2. the picture of a post about the stage or found by the event name (results first)
+    for p in res + [p for p in posts if p not in res]:
         u = featured(p)
         if u: return u, p.get('link'), 'telpuorientesanas.lv: ' + title(p)
-    # 2. posts found by the event name
-    if name and not re.fullmatch(r'\d+\.\s*posms', name):
-        for p in wp_posts(search=name):
-            u = featured(p)
-            if u: return u, p.get('link'), 'telpuorientesanas.lv: ' + title(p)
-    # 3. the stage's own links
+    # 3. the stage's own links (this season's pages)
     for l in e.get('links') or []:
         if 'telpuorientesanas.lv' in l.get('href', ''):
             u = og_image(l['href'])
@@ -111,14 +124,14 @@ def main():
         if e.get('img') and not ours: print(f"{e['n']}. posms: picture set by hand, kept"); continue
         if ours and not force and not e.get('img_auto_retry'): print(f"{e['n']}. posms: has a picture"); continue
         print(f"{e['n']}. posms - {e.get('name')}: searching…")
-        u, src, how = find(e)
+        u, src, how = find(e, ev.get('season_start') or '2026-08-01')
         if not u: print('   nothing found'); continue
         try: rel = save(u, e['n'])
         except Exception as x: print('   download failed:', x); continue
         print(f'   {how}\n   {u}')
         # a venue picture (no race photos yet) is looked for again on later runs
         if rel == e.get('img'): print('   same picture as before'); continue
-        e.update(img=rel, img_src=src or u, img_auto_retry=how == 'Wikimedia Commons' or 'rezult' not in (how or '').lower())
+        e.update(img=rel, img_src=src or u, img_auto_retry='photo:' not in (how or ''))
         changed = True
     if changed:
         with open(EVENTS, 'w', encoding='utf-8') as f: json.dump(ev, f, ensure_ascii=False, indent=1)
