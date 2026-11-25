@@ -1,0 +1,24 @@
+# Telpu O site: finds a picture for each stage (by searching with the stage's event name) and saves it
+# into telpuo-app/static/sites/lof/img/. Runs every morning, so stages get race photos once they have happened.
+name: Telpu O stage pictures
+on:
+  workflow_dispatch:
+  schedule: [{ cron: '17 5 * * *' }]
+  push:
+    branches: [main]
+    paths: ['telpuo-app/tools/lof_pictures.py', 'telpuo-app/static/sites/lof/events.json', '.github/workflows/lof-pictures.yml']
+permissions: { contents: write }
+concurrency: { group: lof-pictures, cancel-in-progress: false }
+jobs:
+  pictures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pillow
+      - run: python3 telpuo-app/tools/lof_pictures.py
+      - run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A telpuo-app/static/sites/lof
+          git diff --cached --quiet && exit 0
+          git commit -qm "Telpu O: stage pictures"
+          git pull -q --rebase origin main && git push -q origin HEAD:main

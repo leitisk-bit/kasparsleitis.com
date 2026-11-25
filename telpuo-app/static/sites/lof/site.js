@@ -125,6 +125,7 @@
           '<div class="stage-body"><div class="stage-date"><span>' + esc(e.date || T('Date to be announced')) + '</span>' + (e.people ? '<span class="ppl">' + esc(e.people) + ' ' + esc(T('runners')) + '</span>' : '') + '</div>' +
             '<b class="stage-name" data-noi18n>' + esc(e.n + '. posms' + (e.name && e.name !== e.n + '. posms' ? ' - ' + e.name : '')) + '</b>' +
             (e.place ? '<div class="stage-place" data-noi18n>' + esc(e.place) + '</div>' : '') +
+            (e.img && e.img_src ? '<a class="stage-credit" href="' + esc(e.img_src) + '" target="_blank" rel="noopener">' + esc(T('Photo')) + ': ' + esc(String(e.img_src).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]) + '</a>' : '') +
             '<div class="stage-links">' + ((e.links && e.links.length) ? e.links : [{text: 'Information', href: EV.source}]).map(function (l) {
               return '<a class="btn small' + (l.main ? ' stage-main' : '') + '" href="' + esc(l.href) + '" target="_blank" rel="noopener">' + esc(T(l.text)) + '</a>'; }).join('') + '</div>' +
           '</div></div>';

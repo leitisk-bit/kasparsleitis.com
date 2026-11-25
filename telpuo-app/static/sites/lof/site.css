@@ -98,3 +98,4 @@
 #lofFooter .tf-copy{max-width:1400px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 28px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 #lofFooter #keyBtn{height:26px;font-size:12px;border-radius:999px;background:transparent;color:var(--muted);border-color:var(--line)}
 @media (max-width:760px){ #lofFooter .tf-in{grid-template-columns:1fr} #lofFooter .tf-brand{flex-direction:column} }
+.stage-credit{font-size:11px;color:var(--muted)!important;text-decoration:none} .stage-credit:hover{text-decoration:underline}
