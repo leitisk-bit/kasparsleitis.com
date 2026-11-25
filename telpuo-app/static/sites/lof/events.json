@@ -1,0 +1,35 @@
+{
+ "title": "Stages",
+ "season": "RK 2026",
+ "series": "Rīgas telpu orientēšanās kauss 2026",
+ "source": "https://telpuorientesanas.lv/",
+ "intro": "Rīgas telpu orientēšanās kauss: six indoor stages in Riga's universities and schools, organised with the Latvian Orienteering Federation (LOF). Open a stage to see its maps and replay the runs, floor by floor and in 3D.",
+ "events": [
+  {"n": 1, "date": "", "name": "1. posms", "place": "", "img": "", "links": []},
+  {"n": 2, "date": "24.10.2026", "name": "RTU Datorzinātnes, informācijas tehnoloģijas un enerģētikas fakultāte", "place": "Ķīpsala, Rīga", "img": "", "people": "~260",
+   "links": [{"text": "Results", "href": "https://telpuorientesanas.lv/rigas-telpu-kausa-2-posma-rezultati/", "main": true},
+             {"text": "Pre-start info", "href": "https://telpuorientesanas.lv/rigas-telpu-orientesanas-kausa-2-posms-pirmsstarta-informacija/"}]},
+  {"n": 3, "date": "01.11.2026", "name": "LU Dabas māja", "place": "Jelgavas iela 1, Torņakalns, Rīga", "img": "", "people": "320+",
+   "links": [{"text": "Results", "href": "https://telpuorientesanas.lv/rigas-telpu-kausa-3-posma-rezultati/", "main": true},
+             {"text": "Pre-start info", "href": "https://telpuorientesanas.lv/rigas-telpu-orientesanas-kausa-3-posms-pirmsstarta-informacija/"},
+             {"text": "About the stage", "href": "https://telpuorientesanas.lv/1-novembri-rigas-telpu-orientesanas-kauss-atgriezisies-latvijas-universitates-dabas-maja/"}]},
+  {"n": 4, "date": "08.11.2026", "name": "RTU Būvniecības un mašīnzinību fakultāte, RTU Arhitektūras un dizaina institūts", "place": "Ķīpsala, Rīga", "img": "", "people": "350+",
+   "links": [{"text": "Results", "href": "https://telpuorientesanas.lv/rigas-telpu-kausa-4-posma-rezultati/", "main": true},
+             {"text": "Pre-start info", "href": "https://telpuorientesanas.lv/rigas-telpu-orientesanas-kausa-4-posms-pirmsstarta-informacija/"},
+             {"text": "Four buildings, seven levels", "href": "https://telpuorientesanas.lv/cetras-ekas-septini-limeni-rigas-telpu-orientesanas-kausa-4-posms-rtu-kipsala/"}]},
+  {"n": 5, "date": "28.11.2026", "name": "Latvijas Universitātes Zinātņu māja", "place": "Rīga", "img": "",
+   "links": [{"text": "Information", "href": "https://telpuorientesanas.lv/telpu-orientesanas-liela-nedelas-nogale-cina-par-rigas-kausu-un-latvijas-cempionu-tituliem/", "main": true}]},
+  {"n": 6, "date": "29.11.2026", "name": "Babītes vidusskola", "place": "Babīte", "img": "", "tag": "Final · Latvian Championship",
+   "links": [{"text": "Information", "href": "https://telpuorientesanas.lv/latvijas-cempionats-telpu-orientesanas-29-novembri-babites-vidusskola/", "main": true}]}
+ ],
+ "links": [
+  {"text": "telpuorientesanas.lv", "href": "https://telpuorientesanas.lv/", "main": true},
+  {"text": "All results", "href": "https://telpuorientesanas.lv/rezultati/"},
+  {"text": "What is indoor orienteering?", "href": "https://telpuorientesanas.lv/kas-ir-telpu-o/"},
+  {"text": "LOF", "href": "https://lof.lv/"}
+ ],
+ "social": [
+  {"text": "Facebook", "href": "https://www.facebook.com/TelpuOrientesanas"},
+  {"text": "Instagram", "href": "https://www.instagram.com/telpu.orientesanas/"}
+ ]
+}

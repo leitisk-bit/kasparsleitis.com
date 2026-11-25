@@ -302,6 +302,17 @@
     'All maps (admin)': 'Visas kartes (administratoram)', 'Rules': 'Nolikums',
     'Long and Medium: two runs (A and B), the stage result is the sum of both times. Easy: one run.': 'Garā un Vidējā: divi skrējieni (A un B), posma rezultāts ir abu laiku summa. Vieglā: viens skrējiens.',
     'Upload the map PDF': 'Augšupielādēt kartes PDF',
+    // Telpu O site (Rīgas telpu orientēšanās kauss)
+    'Riga Indoor Orienteering Cup · maps and routes': 'Rīgas telpu orientēšanās kauss · kartes un maršruti',
+    'Indoor orienteering': 'Telpu orientēšanās', 'Results': 'Rezultāti', 'Pre-start info': 'Pirmsstarta informācija', 'About the stage': 'Par posmu',
+    'Four buildings, seven levels': 'Četras ēkas, septiņi līmeņi', 'All results': 'Visi rezultāti', 'What is indoor orienteering?': 'Kas ir telpu orientēšanās?',
+    'Final · Latvian Championship': 'Fināls · Latvijas čempionāts', 'Other maps': 'Citas kartes', 'Choose a course': 'Izvēlies distanci',
+    'Add maps': 'Pievienot kartes', 'One PDF per course': 'Viens PDF katrai distancei', 'Date to be announced': 'Datums tiks paziņots',
+    'runners': 'dalībnieki', 'floors': 'stāvi', 'run': 'skrējiens', 'runs': 'skrējieni', 'News and pictures': 'Jaunumi un attēli', 'From': 'No',
+    'route replays': 'maršrutu atkārtojumi', 'Course name for this map (e.g. A, B, Bērni A):': 'Distances nosaukums šai kartei (piem., A, B, Bērni A):',
+    "Rīgas telpu orientēšanās kauss: six indoor stages in Riga's universities and schools, organised with the Latvian Orienteering Federation (LOF). Open a stage to see its maps and replay the runs, floor by floor and in 3D.":
+      'Rīgas telpu orientēšanās kauss: seši posmi Rīgas augstskolās un skolās, sadarbībā ar Latvijas Orientēšanās federāciju (LOF). Atver posmu, lai redzētu tā kartes un atkārtotu skrējienus pa stāviem un 3D.',
+    'Maps and route replays of the Riga Indoor Orienteering Cup. Event information and pictures: telpuorientesanas.lv.': 'Rīgas telpu orientēšanās kausa kartes un maršrutu atkārtojumi. Sacensību informācija un attēli: telpuorientesanas.lv.',
     // server messages
     'This needs the admin password.': 'Tam vajag administratora paroli.', 'Reading the map…': 'Nolasa karti…',
     'Building the route network…': 'Veido maršrutu tīklu…', 'Waiting for its turn (map was updated)…': 'Gaida savu kārtu (karte tika atjaunināta)…',

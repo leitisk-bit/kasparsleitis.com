@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect x="96" y="96" width="320" height="250" rx="22" fill="none" stroke="#14294B" stroke-width="16"/>
+  <path d="M96 222 H230 M282 222 H416 M256 96 V170" stroke="#14294B" stroke-width="12" stroke-linecap="round"/>
+  <rect x="196" y="250" width="120" height="120" fill="#fff" stroke="#14294B" stroke-width="8"/>
+  <path d="M196 250 H316 V370 Z" fill="#F26B1D"/>
+  <text x="256" y="455" text-anchor="middle" fill="#14294B" font-family="'Space Grotesk','Segoe UI',Arial,sans-serif" font-weight="700" font-size="70" letter-spacing="2">TELPU O</text>
+</svg>

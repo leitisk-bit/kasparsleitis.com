@@ -1,0 +1,100 @@
+/* Telpu O site (telpuo.kasparsleitis.com): the same layout as the TELPO site (white header bar, stage
+   cards with pictures, footer), in orienteering colours: navy, control-flag orange and course purple.
+   Always light. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+:root[data-site="lof"], :root[data-site="lof"][data-theme="dark"]{
+  --bg:#F6F7FA; --panel:#FFFFFF; --fg:#14294B; --muted:#5B6782; --line:#D9DEEA; --stage:#EBEEF5;
+  --accent:#E05A12; --accent-soft:#F26B1D1F; --flag:#F26B1D; --ok:#1E7F4E; --warn:#B4540A; --bad:#DC2626;
+  --lof-navy:#14294B; --lof-purple:#A3309B; --lof-grad:linear-gradient(135deg,#F26B1D,#E0442A);
+  --f-display:"Space Grotesk",system-ui,sans-serif; --f-body:"Space Grotesk",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root[data-site="lof"]:not([data-theme="light"]){
+  --bg:#F6F7FA; --panel:#FFFFFF; --fg:#14294B; --muted:#5B6782; --line:#D9DEEA; --stage:#EBEEF5;
+  --accent:#E05A12; --accent-soft:#F26B1D1F; --flag:#F26B1D; --ok:#1E7F4E; --warn:#B4540A; --bad:#DC2626; color-scheme:light } }
+[data-site="lof"] body{background:linear-gradient(180deg,#F6F7FA 0%,#ECEFF6 55%,#F6F7FA 100%) fixed}
+[data-site="lof"] header{background:#fff;border:1px solid var(--line);border-radius:16px;padding:8px 14px;box-shadow:0 4px 18px #14294B12}
+[data-site="lof"] .brand .flag{display:none}
+[data-site="lof"] .brand .site-logo{height:46px;width:auto;display:block;margin:-6px 0}
+[data-site="lof"] .brand h1{font:700 21px/1 var(--f-display);letter-spacing:0;text-transform:none;color:var(--lof-navy)}
+[data-site="lof"] .brand small{text-transform:none;letter-spacing:0;font-size:12px}
+[data-site="lof"] h2{font-family:var(--f-display);letter-spacing:.02em;color:var(--lof-navy)}
+[data-site="lof"] .btn{border-radius:12px;font-family:var(--f-body)}
+[data-site="lof"] .btn.primary{background:var(--lof-grad);border-color:transparent;color:#fff}
+[data-site="lof"] .btn.primary:hover{filter:brightness(1.05)}
+[data-site="lof"] .card,[data-site="lof"] .folder{border-radius:16px}
+[data-site="lof"] .field{border-radius:10px;background:#fff}
+[data-site="lof"] .mapcard img{border-radius:10px}
+[data-site="lof"] .pill{border-radius:999px}
+[data-site="lof"] a{color:var(--accent)}
+[data-site="lof"] .brand,[data-site="lof"] .mapcard{color:inherit}
+
+/* hero: the series in one line, with its links */
+#lofHero{display:flex;flex-direction:column;gap:10px;padding:22px 22px 20px;background:linear-gradient(135deg,#14294B 0%,#24407A 100%);color:#fff;border:0;overflow:hidden;position:relative}
+#lofHero::after{content:'';position:absolute;right:-30px;top:-30px;width:170px;height:170px;background:linear-gradient(135deg,#fff 50%,#F26B1D 50%);opacity:.14;transform:rotate(8deg);border-radius:10px}
+#lofHero .eyebrow{font:700 12px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:#FFB48A}
+#lofHero h2{margin:0;text-transform:none;color:#fff;font:700 clamp(22px,3.4vw,32px)/1.15 var(--f-display)}
+#lofHero p{margin:0;max-width:760px;font-size:15px;line-height:1.55;color:#DCE3F2}
+#lofHero .hero-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;position:relative;z-index:1}
+#lofHero .btn{border-radius:999px;background:#ffffff14;border-color:#ffffff40;color:#fff;font-weight:600}
+#lofHero .btn.main{background:var(--lof-grad);border-color:transparent}
+
+/* the stages (a stage is grey until its maps are uploaded; then in colour and opens its maps) */
+#lofStages .stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.stage-c{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.stage-img{position:relative;display:block;padding:0;border:0;margin:0;background:#EBEEF5;aspect-ratio:16/10;cursor:pointer;overflow:hidden;width:100%}
+.stage-img img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s}
+.stage-c.on .stage-img:hover img{transform:scale(1.03)}
+.stage-c.off .stage-img{cursor:default} .stage-c.off .stage-img img,.stage-c.off .stage-art{filter:grayscale(1);opacity:.55}
+/* no picture yet: a drawn one (floor plan lines and the stage number on a control flag) */
+.stage-art{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:flex-end;padding:14px;
+  background:linear-gradient(90deg,#14294B0F 1px,transparent 1px) 0 0/28px 28px,linear-gradient(#14294B0F 1px,transparent 1px) 0 0/28px 28px,linear-gradient(135deg,#EEF1F8,#DCE2EF)}
+.stage-art b{display:grid;place-items:center;width:66px;height:66px;font:700 32px var(--f-display);color:#fff;background:linear-gradient(135deg,#14294B 0 62%,#F26B1D 62%);border-radius:6px;box-shadow:0 4px 14px #14294B33}
+.stage-badge{position:absolute;left:10px;top:10px;padding:3px 10px;border-radius:999px;font:700 11px var(--f-body);letter-spacing:.04em;text-transform:uppercase;background:var(--lof-grad);color:#fff}
+.stage-c.off .stage-badge{background:#fff;color:var(--muted);border:1px solid var(--line)}
+.stage-tag{position:absolute;right:10px;bottom:10px;padding:3px 10px;border-radius:999px;font:700 11px var(--f-body);background:var(--lof-purple);color:#fff}
+.stage-body{display:flex;flex-direction:column;gap:4px;padding:12px 14px 14px;flex:1}
+.stage-date{font:700 12px var(--f-body);color:var(--accent);letter-spacing:.03em;display:flex;gap:8px;justify-content:space-between}
+.stage-date .ppl{color:var(--muted);font-weight:600}
+.stage-name{font:700 15px/1.25 var(--f-display);color:var(--lof-navy)} .stage-place{font-size:12.5px;color:var(--muted)}
+.stage-c.off .stage-name,.stage-c.off .stage-date{color:var(--muted)}
+.stage-links{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:6px}
+.stage-links .btn{border-radius:999px;font-weight:600} .stage-links .stage-main{background:var(--lof-grad);color:#fff;border-color:transparent}
+
+/* a stage opened: the picture gives way to its maps (one per course: A, B, C… Bērni, Easy) */
+.stage-opts{display:flex;flex-direction:column;gap:6px;padding:10px;background:#F6F7FA;max-height:340px;overflow:auto}
+.opts-head{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 4px;font-size:13px;color:var(--lof-navy)}
+.opts-x{border:1px solid var(--line);background:#fff;border-radius:999px;width:26px;height:26px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1}
+.opt{position:relative;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"bar name" "bar who" "bar state";column-gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#fff;text-decoration:none;color:#14294B}
+.opt-bar{grid-area:bar;width:5px;border-radius:3px;background:var(--c)}
+.opt-name{grid-area:name;font:700 14px var(--f-display);color:var(--c);letter-spacing:.02em}
+.opt-who{grid-area:who;font-size:11.5px;color:var(--muted)}
+.opt-state{grid-area:state;font-size:12px;font-weight:600;color:var(--c)}
+.opt.on:hover{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 20%,transparent)}
+.opt.up{cursor:pointer;border-style:dashed} .opt.up:hover{border-color:var(--c);background:color-mix(in srgb,var(--c) 6%,#fff)}
+.opt.up .opt-state::before{content:'⤒ '} .opt.busy{opacity:.6;pointer-events:none}
+
+/* news and pictures from telpuorientesanas.lv */
+#lofNews .news{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.news-i{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff;text-decoration:none;color:var(--fg)}
+.news-i:hover{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.news-i .ni{aspect-ratio:16/9;background:#EBEEF5;overflow:hidden} .news-i .ni img{width:100%;height:100%;object-fit:cover;display:block}
+.news-i .nb{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px}
+.news-i .nd{font:700 11.5px var(--f-body);color:var(--accent)} .news-i .nt{font:700 14px/1.3 var(--f-display);color:var(--lof-navy)}
+.news-src{margin-top:10px;font-size:12.5px}
+
+/* maps that are not in a stage stay in the plain list below */
+[data-site="lof"] .lof-hide{display:none!important}
+
+/* footer, laid out like the TELPO site's */
+#lofFooter{margin-top:40px;border-top:1px solid var(--line);background:linear-gradient(180deg,#fff 0%,#F3F5FA 100%);color:#14294B;font-family:var(--f-body)}
+#lofFooter .tf-in{max-width:1400px;margin:0 auto;padding:40px max(16px,env(safe-area-inset-left,0px)) 24px;display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:28px}
+#lofFooter .tf-brand{display:flex;gap:18px;align-items:flex-start}
+#lofFooter .tf-brand img{width:84px;height:84px;flex:none;margin:-8px 0}
+#lofFooter .tf-brand p{margin:0;font-size:16px;line-height:1.6;color:#14294B;max-width:460px}
+#lofFooter h3{margin:0 0 12px;font:700 13px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+#lofFooter .tf-col{display:flex;flex-direction:column;gap:10px}
+#lofFooter .tf-col a{color:#14294B;text-decoration:none;font-weight:500;font-size:15px} #lofFooter .tf-col a:hover{color:var(--accent)}
+#lofFooter .tf-copy{max-width:1400px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left,0px)) 28px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#lofFooter #keyBtn{height:26px;font-size:12px;border-radius:999px;background:transparent;color:var(--muted);border-color:var(--line)}
+@media (max-width:760px){ #lofFooter .tf-in{grid-template-columns:1fr} #lofFooter .tf-brand{flex-direction:column} }

@@ -8,7 +8,7 @@ import numpy as np
 from scipy import ndimage as ndi
 from flask import Flask, request, jsonify, send_file, send_from_directory, abort
 import networkx as nx
-from oreplay import store, analyze, walk, results, three, serverinfo, strava
+from oreplay import store, analyze, walk, results, three, serverinfo, strava, lofnews
 from oreplay.recon import Recon, parse_splits, parse_track, parse_motion, track_summary, find_offset
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +36,9 @@ def published(m): return bool(m) and m.get('published', True) is not False   # m
 # its own maps (and their runs and results); the admin key is the same. A map belongs to the site it
 # was uploaded on; the admin can move it. Maps from before sites existed belong to 'main'.
 SITES = {
-    'main': {'name': 'Indoor O Replay', 'hosts': []},
+    # 'skin': the look (static/sites/<skin>/). The main site (telpuo.kasparsleitis.com) wears the Rīgas telpu
+    # orientēšanās kauss look: its stages from telpuorientesanas.lv, with their maps under each stage.
+    'main': {'name': 'Telpu O · Rīgas telpu orientēšanās kauss', 'hosts': [], 'skin': os.environ.get('MAIN_SKIN', 'lof')},
     'telpo': {'name': 'TELPO ceļi',
               'hosts': [h.strip().lower() for h in os.environ.get('TELPO_HOSTS', 'telpomarsruts.kasparsleitis.com,celi.telpo.lv').split(',') if h.strip()]},
 }
@@ -235,11 +237,11 @@ def api_update_now():
 def _page(name):
     """A page with the look of the site it is opened on: the 'main' site as it is; another site gets
     its stylesheet, title and icon (static/sites/<site>/)."""
-    sid = current_site()
+    sid = current_site(); skin = site_skin(sid)
     with open(os.path.join(app.static_folder, name), encoding='utf-8') as f: html = f.read()
-    if sid != 'main':
-        d = f'static/sites/{sid}'
-        html = html.replace('<html', f'<html data-site="{sid}"', 1)
+    if skin:
+        d = f'static/sites/{skin}'
+        html = html.replace('<html', f'<html data-site="{skin}"', 1)
         html = re.sub(r'<link rel="icon"[^>]*>|<link rel="apple-touch-icon"[^>]*>', '', html)
         html = html.replace('</head>', f'<link rel="stylesheet" href="{d}/site.css?v={SITE_V}">'
                             f'<link rel="icon" href="{d}/icon.png?v={SITE_V}"><link rel="apple-touch-icon" href="{d}/icon.png?v={SITE_V}">'
@@ -249,20 +251,30 @@ def _page(name):
     if request.host.split(':')[0] in ('127.0.0.1', 'localhost') and request.args.get('site') in SITES:
         r.set_cookie('ior_site', request.args['site'])            # testing on this computer
     return r
-SITE_V = 9                 # bump when a site's stylesheet, logo or script changes
+SITE_V = 10                # bump when a site's stylesheet, logo or script changes
 
 @app.get('/')
 def index(): return _page('index.html')
 
 @app.get('/favicon.ico')
 def favicon():
-    sid = current_site()
-    if sid != 'main' and os.path.exists(os.path.join(app.static_folder, 'sites', sid, 'icon.png')):
-        return send_from_directory(os.path.join(app.static_folder, 'sites', sid), 'icon.png')
+    skin = site_skin(current_site())
+    if skin and os.path.exists(os.path.join(app.static_folder, 'sites', skin, 'icon.png')):
+        return send_from_directory(os.path.join(app.static_folder, 'sites', skin), 'icon.png')
     return send_from_directory(app.static_folder, 'favicon.ico')
 
 @app.get('/replay')
 def replay_page(): return _page('replay.html')
+
+def site_skin(sid):
+    """The look a site wears: its own folder under static/sites/, or none (the plain app look)."""
+    skin = SITES[sid].get('skin', sid if sid != 'main' else None)
+    return skin if skin and os.path.isdir(os.path.join(app.static_folder, 'sites', skin)) else None
+
+@app.get('/api/lof/news')
+def api_lof_news():
+    """News and pictures from telpuorientesanas.lv for the stage cards (fetched hourly, in the background)."""
+    r = jsonify(lofnews.news()); r.headers['Cache-Control'] = 'public, max-age=300'; return r
 
 @app.get('/api/site')
 def api_site(): sid = current_site(); return jsonify(id=sid, name=SITES[sid]['name'], sites=list(SITES) if admin_ok() else None)
