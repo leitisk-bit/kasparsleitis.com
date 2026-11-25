@@ -24,14 +24,17 @@ _TOKEN = None
 
 
 def _token(con=None):
-    """From the .env (TELEGRAM_BOT_TOKEN) or, when set through the admin page, from the database."""
+    """The token set through the admin endpoint (telegramsetup, kept in the database) wins;
+    the .env TELEGRAM_BOT_TOKEN is only the fallback. (The .env one is the Tennis bot's - football has its own bot.)"""
     global _TOKEN
-    t = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-    if not t and con is not None:
+    t = ""
+    if con is not None:
         try:
             t = _meta(con, "telegram_token") or ""
         except Exception:  # noqa
             t = ""
+    if not t:
+        t = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     if t:
         _TOKEN = t
     return _TOKEN or ""
