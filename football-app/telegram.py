@@ -27,6 +27,8 @@ def _token(con=None):
     """The token set through the admin endpoint (telegramsetup, kept in the database) wins;
     the .env TELEGRAM_BOT_TOKEN is only the fallback. (The .env one is the Tennis bot's - football has its own bot.)"""
     global _TOKEN
+    if con is None and _TOKEN:
+        return _TOKEN
     t = ""
     if con is not None:
         try:
