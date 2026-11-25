@@ -85,26 +85,32 @@ def find(e, since):
     res = [p for p in posts if re.search(r'rezult', title(p), re.I)]
     # 1. race photos inside this stage's results post
     for p in res:
-        for u in photos(p): return u, p.get('link'), 'telpuorientesanas.lv photo: ' + title(p)
+        for u in photos(p): yield u, p.get('link'), 'telpuorientesanas.lv photo: ' + title(p)
     # 2. the picture of a post about the stage or found by the event name (results first)
     for p in res + [p for p in posts if p not in res]:
         u = featured(p)
-        if u: return u, p.get('link'), 'telpuorientesanas.lv: ' + title(p)
+        if u: yield u, p.get('link'), 'telpuorientesanas.lv: ' + title(p)
     # 3. the stage's own links (this season's pages)
     for l in e.get('links') or []:
         if 'telpuorientesanas.lv' in l.get('href', ''):
             u = og_image(l['href'])
-            if u: return u, l['href'], 'telpuorientesanas.lv page'
+            if u: yield u, l['href'], 'telpuorientesanas.lv page'
     # 4. a free picture of the building
     if name and not re.fullmatch(r'\d+\.\s*posms', name):
         for q in (name, name.split(',')[0]):
             u, src = commons(q)
-            if u: return u, src, 'Wikimedia Commons'
-    return None, None, None
+            if u: yield u, src, 'Wikimedia Commons'; break
 
 
+LOGO = re.compile(r'logo|ministr|izm[-_.]|gerb|sponsor|atbalst|partner|emblem|icon', re.I)
 def save(url, n):
-    im = Image.open(io.BytesIO(get(url, raw=True))).convert('RGB')
+    if LOGO.search(url.rsplit('/', 1)[-1]): raise ValueError('looks like a logo (file name)')
+    im = Image.open(io.BytesIO(get(url, raw=True)))
+    if im.mode in ('RGBA', 'LA', 'P'):
+        a = im.convert('RGBA').getchannel('A')
+        if sum(1 for v in a.getdata() if v < 200) > 0.05 * a.width * a.height: raise ValueError('looks like a logo (see-through background)')
+    im = im.convert('RGB')
+    if len(set(im.resize((64, 64)).getdata())) < 120: raise ValueError('looks like a logo or graphic (few colours)')
     im.thumbnail((1000, 1000))
     os.makedirs(IMG, exist_ok=True)
     buf = io.BytesIO(); im.save(buf, 'JPEG', quality=84, optimize=True); data = buf.getvalue()
@@ -124,10 +130,11 @@ def main():
         if e.get('img') and not ours: print(f"{e['n']}. posms: picture set by hand, kept"); continue
         if ours and not force and not e.get('img_auto_retry'): print(f"{e['n']}. posms: has a picture"); continue
         print(f"{e['n']}. posms - {e.get('name')}: searching…")
-        u, src, how = find(e, ev.get('season_start') or '2026-08-01')
-        if not u: print('   nothing found'); continue
-        try: rel = save(u, e['n'])
-        except Exception as x: print('   download failed:', x); continue
+        rel = None
+        for u, src, how in find(e, ev.get('season_start') or '2026-08-01'):
+            try: rel = save(u, e['n']); break
+            except Exception as x: print('   skipped', u, '-', x)
+        if not rel: print('   nothing found'); continue
         print(f'   {how}\n   {u}')
         # a venue picture (no race photos yet) is looked for again on later runs
         if rel == e.get('img'): print('   same picture as before'); continue

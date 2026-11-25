@@ -92,23 +92,21 @@
    "date": "28.11.2026",
    "name": "Latvijas Universitātes Zinātņu māja",
    "place": "Rīga",
-   "img": "static/sites/lof/img/stage5-8d1fc94a.jpg",
+   "img": "",
    "links": [
     {
      "text": "Information",
      "href": "https://telpuorientesanas.lv/telpu-orientesanas-liela-nedelas-nogale-cina-par-rigas-kausu-un-latvijas-cempionu-tituliem/",
      "main": true
     }
-   ],
-   "img_src": "https://telpuorientesanas.lv/telpu-orientesanas-liela-nedelas-nogale-cina-par-rigas-kausu-un-latvijas-cempionu-tituliem/",
-   "img_auto_retry": true
+   ]
   },
   {
    "n": 6,
    "date": "29.11.2026",
    "name": "Babītes vidusskola",
    "place": "Babīte",
-   "img": "static/sites/lof/img/stage6-8d1fc94a.jpg",
+   "img": "",
    "tag": "Final · Latvian Championship",
    "links": [
     {
@@ -116,9 +114,7 @@
      "href": "https://telpuorientesanas.lv/latvijas-cempionats-telpu-orientesanas-29-novembri-babites-vidusskola/",
      "main": true
     }
-   ],
-   "img_src": "https://telpuorientesanas.lv/latvijas-cempionats-telpu-orientesanas-29-novembri-babites-vidusskola/",
-   "img_auto_retry": true
+   ]
   }
  ],
  "links": [
