@@ -724,6 +724,18 @@ def admin_telegram(body: dict):
     return {"ok": True}
 
 
+@r.get("/api/admin/livecheck")
+def admin_livecheck():
+    """In-play watcher: what has been saved and alerted."""
+    c = con()
+    try:
+        return {"live_odds": [dict(x) for x in c.execute("SELECT COUNT(*) prices, COUNT(DISTINCT match_id) matches, MIN(at) first, MAX(at) last FROM live_odds")],
+                "live_stats": c.execute("SELECT COUNT(*) FROM live_stats").fetchone()[0],
+                "alerts": [dict(x) for x in c.execute("SELECT * FROM live_alerts ORDER BY made_at DESC LIMIT 20")]}
+    except Exception as e:  # noqa
+        return {"error": repr(e)}
+
+
 @r.get("/api/admin/comeback")
 def admin_comeback(fav: float = 0.70):
     """Big favourites (Pinnacle closing chance >= fav) that concede the first goal: how often do they still win?
