@@ -592,6 +592,10 @@ def api_three(mid):
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
                                        (m.get('scale') or 1000) / (300 / 0.0254), *(lambda g: (g[3], pieces, g[0]))(store.load_graph(mid)), texs, place))
 
+# The only maps whose ground in 3D may be shaped by the runners' watch readings (GPS / altitude): maps with
+# an outdoor part. Kaspars, 26 Nov: TELPO 2026 2. posms (Mezaparks) only; no other map uses watch GPS.
+WATCH_GROUND = [re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\b', re.I)]
+
 _HGRID = {}
 def _heights3d(mid, m, t):
     """Ground shape under each map piece from all runs' height samples (sites that are not a stack of equal
@@ -607,6 +611,8 @@ def _heights3d(mid, m, t):
         for r in runs:
             samples += (store.get_run(r['id']) or {}).get('hsamples') or []
         shape = site_shape_of(m)
+        if not shape and not any(rx.search(m.get('name') or '') for rx in WATCH_GROUND):
+            return None           # indoors: every floor flat at its level (watch altitude would make it wave)
         g = three.height_grids(t['tex'], t['pieces'], samples) or []
         if shape:                         # the site's known shape where given; the watches elsewhere
             sg = three.shape_grids(t['tex'], t['pieces'], shape)
