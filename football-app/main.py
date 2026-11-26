@@ -724,6 +724,41 @@ def admin_telegram(body: dict):
     return {"ok": True}
 
 
+@r.get("/api/admin/liveprobe")
+def admin_liveprobe():
+    """What does the feed give during a match? Live fixtures of our competitions, their live stats and live odds
+    (markets, lines, bookmaker info). A few API calls; for planning in-play alerts."""
+    from apifootball import Client
+    from config import COMPETITIONS
+    cl = Client()
+    out = {"fixtures": [], "odds_markets": {}, "odds_sample": None, "stats_sample": None}
+    live = cl.get("/fixtures", live="-".join(str(k) for k in COMPETITIONS)).get("response") or []
+    for f in live:
+        fx, g = f.get("fixture", {}), f.get("goals", {})
+        out["fixtures"].append({"id": fx.get("id"), "minute": (fx.get("status") or {}).get("elapsed"),
+                                "match": f"{f['teams']['home']['name']} - {f['teams']['away']['name']}",
+                                "score": f"{g.get('home')}-{g.get('away')}", "has_statistics": bool(f.get("statistics"))})
+    if live:
+        fid = live[0]["fixture"]["id"]
+        st = cl.get("/fixtures/statistics", fixture=fid).get("response") or []
+        out["stats_sample"] = [{"team": t["team"]["name"], "stats": {x["type"]: x["value"] for x in t.get("statistics", [])}} for t in st]
+        od = cl.get("/odds/live", fixture=fid).get("response") or []
+        if od:
+            o = od[0]
+            out["odds_keys"] = sorted(o.keys())
+            out["odds_status"] = o.get("status") or o.get("fixture", {}).get("status")
+            for m in o.get("odds") or []:
+                out["odds_markets"][m.get("name")] = [(v.get("value"), v.get("handicap"), v.get("odd"), v.get("suspended"), v.get("main"))
+                                                      for v in (m.get("values") or [])][:8]
+            out["odds_sample"] = {k: v for k, v in o.items() if k != "odds"}
+        allod = cl.get("/odds/live").get("response") or []
+        ours = {f["fixture"]["id"] for f in live}
+        out["odds_live_total"] = len(allod)
+        out["odds_live_ours"] = sum(1 for x in allod if (x.get("fixture") or {}).get("id") in ours)
+    out["calls"] = cl.calls
+    return out
+
+
 @r.get("/api/admin/refcheck")
 def admin_refcheck():
     """Referees and card predictions: is the referee used, how often is he known before kick-off."""
