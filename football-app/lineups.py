@@ -21,3 +21,9 @@ if __name__ == "__main__":
                     print("telegram failed:", e, flush=True)
             else:
                 print("a data / model job is running — it will use the new lineups", flush=True)
+
+    try:                                         # in-play: our matches being played -> live prices, stats, value alerts
+        import live
+        live.watch(con)
+    except Exception as e:  # noqa
+        print("live watch failed:", e, flush=True)
