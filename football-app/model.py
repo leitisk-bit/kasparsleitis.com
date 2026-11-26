@@ -298,6 +298,8 @@ def predict_match(fits, league, home, away, feat=None):
             continue
         mh, ma = f.mu(league, home, away, feat)
         out[s] = {"eh": round(mh, 3), "ea": round(ma, 3), "ph": _trim(f.pmf(mh, home)), "pa": _trim(f.pmf(ma, away))}
+        if "ref" in f.cols.get("groups", []):    # was this referee's own record used? (known, enough games)
+            out[s]["ref"] = (feat or {}).get("ref") in f.cols.get("ref", {})
     if "goals" in out:
         g = out["goals"]
         M = np.outer(np.array(g["ph"]), np.array(g["pa"]))
@@ -463,6 +465,9 @@ def make_picks(pred, odds_rows=None, rat=None):
         for key in set(real) | set(ref):
             market, scope, side, line = key
             if market in BET_SKIP:
+                continue
+            # card bets only once the referee is known and his own record is in the model
+            if (pred.get(market) or {}).get("ref") is False:
                 continue
             pm = prob(pred, market, scope, side, line)
             if pm is None or pm < BET_MIN_P:

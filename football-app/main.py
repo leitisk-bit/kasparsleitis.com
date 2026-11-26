@@ -724,6 +724,31 @@ def admin_telegram(body: dict):
     return {"ok": True}
 
 
+@r.get("/api/admin/refcheck")
+def admin_refcheck():
+    """Referees and card predictions: is the referee used, how often is he known before kick-off."""
+    c = con()
+    act = c.execute("SELECT version, params FROM model_runs WHERE active=1").fetchone()
+    params = _json.loads(act["params"] or "{}") if act else {}
+    up = c.execute("""SELECT COUNT(*) n, SUM(referee IS NOT NULL AND referee != '') r,
+                             SUM(date_utc < datetime('now', '+1 day')) n24,
+                             SUM(date_utc < datetime('now', '+1 day') AND referee IS NOT NULL AND referee != '') r24
+                      FROM matches WHERE status IN ('NS','TBD') AND date_utc < datetime('now', '+7 day')""").fetchone()
+    picks = []
+    for p in c.execute("""SELECT p.match_id, p.data FROM predictions p JOIN matches m ON m.id=p.match_id
+                          JOIN model_runs r ON r.version=p.version AND r.active=1
+                          WHERE p.kind='live' AND m.status IN ('NS','TBD')"""):
+        d = _json.loads(p["data"]).get("cards") or {}
+        picks.append(d.get("ref"))
+    bets = [dict(x) for x in c.execute("""SELECT m.referee, p.result, COUNT(*) n FROM picks p JOIN matches m ON m.id=p.match_id
+                          WHERE p.kind='live' AND p.tab='bet_on' AND p.market='cards' GROUP BY m.referee IS NULL OR m.referee='', p.result""")]
+    return {"version": act["version"] if act else None,
+            "cards_groups": (params.get("cards") or {}).get("feat"),
+            "upcoming_7d": {"matches": up["n"], "with_referee": up["r"], "next_24h": up["n24"], "next_24h_with_referee": up["r24"]},
+            "predictions_cards_ref_used": {"yes": picks.count(True), "no": picks.count(False), "not_in_model": picks.count(None)},
+            "card_bets_by_result": bets}
+
+
 @r.get("/api/admin/analysis/{kind}")
 def admin_analysis(kind: str):
     """The last saved analysis of a kind (experiments, histvalue, factors, teams ...)."""
