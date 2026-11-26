@@ -298,8 +298,11 @@ def predict_match(fits, league, home, away, feat=None):
             continue
         mh, ma = f.mu(league, home, away, feat)
         out[s] = {"eh": round(mh, 3), "ea": round(ma, 3), "ph": _trim(f.pmf(mh, home)), "pa": _trim(f.pmf(ma, away))}
-        if "ref" in f.cols.get("groups", []):    # was this referee's own record used? (known, enough games)
+        gr = f.cols.get("groups", [])
+        if "ref" in gr:                          # was this referee's own record used? (known, enough games)
             out[s]["ref"] = (feat or {}).get("ref") in f.cols.get("ref", {})
+        elif "auto_ref_cards" in gr or "auto_ref_fouls" in gr:   # or his card / foul rate (known, 8+ games)
+            out[s]["ref"] = any((feat or {}).get(k) is not None for k in ("ref_cards", "ref_fouls"))
     if "goals" in out:
         g = out["goals"]
         M = np.outer(np.array(g["ph"]), np.array(g["pa"]))

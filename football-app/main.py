@@ -740,13 +740,20 @@ def admin_refcheck():
                           WHERE p.kind='live' AND m.status IN ('NS','TBD')"""):
         d = _json.loads(p["data"]).get("cards") or {}
         picks.append(d.get("ref"))
-    bets = [dict(x) for x in c.execute("""SELECT m.referee, p.result, COUNT(*) n FROM picks p JOIN matches m ON m.id=p.match_id
-                          WHERE p.kind='live' AND p.tab='bet_on' AND p.market='cards' GROUP BY m.referee IS NULL OR m.referee='', p.result""")]
+    from telegram import NEW_RULE_FROM
+    bets = {}
+    for x in c.execute("""SELECT (m.referee IS NOT NULL AND m.referee != '') known, p.result, p.price, p.made_at
+                          FROM picks p JOIN matches m ON m.id=p.match_id
+                          WHERE p.kind='live' AND p.tab='bet_on' AND p.market='cards' AND p.result IN ('won','lost')"""):
+        for per in ("all", "since_10_nov") if x["made_at"] >= NEW_RULE_FROM else ("all",):
+            o = bets.setdefault(f"{per} / referee {'known' if x['known'] else 'unknown'}", {"bets": 0, "won": 0, "units": 0.0})
+            o["bets"] += 1; o["won"] += x["result"] == "won"
+            o["units"] = round(o["units"] + ((x["price"] - 1) if x["result"] == "won" else -1), 2)
     return {"version": act["version"] if act else None,
             "cards_groups": (params.get("cards") or {}).get("feat"),
             "upcoming_7d": {"matches": up["n"], "with_referee": up["r"], "next_24h": up["n24"], "next_24h_with_referee": up["r24"]},
             "predictions_cards_ref_used": {"yes": picks.count(True), "no": picks.count(False), "not_in_model": picks.count(None)},
-            "card_bets_by_result": bets}
+            "card_bets": bets}
 
 
 @r.get("/api/admin/analysis/{kind}")
