@@ -724,6 +724,64 @@ def admin_telegram(body: dict):
     return {"ok": True}
 
 
+@r.get("/api/admin/comeback")
+def admin_comeback(fav: float = 0.70):
+    """Big favourites (Pinnacle closing chance >= fav) that concede the first goal: how often do they still win?
+    By the minute of that goal. From stored goal events + football-data.co.uk prices (top 5 leagues, 2021+)."""
+    c = con()
+    pin = {}
+    for r in c.execute("SELECT match_id, side, price FROM odds_hist WHERE bookmaker='Pinnacle' AND timing='close' AND market='1x2'"):
+        pin.setdefault(r[0], {})[r[1]] = r[2]
+    ev = {}
+    for r in c.execute("SELECT match_id, team_id, minute, extra, detail FROM events WHERE type='Goal' AND detail != 'Missed Penalty' "
+                       "ORDER BY match_id, minute, COALESCE(extra,0)"):
+        ev.setdefault(r[0], []).append((r[1], (r[2] or 0) + (r[3] or 0) / 100.0, r[4]))
+    ms = {r[0]: r for r in c.execute("SELECT id, home_id, away_id, ft_home, ft_away FROM matches WHERE status IN ('FT','AET','PEN')")}
+    # which way are own goals filed? pick the reading that reproduces the final scores more often
+    def scorer(team, detail, home, away, own_flip):
+        if detail == "Own Goal" and own_flip:
+            return away if team == home else home
+        return team
+    best = None
+    for flip in (False, True):
+        ok = 0
+        for mid, gs in ev.items():
+            m = ms.get(mid)
+            if not m: continue
+            h = sum(1 for t, _, d in gs if scorer(t, d, m[1], m[2], flip) == m[1]); a = len(gs) - h
+            ok += (h, a) == (m[3], m[4])
+        if best is None or ok > best[1]: best = (flip, ok)
+    flip = best[0]
+    bands = {"1-15": (0, 15), "16-30": (15, 30), "31-45": (30, 46), "46-60": (46, 60), "61-75": (60, 75), "76+": (75, 200)}
+    out = {b: {"n": 0, "fav_won": 0, "draw": 0, "fav_lost": 0, "pre_match_fair": 0.0} for b in bands}
+    total = {"favourites": 0, "conceded_first": 0}
+    for mid, o in pin.items():
+        m = ms.get(mid)
+        if not m or len(o) < 3 or m[3] is None: continue
+        inv = {k: 1 / v for k, v in o.items()}; sm = sum(inv.values())
+        fair = {k: v / sm for k, v in inv.items()}
+        side = "home" if fair.get("home", 0) >= fav else "away" if fair.get("away", 0) >= fav else None
+        if not side: continue
+        total["favourites"] += 1
+        gs = ev.get(mid) or []
+        if not gs: continue
+        favt = m[1] if side == "home" else m[2]
+        first_t, minute, d = gs[0]
+        if scorer(first_t, d, m[1], m[2], flip) == favt: continue
+        total["conceded_first"] += 1
+        b = next(k for k, (lo, hi) in bands.items() if lo < minute <= hi or (lo == 0 and minute <= hi))
+        fg, og = (m[3], m[4]) if side == "home" else (m[4], m[3])
+        x = out[b]; x["n"] += 1; x["pre_match_fair"] += fair[side]
+        x["fav_won" if fg > og else "draw" if fg == og else "fav_lost"] += 1
+    for x in out.values():
+        if x["n"]:
+            x["fav_win_pct"] = round(100 * x["fav_won"] / x["n"], 1)
+            x["fair_price_fav_win"] = round(x["n"] / x["fav_won"], 2) if x["fav_won"] else None
+            x["pre_match_fair"] = round(100 * x["pre_match_fair"] / x["n"], 1)
+    return {"favourite_if_pinnacle_chance_at_least": fav, "own_goals_filed_under_other_team": flip,
+            "events_matching_final_score": best[1], "totals": total, "first_goal_by_underdog_minute": out}
+
+
 @r.get("/api/admin/liveprobe")
 def admin_liveprobe():
     """What does the feed give during a match? Live fixtures of our competitions, their live stats and live odds
