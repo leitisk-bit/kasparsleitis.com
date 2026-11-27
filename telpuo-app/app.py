@@ -584,9 +584,14 @@ def api_three(mid):
             if 'piece' not in x:
                 ids = [i for i, pc in enumerate(pieces) if pc['floor'] == x['floor']]
                 if len(ids) == 1: x['wp'] = ids[0]
-    warps, place = _warps3d(mid, m, texs, pieces)
+    # The real-heights 3D (floors at the watches' heights, the ground's shape, floors bent letter onto letter,
+    # stairs at their real angle) is for the outdoor site only (Mezaparks). Every other map is drawn as before
+    # it: floors stacked 3.7 m apart, stairwells as shafts (Kaspars, 27 Nov).
+    out_ = outdoor_site(m)
+    warps, place = _warps3d(mid, m, texs, pieces) if out_ else ([], None)
     return jsonify(mpp=(m.get('scale') or 1000) / (300 / 0.0254), floorH=t.get('floorH', 3.7), offsets=t['offsets'], pieces=pieces,
-                   levels=_levels3d(mid), heights=_lidar_heights(mid, m, _heights3d(mid, m, t), texs, pieces, place), warps=warps,
+                   levels=_levels3d(mid) if out_ else None,
+                   heights=_lidar_heights(mid, m, _heights3d(mid, m, t), texs, pieces, place) if out_ else None, warps=warps,
                    tex=[dict(x, img=tx(x)) for x in texs],
                    controls=three.controls(feat, {_fnum(k): v for k, v in t['offsets'].items()}, pieces), title=m.get('name', ''),
                    stairs=_site_stairs(m, [dict(x) for x in _stairs3d(mid, int(m.get('built') or 0), {_fnum(k): v for k, v in t['offsets'].items()}, pieces, place)],
@@ -595,6 +600,11 @@ def api_three(mid):
 # The only maps whose ground in 3D may be shaped by the runners' watch readings (GPS / altitude): maps with
 # an outdoor part. Kaspars, 26 Nov: TELPO 2026 2. posms (Mezaparks) only; no other map uses watch GPS.
 WATCH_GROUND = [re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\b', re.I)]
+
+def outdoor_site(m):
+    """A site with an outdoor part (Mezaparks): the only kind drawn at real heights in 3D."""
+    n = (m or {}).get('name') or ''
+    return bool(site_shape_of(m) or any(rx.search(n) for rx in WATCH_GROUND) or any(rx.search(n) for rx, _ in SITE_STAIRS))
 
 _HGRID = {}
 def _heights3d(mid, m, t):
@@ -733,7 +743,7 @@ _STAIRS = {}
 def _stairs3d(mid, built, off, pieces=None, place=None):
     """Stairwells for the 3D view: one piece per letter between two floors it links, at the stairwell's
     place on each floor (lined up like the floor textures)."""
-    key = (mid, built)
+    key = (mid, built, place is not None)
     if key in _STAIRS: return _STAIRS[key]
     out = []
     try:
