@@ -611,9 +611,11 @@ def _heights3d(mid, m, t):
         for r in runs:
             samples += (store.get_run(r['id']) or {}).get('hsamples') or []
         shape = site_shape_of(m)
-        if not shape and not any(rx.search(m.get('name') or '') for rx in WATCH_GROUND):
-            return None           # indoors: every floor flat at its level (watch altitude would make it wave)
+        outdoor = shape or any(rx.search(m.get('name') or '') for rx in WATCH_GROUND)
         g = three.height_grids(t['tex'], t['pieces'], samples) or []
+        if not outdoor:           # indoors: each building piece flat at its own measured height (its stairs are built
+            for x in g:           # against that), never bent by watch noise (that made the floors wave)
+                h = float(np.median(x['h'])); x['h'] = [round(h, 2)] * len(x['h'])
         if shape:                         # the site's known shape where given; the watches elsewhere
             sg = three.shape_grids(t['tex'], t['pieces'], shape)
             g = sg      # (the other pieces are floors inside buildings: flat at their level, not bent by watch noise)
