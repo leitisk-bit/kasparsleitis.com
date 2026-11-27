@@ -1,1 +1,1 @@
-{"n": 189, "commit": "f984410", "date": "2026-11-27T13:07:47+02:00", "change": "3D indoors: each building piece flat at its own measured height"}
+{"n": 190, "commit": "c52d1dd", "date": "2026-11-27T13:20:04+02:00", "change": "3D: real-heights drawing only for the outdoor site (Mezaparks)"}
