@@ -741,6 +741,12 @@ def build(img, features, progress=None):
         inside = np.zeros((y1 - y0, x1 - x0), bool)
         for b in boxes: inside[max(0, b[1] - y0):b[3] - y0, max(0, b[0] - x0):b[2] - x0] = True
         Wm = walk[y0:y1, x0:x1] & inside
+        def _blocked_side(p_, q_):
+            def o_(a1, a2, a3): return (a2[0] - a1[0]) * (a3[1] - a1[1]) - (a2[1] - a1[1]) * (a3[0] - a1[0])
+            for ln in list(features.get('tape_lines', [])) + list(features.get('wall_lines', [])):
+                c1, c2 = (ln[0], ln[1]), (ln[2], ln[3])
+                if o_(p_, q_, c1) * o_(p_, q_, c2) < 0 and o_(c1, c2, p_) * o_(c1, c2, q_) < 0: return True
+            return False
         for i, ow in enumerate(features.get('oneways', [])):
             if ow.get('floor') != fl: continue
             a, b, c, d = ow['box']
@@ -772,6 +778,10 @@ def build(img, features, progress=None):
                             if j - run >= 10:
                                 mid = start + (run + j) // 2
                                 px_, py_ = (mid, fixed) if kind == 'h' else (fixed, mid)
+                                # not through a tape or a wall between the lane and the opening (RK 2026 5. posms
+                                # floor 2: the tape along the lane by N, the I corridor beyond it)
+                                qx_, qy_ = ((mid, (b + d) / 2) if kind == 'h' else ((a + c) / 2, mid))
+                                if _blocked_side((qx_, qy_), (px_, py_)): run = None; continue
                                 nm = f'{fl}_ow{i}_s{k_}'; k_ += 1
                                 N[nm] = (fl, int(px_), int(py_))
                                 along = (lambda q: q[1]) if kind == 'h' else (lambda q: q[2])
