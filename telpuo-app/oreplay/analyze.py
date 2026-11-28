@@ -311,6 +311,22 @@ def analyze(pdf_path, page=0):
         if set(kinds) == {'c'} and 6 < r.width < 30 and abs(r.width - r.height) < 1.5: circ_c[sc] += 1
     course_col = circ_c.most_common(1)[0][0] if circ_c else None
     extra_tape = [c for c, n in all_c.items() if course_col and n >= 3 and not circ_c.get(c) and not _near(c, course_col, 20)]
+    # Tape in the very same purple as the course (RK 2026 5. posms: both 154,37,143): told apart by the stroke -
+    # the circles and the legs between them are thin (1 pt), the tape straight and twice as thick (2 pt, the
+    # barrier with posts above Z on floor 2). Only when the legs really are drawn at the circles' width.
+    if course_col:
+        cw0 = [d.get('width') or 0 for d in drawings if _rgb(d.get('color')) == course_col and not d.get('fill')
+               and set(i[0] for i in d['items']) == {'c'} and 6 < d['rect'].width < 30]
+        cw0 = float(np.median(cw0)) if cw0 else 0
+        same_w = sum(1 for d in drawings if _rgb(d.get('color')) == course_col and not d.get('fill')
+                     and set(i[0] for i in d['items']) == {'l'} and cw0 and abs((d.get('width') or 0) - cw0) < 0.25 * cw0)
+        if cw0 and same_w >= 3:
+            n_thick = 0
+            for d in drawings:
+                if _rgb(d.get('color')) == course_col and not d.get('fill') and set(i[0] for i in d['items']) == {'l'} \
+                        and (d.get('width') or 0) >= 1.6 * cw0:
+                    d['color'] = (40 / 255, 0, 1.0); n_thick += 1       # (a tape colour from here on)
+            if n_thick: f['notes'].append(f'{n_thick} thick purple line(s) in the course colour taken as tape.')
     if extra_tape: f['notes'].append('Tape drawn in ' + ', '.join(str(c) for c in extra_tape) + ' (course in ' + str(course_col) + ').')
     def is_tape_(c, _t=_is_tape): return _t(c) or any(_near(c, e, 12) for e in extra_tape)
     def is_course_(c, _c=_is_course): return _c(c) and not any(_near(c, e, 12) for e in extra_tape)
