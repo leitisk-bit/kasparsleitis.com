@@ -1,1 +1,1 @@
-{"n": 193, "commit": "951cc26", "date": "2026-11-28T17:46:03+02:00", "change": "Map reading: one character shift per font for single-figure floor numbers"}
+{"n": 194, "commit": "666e32b", "date": "2026-11-28T18:54:35+02:00", "change": "Map reading: circles the course lines did not reach are placed by their printed numbers"}
