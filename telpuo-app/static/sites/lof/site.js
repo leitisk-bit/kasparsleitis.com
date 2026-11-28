@@ -4,7 +4,7 @@
    grouped under it, and the latest news from telpuorientesanas.lv. A stage's maps are those in the folder
    "<season> N. posms" (from the map name, e.g. "RK 2026 4. posms A"). Maps in no stage stay in the plain list. */
 (function () {
-  var V = '?v=10', D = 'static/sites/lof/';
+  var V = '?v=11', D = 'static/sites/lof/';
   var EV = null, NEWS = [], OPEN = {};
   var COLORS = ['#E05A12', '#A3309B', '#1F6FE0', '#1E7F4E', '#C2410C', '#0E7490', '#7C3AED', '#B45309'];
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
@@ -36,15 +36,25 @@
     var s = String(m.name || '').replace(/^.*?\d+\.\s*posms\s*[·\-–]?\s*/i, '').replace(/^[·\-–\s]+/, '').trim();
     return s || m.name || '';
   }
+  // the courses of every stage, in this order; an older map name (A, Berni A, Easy...) fills its course's place
+  var COURSES = [
+    {name: 'Garā A',  c: '#E05A12', alias: ['garaa', 'a']},
+    {name: 'Garā B',  c: '#A3309B', alias: ['garab', 'b']},
+    {name: 'Bērnu A', c: '#1F6FE0', alias: ['bernua', 'bernia']},
+    {name: 'Bērnu B', c: '#1E7F4E', alias: ['bernub', 'bernib']},
+    {name: 'Vieglā',  c: '#0E7490', alias: ['viegla', 'easy']}
+  ];
+  function key(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+  function courseIdx(m) { var k = key(courseOf(m)); for (var i = 0; i < COURSES.length; i++) if (COURSES[i].alias.indexOf(k) >= 0) return i; return -1; }
+
   function picture(e) {
     if (e.img) return e.img;
     var p = NEWS.filter(function (x) { return x.stage === e.n && x.img; })[0];
     return p ? p.img : '';
   }
 
-  function upload(file, e, tile) {
-    var c = window.prompt(T('Course name for this map (e.g. A, B, Bērni A):'), '');
-    if (c == null || !c.trim()) return;
+  function upload(file, e, tile, c) {
+    if (!c) { c = window.prompt(T('Course name for this map (e.g. A, B, Bērni A):'), ''); if (c == null || !c.trim()) return; }
     var fd = new FormData();
     fd.append('pdf', file);
     fd.append('name', EV.season + ' ' + e.n + '. posms ' + c.trim());
@@ -104,15 +114,24 @@
       EV.events.forEach(function (e) {
         var ms = (by[e.n] || []).sort(function (x, y) { return String(x.name).localeCompare(String(y.name), 'lv', {numeric: true}); });
         var on = ms.length > 0 || admin, open = on && OPEN[e.n], img = picture(e);
-        var tiles = ms.map(function (m, i) {
-          var c = COLORS[i % COLORS.length];
+        var slot = COURSES.map(function () { return null; }), extra = [];
+        ms.forEach(function (m) { var i = courseIdx(m); if (i >= 0 && !slot[i]) slot[i] = m; else extra.push(m); });
+        function tile(m, c, label) {
           return '<a href="#map-' + esc(m.id) + '" class="opt on" style="--c:' + c + '"><span class="opt-bar"></span>' +
-            '<b class="opt-name" data-noi18n>' + esc(courseOf(m, e.n)) + (m.published === false ? ' · draft' : '') + '</b>' +
+            '<b class="opt-name" data-noi18n>' + esc(label) + (m.published === false ? ' · draft' : '') + '</b>' +
             '<span class="opt-who">' + (m.controls || 0) + ' KP · ' + (m.floors || []).length + ' ' + esc(T('floors')) + ' · ' + (m.runs || 0) + ' ' + esc(T(m.runs === 1 ? 'run' : 'runs')) + '</span>' +
             '<span class="opt-state">' + esc(T('Open map →')) + '</span></a>';
-        }).join('');
+        }
+        var tiles = COURSES.map(function (k, i) {
+          if (slot[i]) return tile(slot[i], k.c, k.name);
+          if (admin) return '<label class="opt up" style="--c:' + k.c + '"><span class="opt-bar"></span><b class="opt-name" data-noi18n>' + esc(k.name) + '</b>' +
+            '<span class="opt-who">' + esc(T('No map yet')) + '</span><span class="opt-state">' + esc(T('Upload the map PDF')) + '</span>' +
+            '<input type="file" accept=".pdf,application/pdf" hidden data-stage="' + e.n + '" data-course="' + esc(k.name) + '"></label>';
+          return '<div class="opt soon" style="--c:#9AA3B5"><span class="opt-bar"></span><b class="opt-name" data-noi18n>' + esc(k.name) + '</b>' +
+            '<span class="opt-who">' + esc(T('No map yet')) + '</span><span class="opt-state">' + esc(T('Maps coming soon')) + '</span></div>';
+        }).join('') + extra.map(function (m, i) { return tile(m, COLORS[(i + 5) % COLORS.length], courseOf(m)); }).join('');
         if (admin) tiles += '<label class="opt up" style="--c:#14294B"><span class="opt-bar"></span><b class="opt-name">' + esc(T('Add a map')) + '</b>' +
-          '<span class="opt-who">' + esc(T('One PDF per course')) + '</span><span class="opt-state">' + esc(T('Upload the map PDF')) + '</span>' +
+          '<span class="opt-who">' + esc(T('Another course (you name it)')) + '</span><span class="opt-state">' + esc(T('Upload the map PDF')) + '</span>' +
           '<input type="file" accept=".pdf,application/pdf" hidden data-stage="' + e.n + '"></label>';
         var pic = img ? '<img src="' + esc(img) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.outerHTML=\'<span class=stage-art><b>' + e.n + '</b></span>\'">'
                       : '<span class="stage-art"><b>' + e.n + '</b></span>';
@@ -138,7 +157,7 @@
       b.querySelectorAll('.opt.up input[type=file]').forEach(function (inp) {
         inp.onchange = function () {
           var e = EV.events.filter(function (x) { return x.n === +inp.dataset.stage; })[0];
-          if (inp.files[0] && e) upload(inp.files[0], e, inp.closest('.opt'));
+          if (inp.files[0] && e) upload(inp.files[0], e, inp.closest('.opt'), inp.dataset.course);
           inp.value = '';
         };
       });

@@ -309,7 +309,7 @@
     'Final · Latvian Championship': 'Fināls · Latvijas čempionāts', 'Other maps': 'Citas kartes', 'Choose a course': 'Izvēlies distanci',
     'Add maps': 'Pievienot kartes', 'One PDF per course': 'Viens PDF katrai distancei', 'Date to be announced': 'Datums tiks paziņots',
     'runners': 'dalībnieki', 'floors': 'stāvi', 'run': 'skrējiens', 'runs': 'skrējieni', 'News and pictures': 'Jaunumi un attēli', 'From': 'No',
-    'route replays': 'maršrutu atkārtojumi', 'Photo': 'Foto', 'Course name for this map (e.g. A, B, Bērni A):': 'Distances nosaukums šai kartei (piem., A, B, Bērni A):',
+    'route replays': 'maršrutu atkārtojumi', 'Photo': 'Foto', 'No map yet': 'Kartes vēl nav', 'Another course (you name it)': 'Cita distance (nosaukumu ievadi pats)', 'Course name for this map (e.g. A, B, Bērni A):': 'Distances nosaukums šai kartei (piem., A, B, Bērni A):',
     "Rīgas telpu orientēšanās kauss: six indoor stages in Riga's universities and schools, organised with the Latvian Orienteering Federation (LOF). Open a stage to see its maps and replay the runs, floor by floor and in 3D.":
       'Rīgas telpu orientēšanās kauss: seši posmi Rīgas augstskolās un skolās, sadarbībā ar Latvijas Orientēšanās federāciju (LOF). Atver posmu, lai redzētu tā kartes un atkārtotu skrējienus pa stāviem un 3D.',
     'Maps and route replays of the Riga Indoor Orienteering Cup. Event information and pictures: telpuorientesanas.lv.': 'Rīgas telpu orientēšanās kausa kartes un maršrutu atkārtojumi. Sacensību informācija un attēli: telpuorientesanas.lv.',
