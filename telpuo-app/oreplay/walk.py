@@ -1017,6 +1017,32 @@ def build(img, features, progress=None):
             E.append((other, me, 0.0, nfl, True)); E.append((me, other, 0.0, nfl, True))
             d_ = math.hypot(N[me][1] - xc, N[me][2] - yc); add(c_, me, d_, 0); add(me, c_, d_, 0)
             break
+    # A stairwell closed at a floor (a purple bar across its door: U on floor 7 of RK 2026 5. posms) is still
+    # passed inside when it is the only way to part of the map: floor 8 and 5-35 are reached only up U. Where
+    # the stairs beyond can be reached some other way the stairwell stays closed (J on floor 3 of 4. posms).
+    def _reach(src):
+        adj_ = collections.defaultdict(list)
+        for u_, v_, *_ in E: adj_[u_].append(v_)
+        seen_, st_ = {src}, [src]
+        while st_:
+            for v_ in adj_[st_.pop()]:
+                if v_ not in seen_: seen_.add(v_); st_.append(v_)
+        return seen_
+    src_ = names[0] if names and names[0] in N else None
+    for _round in range(10):
+        if not src_: break
+        seen_ = _reach(src_)
+        if all(c_ in seen_ for c_ in names if c_ in N): break
+        joined_ = False
+        for n_ in list(N):
+            q_ = n_.split('_')
+            if len(q_) != 3 or q_[2] != 'up' or n_ in seen_: continue
+            o_ = f'{q_[0]}_{q_[1]}_dn'
+            if o_ not in seen_: continue                     # arrived here (dn), cannot go on up (up)
+            d_ = math.hypot(N[n_][1] - N[o_][1], N[n_][2] - N[o_][2])
+            if d_ >= 150: continue
+            add(o_, n_, d_, 0); add(n_, o_, d_, 0); joined_ = True
+        if not joined_: break
     # floors stacked over one footprint (each floor a full plan of about the same size: Jelgava) or parts
     # of a site at their own heights (one huge floor beside small ones: Mežaparks)
     area = {}
