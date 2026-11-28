@@ -996,6 +996,27 @@ def build(img, features, progress=None):
                 if 0 <= yq < same.shape[0] and 0 <= xq < same.shape[1] and same[yq, xq]: hit = True; break
             if hit: break
         if hit: steps.append([u, v])
+    # A floor that is only a stairwell's top (or bottom) landing, no corridor to walk (RK 2026 5. posms floor 8:
+    # U's top landing with 5-35 on it): its control gets no paths. Link it to the stair letter printed beside it,
+    # and that stairwell to the same letter on the nearest floor below (or above), as a flight.
+    linked = {u_ for u_, v_, *_ in E} | {v_ for u_, v_, *_ in E}
+    for c_ in names:
+        if c_ not in N or c_ in linked: continue
+        fc, xc, yc = N[c_]
+        labs_ = sorted((math.hypot(s_['x'] - xc, s_['y'] - yc), s_) for s_ in features.get('stair_labels', []) if s_.get('floor') == fc)
+        for dist_, s_ in labs_:
+            if dist_ > 250: break
+            L_ = s_['letter']
+            below = [N[n_][0] for n_ in N if n_.split('_')[1:] == [L_, 'up'] and N[n_][0] < fc]
+            above = [N[n_][0] for n_ in N if n_.split('_')[1:] == [L_, 'dn'] and N[n_][0] > fc]
+            if below: g_ = max(below); me, other = f'{fnum(fc)}_{L_}_dn', f'{fnum(g_)}_{L_}_up'
+            elif above: g_ = min(above); me, other = f'{fnum(fc)}_{L_}_up', f'{fnum(g_)}_{L_}_dn'
+            else: continue
+            if me not in N: N[me] = (fc, int(s_['x']), int(s_['y']))
+            nfl = abs(round(fc - g_)) or 1
+            E.append((other, me, 0.0, nfl, True)); E.append((me, other, 0.0, nfl, True))
+            d_ = math.hypot(N[me][1] - xc, N[me][2] - yc); add(c_, me, d_, 0); add(me, c_, d_, 0)
+            break
     # floors stacked over one footprint (each floor a full plan of about the same size: Jelgava) or parts
     # of a site at their own heights (one huge floor beside small ones: Mežaparks)
     area = {}
