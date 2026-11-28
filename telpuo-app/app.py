@@ -399,7 +399,10 @@ def step_areas_of(m):
 
 # stair points set per map where the reading puts one inside its stair (Kaspars, 2. posms Garā B: E from
 # floor -1 comes out at the bottom of its box, onto the field, and the choir stand leads up to 7-61)
-STAIR_POINTS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), {'1_E_dn': [2594, 2496]})]
+STAIR_POINTS = [(re.compile(r'^\s*TELPO\s+2026\s+2\.\s*posms\s+Gar.\s*B\b', re.I), {'1_E_dn': [2594, 2496]}),
+                # RK 2026 5. posms Garā A, floor 2: I is got on by its right-hand flight, from beside it (the lower
+                # crossing's north arm); the reading put its point in the closed left part (Kaspars: N, I, U, Z, L)
+                (re.compile(r'^\s*RK\s+2026\s+5\.\s*posms\s+Gar.\s*A\b', re.I), {'2_I_up': [2452, 2475]})]
 def stair_points_of(m):
     nm = (m or {}).get('name') or ''
     return next((v for rx, v in STAIR_POINTS if rx.search(nm)), None)
