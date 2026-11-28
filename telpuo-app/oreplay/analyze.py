@@ -224,6 +224,17 @@ def text_spans(p, want):
         if sp['font'] in shift or len(t) < 2 or not all(ord(c) < 0x30 for c in t): continue
         for sh in range(1, 64):
             if num.fullmatch(''.join(chr(ord(c) + sh) for c in t)): shift[sp['font']] = sh; break
+    # a font whose numbers are all single figures (floor numbers "\x13".."\x1b": RK 2026 5. posms): one shift for
+    # the whole font that reads every one of them as a figure, not each one alone (that read them all as "0")
+    fig = re.compile(r'-?\d{1,2}\.?')
+    low = collections.defaultdict(set)
+    for sp in spans:
+        t = sp['text'].strip(' \t\r\n')
+        if sp['font'] not in shift and t and all(ord(c) < 0x30 for c in t): low[(sp['font'], round(sp['size']))].add(t)
+    for (fnt, _sz), ts in low.items():          # (by size: the same font also holds the small stair letters)
+        if len(ts) < 2 or fnt in shift: continue
+        ok = [sh for sh in range(1, 64) if all(fig.fullmatch(''.join(chr(ord(c) + sh) for c in t)) for t in ts)]
+        if ok: shift[fnt] = 29 if 29 in ok else ok[0]       # (the usual numbering: digits from \x13)
     for sp in spans:
                 t = sp['text'].strip(' \t\r\n')
                 # a font whose numbering is known is always read through it (raw 'D' there is 'a': TELPO 2. posms)
