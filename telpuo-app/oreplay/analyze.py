@@ -434,8 +434,14 @@ def analyze(pdf_path, page=0):
     for k, i in enumerate(order):
         kind, x, y, r = nodes[i]
         f['controls'].append({'kind': {'S': 'start', 'C': 'control', 'F': 'finish'}[kind], 'n': k, 'x': round(x), 'y': round(y), 'r': round(r)})
+    lost_note = None
     if len(order) < len(nodes):
-        f['notes'].append(f'{len(nodes) - len(order)} course symbol(s) could not be put in order; check the control list.')
+        lost_note = f'{len(nodes) - len(order)} course symbol(s) could not be put in order; check the control list.'
+        f['notes'].append(lost_note)
+    # circles the lines did not lead to (RK 2026 5. posms: 5-35 on the small floor 8, 6-34): their printed
+    # numbers may still place them (below)
+    lost = [{'kind': 'control', 'n': None, 'x': round(nodes[i][1]), 'y': round(nodes[i][2]), 'r': round(nodes[i][3])}
+            for i in range(len(nodes)) if i not in order and nodes[i][0] == 'C']
     # the number printed beside each circle ("1-31", "2-51", …) says its place in the course for sure; when
     # every control has one of its own, it decides the order (lines between floor drawings that cross
     # each other mislead the order from the lines: TELPO 2. posms)
@@ -444,8 +450,9 @@ def analyze(pdf_path, page=0):
         for t, rgb, size, bb in text_spans(p, r'\d{1,2}-\d{2,3}'):
             if rgb == (255, 255, 255): continue                  # the white halo under the purple text
             n_, code_ = t.split('-'); labs.setdefault(int(n_), ((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, code_))
-        cs = [c for c in f['controls'] if c['kind'] == 'control']
-        if cs and len(labs) >= len(cs):
+        cs0 = [c for c in f['controls'] if c['kind'] == 'control']
+        for cs in ([cs0 + lost, cs0] if lost else [cs0]):        # every circle first, then the chained ones only
+          if cs and len(labs) >= len(cs):
             pick = {}
             for c in cs:
                 best = min(labs.items(), key=lambda kv: math.hypot(kv[1][0] - c['x'], kv[1][1] - c['y']))
@@ -456,8 +463,11 @@ def analyze(pdf_path, page=0):
                 new = st + sorted(cs, key=lambda c: pick[id(c)]) + fi
                 if [id(c) for c in new] != [id(c) for c in f['controls']]:
                     f['notes'].append('Control order taken from the numbers printed beside the circles.')
+                if len(cs) > len(cs0) and lost_note in f['notes']:
+                    f['notes'].remove(lost_note)        # the numbers placed every circle
                 for k_, c in enumerate(new): c['n'] = k_
                 f['controls'] = new
+                break
     except Exception:
         pass
 
