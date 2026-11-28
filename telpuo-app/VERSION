@@ -1,1 +1,1 @@
-{"n": 194, "commit": "666e32b", "date": "2026-11-28T18:54:35+02:00", "change": "Map reading: circles the course lines did not reach are placed by their printed numbers"}
+{"n": 195, "commit": "772c6f0", "date": "2026-11-28T20:03:26+02:00", "change": "Route network: a floor that is only a stairwell landing is reached by its stairs"}
